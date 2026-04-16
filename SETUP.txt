@@ -1,17 +1,18 @@
-ARMEEBOX V1 STARTER - Setup
+ARMEEBOX STEP 1
 
-1. Entpacken.
-2. Datei .env.example kopieren als .env
-3. In .env einfuegen:
-   VITE_SUPABASE_URL=DEINE_URL
-   VITE_SUPABASE_ANON_KEY=DEIN_SB_PUBLISHABLE_KEY
-4. Projekt nach GitHub pushen.
-5. In Netlify neues Projekt mit GitHub Repo verbinden.
-6. Build command: npm run build
-7. Publish directory: dist
-8. Nach Deploy Domain spaeter verbinden.
+Inhalt:
+- Sprachwahl vor Intro
+- Intro DE/FR
+- Shop/Automat UI
+- Mobile sauberes Grid
+- Seiten: Grundidee / AGB / Kontakt
+- Rueckweg zum Shop
+
+Deploy:
+1. Dateien ins GitHub Repo laden
+2. Netlify baut mit: npm run build
+3. Publish directory: dist
 
 Hinweis:
-- Admin Login mit admin@armeebox.ch und dem Passwort aus Supabase Auth.
-- Dies ist der erste deploybare Starter-Stand.
-- E-Mail Versand und echte Zahlungsanbindung sind noch nicht live angeschlossen.
+Dies ist STEP 1 = UI / Navigation / Flow.
+Warenkorb-Logik, Checkout-Logik, Supabase-Datenbindung und Admin-Tools folgen in den naechsten Schritten.
