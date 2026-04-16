@@ -1,18 +1,12 @@
-ARMEEBOX STEP 1
+Upload to GitHub:
+- public/
+- src/
+- index.html
+- package.json
+- vite.config.js
+- netlify.toml
 
-Inhalt:
-- Sprachwahl vor Intro
-- Intro DE/FR
-- Shop/Automat UI
-- Mobile sauberes Grid
-- Seiten: Grundidee / AGB / Kontakt
-- Rueckweg zum Shop
-
-Deploy:
-1. Dateien ins GitHub Repo laden
-2. Netlify baut mit: npm run build
-3. Publish directory: dist
-
-Hinweis:
-Dies ist STEP 1 = UI / Navigation / Flow.
-Warenkorb-Logik, Checkout-Logik, Supabase-Datenbindung und Admin-Tools folgen in den naechsten Schritten.
+Do not upload:
+- node_modules/
+- dist/
+- .env
