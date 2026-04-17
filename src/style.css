@@ -11,6 +11,7 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
+html{scroll-behavior:smooth}
 body{
   min-height:100vh;
   font-family:Arial,Helvetica,sans-serif;
@@ -95,7 +96,7 @@ img{display:block;max-width:100%}
   padding:18px 26px;
   border-radius:18px;
   font-weight:800;
-  transition:transform .16s ease, opacity .16s ease, border-color .16s ease;
+  transition:transform .18s ease, opacity .18s ease, border-color .18s ease, background-color .18s ease, box-shadow .18s ease;
 }
 
 .lang-btn{
@@ -106,6 +107,12 @@ img{display:block;max-width:100%}
 
 .lang-btn:hover,
 .primary-btn:hover{transform:translateY(-1px)}
+
+.lang-btn.is-selected{
+  border-color:rgba(216,179,57,.65);
+  box-shadow:0 0 0 1px rgba(216,179,57,.22) inset, 0 10px 24px rgba(0,0,0,.28);
+  background:#1a2d53;
+}
 
 .primary-btn{
   background:var(--olive);
@@ -209,6 +216,62 @@ img{display:block;max-width:100%}
   color:#e7f1c7;
   font-size:14px;
   font-weight:700;
+}
+
+.screen-enter{
+  opacity:0;
+  transform:translateY(18px) scale(.992);
+  transition:opacity .32s ease, transform .32s ease;
+}
+
+.screen-enter.is-visible{
+  opacity:1;
+  transform:translateY(0) scale(1);
+}
+
+.screen-enter.is-leaving{
+  opacity:0;
+  transform:translateY(-10px) scale(.992);
+}
+
+.screen-enter-fast{transition-duration:.28s}
+
+.reveal-item{
+  opacity:0;
+  transform:translateY(20px);
+  transition:opacity .55s ease, transform .55s ease;
+}
+
+.screen-enter.is-visible .reveal-item,
+.screen-enter.is-visible.reveal-item{
+  opacity:1;
+  transform:translateY(0);
+}
+
+.reveal-item-1{transition-delay:.08s}
+.reveal-item-2{transition-delay:.16s}
+.reveal-item-3{transition-delay:.24s}
+.reveal-item-4{transition-delay:.34s}
+.reveal-item-5{transition-delay:.44s}
+
+.reveal-item-card{transition-delay:calc(90ms + (var(--card-delay) * 28ms))}
+
+.logo-pop{transform:translateY(20px) scale(.94)}
+.screen-enter.is-visible .logo-pop{
+  transform:translateY(0) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  .screen-enter,
+  .reveal-item,
+  .logo-pop,
+  .lang-btn,
+  .primary-btn{
+    transition:none !important;
+    transform:none !important;
+    opacity:1 !important;
+  }
 }
 
 @media (max-width: 1080px){
