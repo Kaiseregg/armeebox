@@ -3,7 +3,6 @@ import './style.css'
 const texts = {
   de: {
     choose: 'Sprache wählen',
-    chooseSub: 'Bitte zuerst deine Sprache auswählen.',
     deutsch: 'Deutsch',
     francais: 'Français',
     introTop: 'VIRTUELLER AUTOMAT FÜR FRESSPÄCKLI',
@@ -17,7 +16,6 @@ const texts = {
   },
   fr: {
     choose: 'Choisir la langue',
-    chooseSub: 'Veuillez d’abord choisir votre langue.',
     deutsch: 'Deutsch',
     francais: 'Français',
     introTop: 'AUTOMATE VIRTUEL POUR PAQUETS DU SOLDAT',
@@ -35,19 +33,18 @@ const products = [
   'Snack Box', 'Power Pack', 'Sweet Pack', 'Energy Pack', 'Classic Box',
   'Snack Box', 'Power Pack', 'Sweet Pack', 'Energy Pack', 'Classic Box',
   'Snack Box', 'Power Pack', 'Sweet Pack', 'Energy Pack', 'Classic Box'
-].map((title, i) => ({
-  slot: i + 1,
-  title
-}))
+].map((title, i) => ({ slot: i + 1, title }))
 
 const app = document.querySelector('#app')
 
 function getLang() {
   return localStorage.getItem('armeebox_lang') || null
 }
+
 function setLang(lang) {
   localStorage.setItem('armeebox_lang', lang)
 }
+
 function getText() {
   return texts[getLang() || 'de']
 }
@@ -65,21 +62,24 @@ function machineShell(content) {
 function renderLanguage() {
   const t = texts.de
   app.innerHTML = `
-    <section class="screen-center">
-      <div class="language-card">
-        <img class="language-logo" src="/logo.png" alt="ARMEEBOX" />
-        <h1>${t.choose}</h1>
-        <p class="small-note">${t.chooseSub}</p>
-        <div class="lang-buttons">
-          <button class="lang-btn" data-lang="de">Deutsch</button>
-          <button class="lang-btn" data-lang="fr">Français</button>
+    <section class="language-screen">
+      <div class="language-stage">
+        <div class="language-brand">
+          <img class="language-logo" src="/logo.png" alt="ARMEEBOX" />
+        </div>
+        <div class="language-panel">
+          <div class="eyebrow">ARMEEBOX.CH</div>
+          <h1>${t.choose}</h1>
+          <div class="lang-buttons">
+            <button class="lang-btn" data-lang="de">${t.deutsch}</button>
+            <button class="lang-btn" data-lang="fr">${t.francais}</button>
+          </div>
         </div>
       </div>
     </section>`
 
   app.querySelectorAll('[data-lang]').forEach(btn => btn.addEventListener('click', e => {
-    const lang = e.currentTarget.dataset.lang
-    setLang(lang)
+    setLang(e.currentTarget.dataset.lang)
     location.hash = '#intro'
     render()
   }))
@@ -88,7 +88,7 @@ function renderLanguage() {
 function renderIntro() {
   const t = getText()
   app.innerHTML = `
-    <section class="screen-center intro-screen">
+    <section class="intro-screen screen-center">
       <div class="intro-wrap">
         <div class="intro-topline">${t.introTop}</div>
         <img class="intro-logo" src="/logo.png" alt="ARMEEBOX" />

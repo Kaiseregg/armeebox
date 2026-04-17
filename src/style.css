@@ -1,8 +1,9 @@
 :root{
-  --bg:#06101f;
-  --panel:#0d1830;
-  --panel-2:#101a2f;
-  --line:#223454;
+  --bg:#050d1a;
+  --bg2:#07142a;
+  --panel:#0c1930;
+  --panel-2:#111f3b;
+  --line:#223657;
   --text:#eef3ff;
   --muted:#aeb9d3;
   --gold:#d8b339;
@@ -14,44 +15,106 @@ body{
   min-height:100vh;
   font-family:Arial,Helvetica,sans-serif;
   color:var(--text);
-  background:radial-gradient(circle at top,#0d1c38 0%,#06101f 58%,#030812 100%);
+  background:
+    radial-gradient(circle at top, rgba(12,33,74,.7), transparent 34%),
+    linear-gradient(180deg,var(--bg2) 0%,var(--bg) 56%,#030814 100%);
 }
 button{font:inherit;cursor:pointer}
 img{display:block;max-width:100%}
+
 .screen-center{
   min-height:100vh;
   display:grid;
   place-items:center;
   padding:24px;
 }
-.language-card,
+
+.language-screen{
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  padding:24px;
+}
+
+.language-stage,
 .intro-wrap,
 .machine-panel{
   width:min(1180px,100%);
-  background:linear-gradient(180deg,rgba(13,24,48,.96),rgba(9,18,35,.98));
+  background:linear-gradient(180deg,rgba(13,24,48,.96),rgba(8,17,34,.98));
   border:1px solid var(--line);
-  border-radius:28px;
-  box-shadow:0 24px 60px rgba(0,0,0,.35);
+  border-radius:30px;
+  box-shadow:0 24px 60px rgba(0,0,0,.34);
 }
-.language-card{
-  width:min(860px,100%);
+
+.language-stage{
+  width:min(760px,100%);
+  padding:28px 24px 34px;
+}
+
+.language-brand{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding-top:6px;
+}
+
+.language-logo{
+  width:min(310px,72vw);
+}
+
+.language-panel{
+  margin-top:18px;
+  padding:30px 20px 8px;
   text-align:center;
-  padding:40px 22px;
 }
-.language-logo{width:min(360px,72vw);margin:0 auto 26px}
-.language-card h1{margin:0;font-size:clamp(32px,5vw,48px)}
-.small-note{margin:14px 0 0;color:var(--muted);font-size:18px;line-height:1.5}
-.lang-buttons{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin-top:28px}
+
+.eyebrow,
+.intro-topline{
+  color:var(--gold);
+  letter-spacing:4px;
+  text-transform:uppercase;
+  font-size:clamp(12px,1.6vw,18px);
+}
+
+.language-panel h1{
+  margin:14px 0 0;
+  font-size:clamp(32px,5vw,48px);
+  line-height:1.08;
+}
+
+.lang-buttons{
+  display:flex;
+  justify-content:center;
+  gap:16px;
+  flex-wrap:wrap;
+  margin-top:30px;
+}
+
 .lang-btn,.primary-btn{
-  min-width:190px;
-  padding:18px 24px;
-  border-radius:16px;
-  border:1px solid var(--line);
-  font-weight:700;
+  min-width:200px;
+  padding:18px 26px;
+  border-radius:18px;
+  font-weight:800;
+  transition:transform .16s ease, opacity .16s ease, border-color .16s ease;
 }
-.lang-btn{background:#121f39;color:var(--text)}
-.primary-btn{background:var(--olive);color:#081019;border:none}
+
+.lang-btn{
+  background:#14223d;
+  color:var(--text);
+  border:1px solid var(--line);
+}
+
+.lang-btn:hover,
+.primary-btn:hover{transform:translateY(-1px)}
+
+.primary-btn{
+  background:var(--olive);
+  color:#081019;
+  border:none;
+}
+
 .intro-screen{padding-top:42px;padding-bottom:42px}
+
 .intro-wrap{
   min-height:78vh;
   display:flex;
@@ -59,29 +122,33 @@ img{display:block;max-width:100%}
   align-items:center;
   justify-content:center;
   text-align:center;
-  padding:42px 24px;
+  padding:46px 28px;
 }
-.intro-topline{
-  color:var(--gold);
-  letter-spacing:3px;
-  text-transform:uppercase;
-  font-size:clamp(12px,1.6vw,18px);
-  margin-bottom:18px;
+
+.intro-topline{margin-bottom:20px}
+
+.intro-logo{
+  width:min(430px,78vw);
+  margin:0 auto 24px;
 }
-.intro-logo{width:min(460px,82vw);margin:0 auto 22px}
+
 .intro-title{
   margin:0;
-  font-size:clamp(34px,6vw,78px);
+  max-width:980px;
+  font-size:clamp(40px,6vw,84px);
   line-height:1.02;
 }
+
 .intro-subtext{
-  max-width:920px;
-  margin:22px auto 30px;
+  max-width:900px;
+  margin:22px auto 34px;
   color:var(--muted);
-  font-size:clamp(18px,2.4vw,28px);
-  line-height:1.45;
+  font-size:clamp(20px,2.3vw,30px);
+  line-height:1.42;
 }
+
 .app-shell{min-height:100vh}
+
 .machine-header{
   height:86px;
   display:flex;
@@ -90,17 +157,23 @@ img{display:block;max-width:100%}
   border-bottom:1px solid var(--line);
   background:rgba(3,8,18,.92);
 }
+
 .header-logo{height:50px;width:auto}
+
 .wrap{width:min(1320px,96vw);margin:22px auto;padding-bottom:24px}
+
 .machine-panel{padding:24px}
+
 .machine-headline{text-align:left;margin-bottom:22px}
 .machine-headline h1{margin:0 0 8px;font-size:clamp(28px,4vw,44px)}
 .machine-headline p{margin:0;color:var(--muted);font-size:18px;line-height:1.5}
+
 .machine-grid{
   display:grid;
   grid-template-columns:repeat(5,minmax(0,1fr));
   gap:16px;
 }
+
 .slot-card{
   min-height:190px;
   border-radius:18px;
@@ -111,6 +184,7 @@ img{display:block;max-width:100%}
   flex-direction:column;
   justify-content:space-between;
 }
+
 .slot-number{
   width:54px;
   height:54px;
@@ -122,6 +196,7 @@ img{display:block;max-width:100%}
   font-weight:800;
   font-size:18px;
 }
+
 .slot-name{font-size:20px;font-weight:800;line-height:1.2;margin-top:18px}
 .slot-meta{color:var(--muted);font-size:14px;letter-spacing:1px;text-transform:uppercase;margin-top:10px}
 .slot-status{
@@ -135,19 +210,24 @@ img{display:block;max-width:100%}
   font-size:14px;
   font-weight:700;
 }
+
 @media (max-width: 1080px){
   .machine-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
+
 @media (max-width: 760px){
-  .screen-center{padding:16px}
-  .language-card,.intro-wrap,.machine-panel{border-radius:22px}
-  .language-card{padding:30px 16px}
-  .lang-btn,.primary-btn{width:100%}
+  .screen-center,.language-screen{padding:16px}
+  .language-stage,.intro-wrap,.machine-panel{border-radius:22px}
+  .language-stage{padding:20px 14px 22px}
+  .language-panel{padding:18px 10px 4px}
   .lang-buttons{flex-direction:column}
+  .lang-btn,.primary-btn{width:100%;min-width:0}
   .machine-header{height:74px;padding:12px 16px}
   .header-logo{height:42px}
   .wrap{width:min(94vw,100%);margin:16px auto}
   .machine-panel{padding:16px}
   .machine-grid{grid-template-columns:1fr}
   .slot-card{min-height:160px}
+  .intro-wrap{min-height:calc(100vh - 32px);padding:34px 18px}
+  .intro-subtext{font-size:22px;line-height:1.36}
 }
