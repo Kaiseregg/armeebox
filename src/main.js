@@ -10,7 +10,7 @@ const texts = {
     line2: 'Wir liefern dein Nachschub in die Kaserne und danach zu dir nach Hause',
     toMachine: 'Zum Automaten',
     machineTitle: 'ARMEEBOX Automat',
-    machineSub: 'Klare Slot-Ansicht ohne unnötige Elemente.',
+    machineSub: 'Klare Slot-Ansicht im Automatenstil.',
     slotLabel: 'SLOT',
     status: 'Verfügbar'
   },
@@ -23,7 +23,7 @@ const texts = {
     line2: 'Nous livrons ton ravitaillement à la caserne puis à ton domicile',
     toMachine: 'Vers l’automate',
     machineTitle: 'Automate ARMEEBOX',
-    machineSub: 'Vue des slots claire, sans éléments inutiles.',
+    machineSub: 'Vue des slots claire en style distributeur.',
     slotLabel: 'SLOT',
     status: 'Disponible'
   }
@@ -131,11 +131,18 @@ function renderIntro() {
 function renderShop() {
   const t = getText()
   const slots = products.map((p, index) => `
-    <article class="slot-card reveal-item reveal-item-card" style="--card-delay:${index};">
-      <div class="slot-number">${String(p.slot).padStart(2, '0')}</div>
-      <div class="slot-name">${p.title}</div>
-      <div class="slot-meta">${t.slotLabel} ${p.slot}</div>
-      <div class="slot-status">${t.status}</div>
+    <article class="slot-unit reveal-item reveal-item-card" style="--card-delay:${index};">
+      <div class="slot-window">
+        <div class="slot-badge">${String(p.slot).padStart(2, '0')}</div>
+        <div class="slot-body">
+          <div class="slot-name">${p.title}</div>
+          <div class="slot-meta">${t.slotLabel} ${p.slot}</div>
+        </div>
+      </div>
+      <div class="slot-rail"></div>
+      <div class="slot-statusbar">
+        <span class="slot-status">${t.status}</span>
+      </div>
     </article>
   `).join('')
 
@@ -145,8 +152,14 @@ function renderShop() {
         <h1>${t.machineTitle}</h1>
         <p>${t.machineSub}</p>
       </div>
-      <section class="machine-grid">
-        ${slots}
+      <section class="machine-cabinet reveal-item reveal-item-3">
+        <div class="machine-topbar">
+          <div class="machine-brandmark">ARMEEBOX</div>
+          <div class="machine-counter">15 SLOTS</div>
+        </div>
+        <section class="machine-grid">
+          ${slots}
+        </section>
       </section>
     </section>
   `)
