@@ -12,7 +12,9 @@ const texts = {
     machineTitle: 'ARMEEBOX Automat',
     machineSub: 'Klare Slot-Ansicht im Automatenstil.',
     slotLabel: 'SLOT',
-    status: 'Verfügbar'
+    status: 'Verfügbar',
+    machineMark: 'ARMEEBOX',
+    machineCount: '15 SLOTS'
   },
   fr: {
     choose: 'Choisir la langue',
@@ -25,7 +27,9 @@ const texts = {
     machineTitle: 'Automate ARMEEBOX',
     machineSub: 'Vue des slots claire en style distributeur.',
     slotLabel: 'SLOT',
-    status: 'Disponible'
+    status: 'Disponible',
+    machineMark: 'ARMEEBOX',
+    machineCount: '15 SLOTS'
   }
 }
 
@@ -134,6 +138,7 @@ function renderShop() {
     <article class="slot-unit reveal-item reveal-item-card" style="--card-delay:${index};">
       <div class="slot-window">
         <div class="slot-badge">${String(p.slot).padStart(2, '0')}</div>
+        <div class="slot-screen"></div>
         <div class="slot-body">
           <div class="slot-name">${p.title}</div>
           <div class="slot-meta">${t.slotLabel} ${p.slot}</div>
@@ -153,13 +158,16 @@ function renderShop() {
         <p>${t.machineSub}</p>
       </div>
       <section class="machine-cabinet reveal-item reveal-item-3">
-        <div class="machine-topbar">
-          <div class="machine-brandmark">ARMEEBOX</div>
-          <div class="machine-counter">15 SLOTS</div>
+        <div class="machine-cap">
+          <div class="machine-brandmark">${t.machineMark}</div>
+          <div class="machine-counter">${t.machineCount}</div>
         </div>
-        <section class="machine-grid">
-          ${slots}
-        </section>
+        <div class="machine-bezel">
+          <div class="machine-inner-glow"></div>
+          <section class="machine-grid">
+            ${slots}
+          </section>
+        </div>
       </section>
     </section>
   `)
