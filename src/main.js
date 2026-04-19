@@ -10,7 +10,7 @@ const texts = {
     line2: 'Wir liefern dein Nachschub in die Kaserne und danach zu dir nach Hause',
     toMachine: 'Zum Automaten',
     machineTitle: 'ARMEEBOX Automat',
-    machineSub: '16 Slots im echten Automatenstil mit 4 Fächern pro Reihe.',
+    machineSub: '',
     priceCurrency: 'Fr.',
     orderTitle: 'Bestellung',
     orderHint: 'Produkt direkt am Slot wählen. Der Warenkorb aktualisiert sich automatisch.',
@@ -21,6 +21,7 @@ const texts = {
     orderButton: 'Bestellen',
     imageInfo: 'später Bild',
     quantity: 'x',
+    removeItem: 'Entfernen',
   },
   fr: {
     choose: 'Choisir la langue',
@@ -31,7 +32,7 @@ const texts = {
     line2: 'Nous livrons ton ravitaillement à la caserne puis à ton domicile',
     toMachine: 'Vers l’automate',
     machineTitle: 'Automate ARMEEBOX',
-    machineSub: '16 slots en vrai style distributeur avec 4 compartiments par rangée.',
+    machineSub: '',
     priceCurrency: 'Fr.',
     orderTitle: 'Commande',
     orderHint: 'Choisis directement le produit sur le slot. Le panier se met à jour automatiquement.',
@@ -42,6 +43,7 @@ const texts = {
     orderButton: 'Commander',
     imageInfo: 'image plus tard',
     quantity: 'x',
+    removeItem: 'Entfernen',
   }
 }
 
@@ -181,18 +183,47 @@ function getTotal() {
   return state.cart.reduce((sum, item) => sum + item.price, 0)
 }
 
+function removeOneFromCart(productId) {
+  const index = state.cart.findIndex(item => item.id === productId)
+  if (index >= 0) state.cart.splice(index, 1)
+}
+
+function updateShopUI() {
+  const t = getText()
+  document.querySelectorAll('[data-slot-id]').forEach(el => {
+    const isSelected = Number(el.dataset.slotId) === state.selectedSlotId
+    el.classList.toggle('is-selected', isSelected)
+    el.querySelector('.vm-slot-light')?.classList.toggle('is-active', isSelected)
+  })
+  const amount = `${getTotal().toFixed(0)}.–`
+  const amountEl = document.querySelector('.currency-row strong')
+  const countEl = document.querySelector('.total-row strong')
+  const cartEl = document.querySelector('.cart-list')
+  const clearBtn = document.querySelector('.cart-clear-btn')
+  const orderBtn = document.querySelector('.machine-order-button')
+  if (amountEl) amountEl.textContent = amount
+  if (countEl) countEl.textContent = String(state.cart.length)
+  if (cartEl) cartEl.innerHTML = renderCartRows(t)
+  if (clearBtn) clearBtn.disabled = state.cart.length === 0
+  if (orderBtn) orderBtn.disabled = state.cart.length === 0
+  bindCartActions()
+}
+
 function renderCartRows(t) {
   const rows = getCartSummary()
   if (!rows.length) {
     return `<div class="cart-empty">${t.cartEmpty}</div>`
   }
   return rows.map(item => `
-    <div class="cart-row">
+    <div class="cart-row" data-cart-id="${item.id}">
       <div>
         <strong>${item.title}</strong>
         <span>${t.quantity}${item.qty}</span>
       </div>
-      <b>${priceLabel(item.price * item.qty, t)}</b>
+      <div class="cart-row-right">
+        <b>${priceLabel(item.price * item.qty, t)}</b>
+        <button class="cart-remove-btn" type="button" data-remove-id="${item.id}">×</button>
+      </div>
     </div>
   `).join('')
 }
@@ -221,7 +252,7 @@ function renderShop(withEntrance = true) {
       <div class="machine-heading">
         <div class="machine-heading-copy">
           <h1>${t.machineTitle}</h1>
-          <p>${t.machineSub}</p>
+          ${t.machineSub ? `<p>${t.machineSub}</p>` : ''}
         </div>
       </div>
       <div class="vending-layout reveal-item reveal-item-3">
@@ -261,16 +292,27 @@ function renderShop(withEntrance = true) {
       const product = products.find(p => p.id === Number(el.dataset.slotId))
       state.selectedSlotId = product.id
       state.cart.push({ id: product.id, title: product.title, price: product.price, slot: product.slot })
-      renderShop(false)
+      updateShopUI()
     })
   })
 
+  bindCartActions()
+  activateEntrance()
+}
+
+function bindCartActions() {
   app.querySelector('.cart-clear-btn')?.addEventListener('click', () => {
     state.cart = []
-    renderShop()
+    updateShopUI()
   })
 
-  activateEntrance()
+  app.querySelectorAll('[data-remove-id]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation()
+      removeOneFromCart(Number(btn.dataset.removeId))
+      updateShopUI()
+    })
+  })
 }
 
 function bindRoutes() {
@@ -281,7 +323,7 @@ function bindRoutes() {
 
 function render() {
   const hash = location.hash || '#lang'
-  if (!state.lang && hash !== '#lang') {
+  if (hash !== '#lang' && !state.lang) {
     location.hash = '#lang'
     renderLanguage()
     return

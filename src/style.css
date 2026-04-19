@@ -248,3 +248,9 @@ button{font:inherit;cursor:pointer}
 .selected-product-box,.machine-card-area,.machine-tray{display:none}
 .cart-actions{margin-top:10px;display:flex;justify-content:flex-start}
 .cart-clear-btn{min-height:42px;padding:0 14px;border-radius:10px;border:1px solid #6b7784;background:#17212b;color:#eef3ff;font-weight:700}
+
+.vm-slot, .vm-slot *{cursor:pointer;user-select:none}
+.cart-row-right{display:flex;align-items:flex-start;gap:8px}
+.cart-remove-btn{width:24px;height:24px;border-radius:999px;border:1px solid #6b7784;background:#17212b;color:#eef3ff;font-weight:900;line-height:1;padding:0;cursor:pointer}
+.cart-remove-btn:hover{background:#253242}
+.machine-heading p{display:none}
