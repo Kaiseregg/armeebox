@@ -12,14 +12,17 @@ const texts = {
     machineTitle: 'ARMEEBOX Automat',
     machineSub: '16 Slots im echten Automatenstil mit 4 Fächern pro Reihe.',
     priceCurrency: 'Fr.',
-    machineCount: '16 SLOTS',
     orderTitle: 'Bestellung',
-    orderNote: 'Menü folgt. Hier kommt später der Bestellbereich hin.',
+    orderHint: 'Slot wählen, Produkt prüfen und in den Warenkorb legen.',
     cartLabel: 'Warenkorb',
     cartEmpty: 'Noch leer',
-    orderButton: 'Bestellung folgt',
-    productPlaceholder: 'Bildplatzhalter',
+    totalLabel: 'Total:',
+    addToCart: 'In Warenkorb',
+    clearCart: 'Zurücksetzen',
+    orderButton: 'Bestellen',
+    selectedSlot: 'Gewählt',
     imageInfo: 'später Bild',
+    quantity: 'x',
   },
   fr: {
     choose: 'Choisir la langue',
@@ -32,49 +35,61 @@ const texts = {
     machineTitle: 'Automate ARMEEBOX',
     machineSub: '16 slots en vrai style distributeur avec 4 compartiments par rangée.',
     priceCurrency: 'Fr.',
-    machineCount: '16 SLOTS',
     orderTitle: 'Commande',
-    orderNote: 'Menu à venir. La zone de commande sera ajoutée ici plus tard.',
+    orderHint: 'Choisis un slot, vérifie le produit et ajoute-le au panier.',
     cartLabel: 'Panier',
     cartEmpty: 'Encore vide',
-    orderButton: 'Commande à venir',
-    productPlaceholder: 'Image',
+    totalLabel: 'Total :',
+    addToCart: 'Ajouter',
+    clearCart: 'Réinitialiser',
+    orderButton: 'Commander',
+    selectedSlot: 'Choisi',
     imageInfo: 'image plus tard',
+    quantity: 'x',
   }
 }
 
 const baseProducts = [
-  { title: 'Snack Box', price: '8.–' },
-  { title: 'Power Pack', price: '8.–' },
-  { title: 'Sweet Pack', price: '10.–' },
-  { title: 'Classic Box', price: '12.–' },
-  { title: 'Snack Box', price: '8.–' },
-  { title: 'Power Pack', price: '8.–' },
-  { title: 'Energy Pack', price: '10.–' },
-  { title: 'Classic Box', price: '12.–' },
-  { title: 'Snack Box', price: '8.–' },
-  { title: 'Power Pack', price: '8.–' },
-  { title: 'Sweet Pack', price: '10.–' },
-  { title: 'Classic Box', price: '12.–' },
-  { title: 'Snack Box', price: '8.–' },
-  { title: 'Power Pack', price: '8.–' },
-  { title: 'Energy Pack', price: '10.–' },
-  { title: 'Classic Box', price: '12.–' },
+  { title: 'Snack Box', price: 8 },
+  { title: 'Power Pack', price: 8 },
+  { title: 'Sweet Pack', price: 10 },
+  { title: 'Classic Box', price: 12 },
+  { title: 'Snack Box', price: 8 },
+  { title: 'Power Pack', price: 8 },
+  { title: 'Energy Pack', price: 10 },
+  { title: 'Classic Box', price: 12 },
+  { title: 'Snack Box', price: 8 },
+  { title: 'Power Pack', price: 8 },
+  { title: 'Sweet Pack', price: 10 },
+  { title: 'Classic Box', price: 12 },
+  { title: 'Snack Box', price: 8 },
+  { title: 'Power Pack', price: 8 },
+  { title: 'Energy Pack', price: 10 },
+  { title: 'Classic Box', price: 12 },
 ]
 
-const products = baseProducts.map((p, i) => ({ ...p, slot: i + 1 }))
+const products = baseProducts.map((p, i) => ({ ...p, slot: i + 1, id: i + 1 }))
 
 const app = document.querySelector('#app')
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-function getLang() {
-  return localStorage.getItem('armeebox_lang') || null
+const state = {
+  lang: localStorage.getItem('armeebox_lang') || null,
+  selectedSlotId: null,
+  cart: []
 }
+
 function setLang(lang) {
+  state.lang = lang
   localStorage.setItem('armeebox_lang', lang)
 }
+
 function getText() {
-  return texts[getLang() || 'de']
+  return texts[state.lang || 'de']
+}
+
+function priceLabel(value, t) {
+  return `${t.priceCurrency} ${value.toFixed(0)}.–`
 }
 
 function machineShell(content) {
@@ -106,7 +121,7 @@ function navigateWithTransition(hash, onBeforeChange) {
     if (onBeforeChange) onBeforeChange()
     location.hash = hash
     render()
-  }, 280)
+  }, 220)
 }
 
 function renderLanguage() {
@@ -152,23 +167,57 @@ function renderIntro() {
   activateEntrance()
 }
 
+function getSelectedProduct() {
+  return products.find(p => p.id === state.selectedSlotId) || products[0]
+}
+
+function getCartSummary() {
+  const grouped = new Map()
+  for (const item of state.cart) {
+    const existing = grouped.get(item.id) || { ...item, qty: 0 }
+    existing.qty += 1
+    grouped.set(item.id, existing)
+  }
+  return Array.from(grouped.values())
+}
+
+function getTotal() {
+  return state.cart.reduce((sum, item) => sum + item.price, 0)
+}
+
+function renderCartRows(t) {
+  const rows = getCartSummary()
+  if (!rows.length) {
+    return `<div class="cart-empty">${t.cartEmpty}</div>`
+  }
+  return rows.map(item => `
+    <div class="cart-row">
+      <div>
+        <strong>${item.title}</strong>
+        <span>${t.quantity}${item.qty}</span>
+      </div>
+      <b>${priceLabel(item.price * item.qty, t)}</b>
+    </div>
+  `).join('')
+}
+
 function renderShop() {
   const t = getText()
+  const selected = getSelectedProduct()
   const slots = products.map((p, index) => `
-    <article class="vm-slot reveal-item reveal-item-card" style="--card-delay:${index};">
+    <article class="vm-slot reveal-item reveal-item-card ${state.selectedSlotId === p.id ? 'is-selected' : ''}" data-slot-id="${p.id}" style="--card-delay:${index};">
       <div class="vm-slot-no">${String(p.slot).padStart(2, '0')}</div>
+      ${state.selectedSlotId === p.id ? `<div class="slot-selected-badge">${t.selectedSlot}</div>` : ''}
       <div class="vm-slot-window">
         <div class="vm-slot-placeholder">
           <div class="vm-plus">+</div>
           <div class="vm-placeholder-text">${t.imageInfo}</div>
         </div>
-        <div class="vm-spiral-row">
-          <span></span><span></span><span></span>
-        </div>
+        <div class="vm-spiral-row"><span></span><span></span><span></span></div>
       </div>
-      <div class="vm-slot-price">${t.priceCurrency} ${p.price}</div>
+      <div class="vm-slot-price">${priceLabel(p.price, t)}</div>
       <div class="vm-slot-name">${p.title}</div>
-      <div class="vm-slot-outlet"><div class="vm-slot-light"></div></div>
+      <div class="vm-slot-outlet"><div class="vm-slot-light ${state.selectedSlotId === p.id ? 'is-active' : ''}"></div></div>
     </article>
   `).join('')
 
@@ -189,22 +238,30 @@ function renderShop() {
             </div>
             <aside class="machine-control-panel">
               <div class="machine-total-display">
-                <div class="currency-row"><span>${t.priceCurrency}</span><strong>0.–</strong></div>
-                <div class="total-row"><span>Total:</span><strong>0</strong></div>
+                <div class="currency-row"><span>${t.priceCurrency}</span><strong>${getTotal().toFixed(0)}.–</strong></div>
+                <div class="total-row"><span>${t.totalLabel}</span><strong>${state.cart.length}</strong></div>
               </div>
-              <button class="machine-order-button" type="button" disabled>${t.orderButton.toUpperCase()}</button>
-              <div class="machine-panel-status">
-                <div class="status-dot"></div>
-                <div class="status-dot active"></div>
-              </div>
+              <button class="machine-order-button" type="button" ${state.cart.length ? '' : 'disabled'}>${t.orderButton.toUpperCase()}</button>
+              <div class="machine-panel-status"><div class="status-dot"></div><div class="status-dot active"></div></div>
               <div class="machine-card-area"></div>
               <div class="machine-tray"></div>
               <div class="machine-side-note">
                 <div class="side-note-title">${t.orderTitle}</div>
-                <p>${t.orderNote}</p>
+                <p>${t.orderHint}</p>
+                <div class="selected-product-box">
+                  <span>${String(selected.slot).padStart(2, '0')}</span>
+                  <div>
+                    <strong>${selected.title}</strong>
+                    <small>${priceLabel(selected.price, t)}</small>
+                  </div>
+                </div>
+                <div class="cart-actions">
+                  <button class="cart-add-btn" type="button">${t.addToCart}</button>
+                  <button class="cart-clear-btn" type="button" ${state.cart.length ? '' : 'disabled'}>${t.clearCart}</button>
+                </div>
                 <div class="side-cart-box">
                   <span>${t.cartLabel}</span>
-                  <strong>${t.cartEmpty}</strong>
+                  <div class="cart-list">${renderCartRows(t)}</div>
                 </div>
               </div>
             </aside>
@@ -213,6 +270,25 @@ function renderShop() {
       </div>
     </section>
   `)
+
+  app.querySelectorAll('[data-slot-id]').forEach(el => {
+    el.addEventListener('click', () => {
+      state.selectedSlotId = Number(el.dataset.slotId)
+      renderShop()
+    })
+  })
+
+  app.querySelector('.cart-add-btn')?.addEventListener('click', () => {
+    const product = getSelectedProduct()
+    state.cart.push({ id: product.id, title: product.title, price: product.price, slot: product.slot })
+    renderShop()
+  })
+
+  app.querySelector('.cart-clear-btn')?.addEventListener('click', () => {
+    state.cart = []
+    renderShop()
+  })
+
   activateEntrance()
 }
 
@@ -224,7 +300,7 @@ function bindRoutes() {
 
 function render() {
   const hash = location.hash || '#lang'
-  if (!getLang() && hash !== '#lang') {
+  if (!state.lang && hash !== '#lang') {
     location.hash = '#lang'
     renderLanguage()
     return
