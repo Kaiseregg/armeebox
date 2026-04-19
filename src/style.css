@@ -233,3 +233,18 @@ button{font:inherit;cursor:pointer}
 }
 
 @media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}.screen-enter,.reveal-item,.logo-pop,.lang-btn,.primary-btn{transition:none !important;transform:none !important;opacity:1 !important}}
+
+.vm-slot.is-selected{border-color:#9dba55;box-shadow:inset 0 0 0 2px rgba(208,246,128,.12),0 0 0 1px rgba(208,246,128,.16),0 12px 20px rgba(0,0,0,.18)}
+.vm-slot.is-selected .vm-slot-light{box-shadow:0 0 14px rgba(200,255,119,.75)}
+.machine-control-panel{justify-content:flex-start}
+.side-cart-box-inline{margin-top:0}
+.cart-list{display:flex;flex-direction:column;gap:8px;max-height:190px;overflow:auto;padding-right:4px}
+.cart-row{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}
+.cart-row:first-child{border-top:none;padding-top:0}
+.cart-row div{display:flex;flex-direction:column;gap:2px}
+.cart-row span{font-size:12px;color:#b8c1cc;letter-spacing:1px;text-transform:uppercase}
+.cart-row b{font-size:13px;white-space:nowrap}
+.cart-empty{color:#b8c1cc;font-size:14px}
+.selected-product-box,.machine-card-area,.machine-tray{display:none}
+.cart-actions{margin-top:10px;display:flex;justify-content:flex-start}
+.cart-clear-btn{min-height:42px;padding:0 14px;border-radius:10px;border:1px solid #6b7784;background:#17212b;color:#eef3ff;font-weight:700}

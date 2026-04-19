@@ -13,14 +13,12 @@ const texts = {
     machineSub: '16 Slots im echten Automatenstil mit 4 Fächern pro Reihe.',
     priceCurrency: 'Fr.',
     orderTitle: 'Bestellung',
-    orderHint: 'Slot wählen, Produkt prüfen und in den Warenkorb legen.',
+    orderHint: 'Produkt direkt am Slot wählen. Der Warenkorb aktualisiert sich automatisch.',
     cartLabel: 'Warenkorb',
     cartEmpty: 'Noch leer',
     totalLabel: 'Total:',
-    addToCart: 'In Warenkorb',
     clearCart: 'Zurücksetzen',
     orderButton: 'Bestellen',
-    selectedSlot: 'Gewählt',
     imageInfo: 'später Bild',
     quantity: 'x',
   },
@@ -36,14 +34,12 @@ const texts = {
     machineSub: '16 slots en vrai style distributeur avec 4 compartiments par rangée.',
     priceCurrency: 'Fr.',
     orderTitle: 'Commande',
-    orderHint: 'Choisis un slot, vérifie le produit et ajoute-le au panier.',
+    orderHint: 'Choisis directement le produit sur le slot. Le panier se met à jour automatiquement.',
     cartLabel: 'Panier',
     cartEmpty: 'Encore vide',
     totalLabel: 'Total :',
-    addToCart: 'Ajouter',
     clearCart: 'Réinitialiser',
     orderButton: 'Commander',
-    selectedSlot: 'Choisi',
     imageInfo: 'image plus tard',
     quantity: 'x',
   }
@@ -148,7 +144,7 @@ function renderLanguage() {
     button.classList.add('is-selected')
     navigateWithTransition('#intro', () => setLang(button.dataset.lang))
   }))
-  activateEntrance()
+  if (withEntrance) activateEntrance()
 }
 
 function renderIntro() {
@@ -164,7 +160,7 @@ function renderIntro() {
       </div>
     </section>`
   bindRoutes()
-  activateEntrance()
+  if (withEntrance) activateEntrance()
 }
 
 function getSelectedProduct() {
@@ -201,13 +197,12 @@ function renderCartRows(t) {
   `).join('')
 }
 
-function renderShop() {
+function renderShop(withEntrance = true) {
   const t = getText()
   const selected = getSelectedProduct()
   const slots = products.map((p, index) => `
     <article class="vm-slot reveal-item reveal-item-card ${state.selectedSlotId === p.id ? 'is-selected' : ''}" data-slot-id="${p.id}" style="--card-delay:${index};">
       <div class="vm-slot-no">${String(p.slot).padStart(2, '0')}</div>
-      ${state.selectedSlotId === p.id ? `<div class="slot-selected-badge">${t.selectedSlot}</div>` : ''}
       <div class="vm-slot-window">
         <div class="vm-slot-placeholder">
           <div class="vm-plus">+</div>
@@ -241,27 +236,17 @@ function renderShop() {
                 <div class="currency-row"><span>${t.priceCurrency}</span><strong>${getTotal().toFixed(0)}.–</strong></div>
                 <div class="total-row"><span>${t.totalLabel}</span><strong>${state.cart.length}</strong></div>
               </div>
+              <div class="side-cart-box side-cart-box-inline">
+                <span>${t.cartLabel}</span>
+                <div class="cart-list">${renderCartRows(t)}</div>
+              </div>
               <button class="machine-order-button" type="button" ${state.cart.length ? '' : 'disabled'}>${t.orderButton.toUpperCase()}</button>
               <div class="machine-panel-status"><div class="status-dot"></div><div class="status-dot active"></div></div>
-              <div class="machine-card-area"></div>
-              <div class="machine-tray"></div>
               <div class="machine-side-note">
                 <div class="side-note-title">${t.orderTitle}</div>
                 <p>${t.orderHint}</p>
-                <div class="selected-product-box">
-                  <span>${String(selected.slot).padStart(2, '0')}</span>
-                  <div>
-                    <strong>${selected.title}</strong>
-                    <small>${priceLabel(selected.price, t)}</small>
-                  </div>
-                </div>
                 <div class="cart-actions">
-                  <button class="cart-add-btn" type="button">${t.addToCart}</button>
                   <button class="cart-clear-btn" type="button" ${state.cart.length ? '' : 'disabled'}>${t.clearCart}</button>
-                </div>
-                <div class="side-cart-box">
-                  <span>${t.cartLabel}</span>
-                  <div class="cart-list">${renderCartRows(t)}</div>
                 </div>
               </div>
             </aside>
@@ -273,15 +258,11 @@ function renderShop() {
 
   app.querySelectorAll('[data-slot-id]').forEach(el => {
     el.addEventListener('click', () => {
-      state.selectedSlotId = Number(el.dataset.slotId)
-      renderShop()
+      const product = products.find(p => p.id === Number(el.dataset.slotId))
+      state.selectedSlotId = product.id
+      state.cart.push({ id: product.id, title: product.title, price: product.price, slot: product.slot })
+      renderShop(false)
     })
-  })
-
-  app.querySelector('.cart-add-btn')?.addEventListener('click', () => {
-    const product = getSelectedProduct()
-    state.cart.push({ id: product.id, title: product.title, price: product.price, slot: product.slot })
-    renderShop()
   })
 
   app.querySelector('.cart-clear-btn')?.addEventListener('click', () => {
@@ -289,7 +270,7 @@ function renderShop() {
     renderShop()
   })
 
-  activateEntrance()
+  if (withEntrance) activateEntrance()
 }
 
 function bindRoutes() {
