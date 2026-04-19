@@ -1,6 +1,7 @@
+
 [build]
-  publish = "dist"
   command = "npm run build"
+  publish = "dist"
 
 [build.environment]
   NODE_VERSION = "20"
@@ -9,18 +10,3 @@
   from = "/preview-4827-armbx"
   to = "/preview-4827-armbx/"
   status = 301
-
-[[redirects]]
-  from = "/preview-4827-armbx/*"
-  to = "/preview-4827-armbx/index.html"
-  status = 200
-
-[[redirects]]
-  from = "/"
-  to = "/under-construction.html"
-  status = 200
-
-[[redirects]]
-  from = "/*"
-  to = "/under-construction.html"
-  status = 200
