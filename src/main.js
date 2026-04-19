@@ -144,7 +144,7 @@ function renderLanguage() {
     button.classList.add('is-selected')
     navigateWithTransition('#intro', () => setLang(button.dataset.lang))
   }))
-  if (withEntrance) activateEntrance()
+  activateEntrance()
 }
 
 function renderIntro() {
@@ -160,7 +160,7 @@ function renderIntro() {
       </div>
     </section>`
   bindRoutes()
-  if (withEntrance) activateEntrance()
+  activateEntrance()
 }
 
 function getSelectedProduct() {
@@ -270,7 +270,7 @@ function renderShop(withEntrance = true) {
     renderShop()
   })
 
-  if (withEntrance) activateEntrance()
+  activateEntrance()
 }
 
 function bindRoutes() {
