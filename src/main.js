@@ -10,11 +10,16 @@ const texts = {
     line2: 'Wir liefern dein Nachschub in die Kaserne und danach zu dir nach Hause',
     toMachine: 'Zum Automaten',
     machineTitle: 'ARMEEBOX Automat',
-    machineSub: 'Klare Slot-Ansicht im Automatenstil.',
-    slotLabel: 'SLOT',
-    status: 'Verfügbar',
-    machineMark: 'ARMEEBOX',
-    machineCount: '15 SLOTS'
+    machineSub: '16 Slots im echten Automatenstil mit 4 Fächern pro Reihe.',
+    priceCurrency: 'Fr.',
+    machineCount: '16 SLOTS',
+    orderTitle: 'Bestellung',
+    orderNote: 'Menü folgt. Hier kommt später der Bestellbereich hin.',
+    cartLabel: 'Warenkorb',
+    cartEmpty: 'Noch leer',
+    orderButton: 'Bestellung folgt',
+    productPlaceholder: 'Bildplatzhalter',
+    imageInfo: 'später Bild',
   },
   fr: {
     choose: 'Choisir la langue',
@@ -25,19 +30,39 @@ const texts = {
     line2: 'Nous livrons ton ravitaillement à la caserne puis à ton domicile',
     toMachine: 'Vers l’automate',
     machineTitle: 'Automate ARMEEBOX',
-    machineSub: 'Vue des slots claire en style distributeur.',
-    slotLabel: 'SLOT',
-    status: 'Disponible',
-    machineMark: 'ARMEEBOX',
-    machineCount: '15 SLOTS'
+    machineSub: '16 slots en vrai style distributeur avec 4 compartiments par rangée.',
+    priceCurrency: 'Fr.',
+    machineCount: '16 SLOTS',
+    orderTitle: 'Commande',
+    orderNote: 'Menu à venir. La zone de commande sera ajoutée ici plus tard.',
+    cartLabel: 'Panier',
+    cartEmpty: 'Encore vide',
+    orderButton: 'Commande à venir',
+    productPlaceholder: 'Image',
+    imageInfo: 'image plus tard',
   }
 }
 
-const products = [
-  'Snack Box', 'Power Pack', 'Sweet Pack', 'Energy Pack', 'Classic Box',
-  'Snack Box', 'Power Pack', 'Sweet Pack', 'Energy Pack', 'Classic Box',
-  'Snack Box', 'Power Pack', 'Sweet Pack', 'Energy Pack', 'Classic Box'
-].map((title, i) => ({ slot: i + 1, title }))
+const baseProducts = [
+  { title: 'Snack Box', price: '8.–' },
+  { title: 'Power Pack', price: '8.–' },
+  { title: 'Sweet Pack', price: '10.–' },
+  { title: 'Classic Box', price: '12.–' },
+  { title: 'Snack Box', price: '8.–' },
+  { title: 'Power Pack', price: '8.–' },
+  { title: 'Energy Pack', price: '10.–' },
+  { title: 'Classic Box', price: '12.–' },
+  { title: 'Snack Box', price: '8.–' },
+  { title: 'Power Pack', price: '8.–' },
+  { title: 'Sweet Pack', price: '10.–' },
+  { title: 'Classic Box', price: '12.–' },
+  { title: 'Snack Box', price: '8.–' },
+  { title: 'Power Pack', price: '8.–' },
+  { title: 'Energy Pack', price: '10.–' },
+  { title: 'Classic Box', price: '12.–' },
+]
+
+const products = baseProducts.map((p, i) => ({ ...p, slot: i + 1 }))
 
 const app = document.querySelector('#app')
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -45,11 +70,9 @@ const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)
 function getLang() {
   return localStorage.getItem('armeebox_lang') || null
 }
-
 function setLang(lang) {
   localStorage.setItem('armeebox_lang', lang)
 }
-
 function getText() {
   return texts[getLang() || 'de']
 }
@@ -77,10 +100,8 @@ function navigateWithTransition(hash, onBeforeChange) {
     render()
     return
   }
-
   const leaving = app.querySelector('.screen-enter') || app.firstElementChild
   if (leaving) leaving.classList.add('is-leaving')
-
   window.setTimeout(() => {
     if (onBeforeChange) onBeforeChange()
     location.hash = hash
@@ -112,7 +133,6 @@ function renderLanguage() {
     button.classList.add('is-selected')
     navigateWithTransition('#intro', () => setLang(button.dataset.lang))
   }))
-
   activateEntrance()
 }
 
@@ -135,43 +155,64 @@ function renderIntro() {
 function renderShop() {
   const t = getText()
   const slots = products.map((p, index) => `
-    <article class="slot-unit reveal-item reveal-item-card" style="--card-delay:${index};">
-      <div class="slot-window">
-        <div class="slot-badge">${String(p.slot).padStart(2, '0')}</div>
-        <div class="slot-screen"></div>
-        <div class="slot-body">
-          <div class="slot-name">${p.title}</div>
-          <div class="slot-meta">${t.slotLabel} ${p.slot}</div>
+    <article class="vm-slot reveal-item reveal-item-card" style="--card-delay:${index};">
+      <div class="vm-slot-no">${String(p.slot).padStart(2, '0')}</div>
+      <div class="vm-slot-window">
+        <div class="vm-slot-placeholder">
+          <div class="vm-plus">+</div>
+          <div class="vm-placeholder-text">${t.imageInfo}</div>
+        </div>
+        <div class="vm-spiral-row">
+          <span></span><span></span><span></span>
         </div>
       </div>
-      <div class="slot-rail"></div>
-      <div class="slot-statusbar">
-        <span class="slot-status">${t.status}</span>
-      </div>
+      <div class="vm-slot-price">${t.priceCurrency} ${p.price}</div>
+      <div class="vm-slot-name">${p.title}</div>
+      <div class="vm-slot-outlet"><div class="vm-slot-light"></div></div>
     </article>
   `).join('')
 
   app.innerHTML = machineShell(`
-    <section class="machine-panel reveal-item reveal-item-2">
-      <div class="machine-headline reveal-item reveal-item-2">
-        <h1>${t.machineTitle}</h1>
-        <p>${t.machineSub}</p>
+    <section class="machine-stage reveal-item reveal-item-2">
+      <div class="machine-heading">
+        <div class="machine-heading-copy">
+          <h1>${t.machineTitle}</h1>
+          <p>${t.machineSub}</p>
+        </div>
       </div>
-      <section class="machine-cabinet reveal-item reveal-item-3">
-        <div class="machine-cap">
-          <div class="machine-brandmark">${t.machineMark}</div>
-          <div class="machine-counter">${t.machineCount}</div>
-        </div>
-        <div class="machine-bezel">
-          <div class="machine-inner-glow"></div>
-          <section class="machine-grid">
-            ${slots}
-          </section>
-        </div>
-      </section>
+      <div class="vending-layout reveal-item reveal-item-3">
+        <section class="vending-machine-shell">
+          <div class="machine-titlebar">ARMEEBOX Automat</div>
+          <div class="machine-main-grid">
+            <div class="machine-glass-panel">
+              <div class="machine-product-grid">${slots}</div>
+            </div>
+            <aside class="machine-control-panel">
+              <div class="machine-total-display">
+                <div class="currency-row"><span>${t.priceCurrency}</span><strong>0.–</strong></div>
+                <div class="total-row"><span>Total:</span><strong>0</strong></div>
+              </div>
+              <button class="machine-order-button" type="button" disabled>${t.orderButton.toUpperCase()}</button>
+              <div class="machine-panel-status">
+                <div class="status-dot"></div>
+                <div class="status-dot active"></div>
+              </div>
+              <div class="machine-card-area"></div>
+              <div class="machine-tray"></div>
+              <div class="machine-side-note">
+                <div class="side-note-title">${t.orderTitle}</div>
+                <p>${t.orderNote}</p>
+                <div class="side-cart-box">
+                  <span>${t.cartLabel}</span>
+                  <strong>${t.cartEmpty}</strong>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </section>
+      </div>
     </section>
   `)
-
   activateEntrance()
 }
 
@@ -190,8 +231,7 @@ function render() {
   }
   if (hash === '#lang') return renderLanguage()
   if (hash === '#intro') return renderIntro()
-  if (hash === '#shop') return renderShop()
-  location.hash = getLang() ? '#intro' : '#lang'
+  return renderShop()
 }
 
 window.addEventListener('hashchange', render)

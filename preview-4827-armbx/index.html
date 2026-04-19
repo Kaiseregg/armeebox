@@ -3,12 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ARMEEBOX DEV</title>
-    <link rel="icon" type="image/png" href="/logo.png" />
-    <meta name="description" content="ARMEEBOX – DEV Vorschau" />
+    <title>ARMEEBOX Preview</title>
+    <script>
+      (function(){
+        var target = '/preview-4827-armbx/' + (location.hash || '');
+        if (location.pathname !== '/preview-4827-armbx/' || location.hash) {
+          location.replace(target);
+        }
+      })();
+    </script>
   </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+  <body></body>
 </html>
