@@ -7,11 +7,11 @@
 
 [[redirects]]
   from = "/preview-4827-armbx"
-  to = "/preview-4827-armbx/index.html"
-  status = 200
+  to = "/preview-4827-armbx/"
+  status = 301
 
 [[redirects]]
-  from = "/preview-4827-armbx/"
+  from = "/preview-4827-armbx/*"
   to = "/preview-4827-armbx/index.html"
   status = 200
 
