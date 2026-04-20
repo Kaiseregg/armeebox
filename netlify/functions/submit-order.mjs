@@ -114,6 +114,8 @@ async function insertOrder(orderRow, items) {
 
 function buildCustomerMail(order) {
   const shippingLabel = order.shipping_method === 'private' ? 'Versand Privat' : 'Versand Kaserne';
+  const meta = order.order_meta || {};
+
   const itemsHtml = order.items.map(item => `
     <tr>
       <td style="padding:6px 10px;border-bottom:1px solid #ddd">${item.product_name}</td>
@@ -122,19 +124,71 @@ function buildCustomerMail(order) {
     </tr>
   `).join('');
 
+  let deliveryAddressHtml = '';
+  let senderHtml = '';
+
+  if (order.shipping_method === 'private') {
+    deliveryAddressHtml = `
+      <p>
+        <strong>Lieferadresse</strong><br>
+        ${meta.privateName || ''}<br>
+        ${meta.privateStreet || ''}<br>
+        ${meta.privateZip || ''} ${meta.privateCity || ''}<br>
+        ${meta.privateEmail ? `${meta.privateEmail}<br>` : ''}
+        ${meta.privatePhone || ''}
+      </p>
+    `;
+  } else {
+    const barracksLines = Array.isArray(meta.barracksAddress) ? meta.barracksAddress.filter(Boolean) : [];
+    deliveryAddressHtml = `
+      <p>
+        <strong>Lieferadresse Soldat</strong><br>
+        ${meta.soldierFirstName || ''} ${meta.soldierLastName || ''}<br>
+        ${meta.soldierKp ? `Kp: ${meta.soldierKp}` : ''}${meta.soldierKp && meta.soldierZug ? ' / ' : ''}${meta.soldierZug ? `Zug: ${meta.soldierZug}` : ''}<br>
+        ${barracksLines.join('<br>')}
+      </p>
+    `;
+
+    senderHtml = `
+      <p>
+        <strong>Absender</strong><br>
+        ${meta.senderName || ''}<br>
+        ${meta.senderStreet || ''}<br>
+        ${meta.senderZip || ''}<br>
+        ${meta.senderEmail || ''}
+      </p>
+    `;
+  }
+
   return {
     subject: `ARMEEBOX Bestellbestätigung ${order.order_number}`,
     html: `
       <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.5;color:#111">
         <h2>Danke für deine Bestellung bei ARMEEBOX</h2>
         <p>Deine Bestellung wurde erfolgreich gespeichert.</p>
-        <p><strong>Bestellnummer:</strong> ${order.order_number}<br>
-        <strong>Versandart:</strong> ${shippingLabel}<br>
-        <strong>Total:</strong> ${money(order.total)}</p>
+
+        <p>
+          <strong>Bestellnummer:</strong> ${order.order_number}<br>
+          <strong>Versandart:</strong> ${shippingLabel}<br>
+          <strong>Total:</strong> ${money(order.total)}
+        </p>
+
+        ${deliveryAddressHtml}
+        ${senderHtml}
+
+        ${meta.message ? `<p><strong>Nachricht an den Soldaten:</strong><br>${meta.message}</p>` : ''}
+
         <table style="border-collapse:collapse;width:100%;max-width:620px">
-          <thead><tr><th align="left" style="padding:6px 10px;border-bottom:2px solid #333">Produkt</th><th align="left" style="padding:6px 10px;border-bottom:2px solid #333">Menge</th><th align="left" style="padding:6px 10px;border-bottom:2px solid #333">Betrag</th></tr></thead>
+          <thead>
+            <tr>
+              <th align="left" style="padding:6px 10px;border-bottom:2px solid #333">Produkt</th>
+              <th align="left" style="padding:6px 10px;border-bottom:2px solid #333">Menge</th>
+              <th align="left" style="padding:6px 10px;border-bottom:2px solid #333">Betrag</th>
+            </tr>
+          </thead>
           <tbody>${itemsHtml}</tbody>
         </table>
+
         <p style="margin-top:16px">Diese E-Mail dient als Bestellbestätigung.</p>
       </div>
     `
@@ -142,10 +196,13 @@ function buildCustomerMail(order) {
 }
 
 function buildAdminMail(order) {
+  const meta = order.order_meta || {};
+  const shippingLabel = order.shipping_method === 'private' ? 'Versand Privat' : 'Versand Kaserne';
+
   const lines = [
-    `Neue ARMEEBOX Bestellung`,
+    'Neue ARMEEBOX Bestellung',
     `Bestellnummer: ${order.order_number}`,
-    `Versandart: ${order.shipping_method}`,
+    `Versandart: ${shippingLabel}`,
     `Total: ${money(order.total)}`,
     `Kunden E-Mail: ${order.customer_email}`,
     '',
@@ -156,7 +213,38 @@ function buildAdminMail(order) {
     lines.push(`- ${item.product_name} | Menge ${item.quantity} | ${money(item.total_price)}`);
   }
 
-  lines.push('', 'Lieferdaten:', JSON.stringify(order.order_meta, null, 2));
+  lines.push('');
+
+  if (order.shipping_method === 'private') {
+    lines.push('Lieferadresse Privat:');
+    lines.push(meta.privateName || '');
+    lines.push(meta.privateStreet || '');
+    lines.push(`${meta.privateZip || ''} ${meta.privateCity || ''}`.trim());
+    if (meta.privateEmail) lines.push(meta.privateEmail);
+    if (meta.privatePhone) lines.push(meta.privatePhone);
+  } else {
+    lines.push('Lieferadresse Soldat:');
+    lines.push(`${meta.soldierFirstName || ''} ${meta.soldierLastName || ''}`.trim());
+    lines.push(`${meta.soldierKp ? `Kp: ${meta.soldierKp}` : ''}${meta.soldierKp && meta.soldierZug ? ' / ' : ''}${meta.soldierZug ? `Zug: ${meta.soldierZug}` : ''}`);
+    if (Array.isArray(meta.barracksAddress)) {
+      for (const line of meta.barracksAddress) {
+        if (line) lines.push(line);
+      }
+    }
+
+    lines.push('');
+    lines.push('Absender:');
+    lines.push(meta.senderName || '');
+    lines.push(meta.senderStreet || '');
+    lines.push(meta.senderZip || '');
+    if (meta.senderEmail) lines.push(meta.senderEmail);
+  }
+
+  if (meta.message) {
+    lines.push('');
+    lines.push('Nachricht an den Soldaten:');
+    lines.push(meta.message);
+  }
 
   return {
     subject: `Neue ARMEEBOX Bestellung ${order.order_number}`,
@@ -222,19 +310,27 @@ export default async (request) => {
       return json(400, { success: false, error: 'Invalid customer email' });
     }
 
-    const orderRow = {
-      lang: payload.lang || 'de',
-      status: 'submitted',
-      shipping_method: payload.shipping_method,
-      shipping_cost: payload.shipping_cost,
-      subtotal: payload.subtotal,
-      total: payload.total,
-      item_count: payload.item_count,
-      customer_email: payload.customer_email,
-      barracks_label: payload.barracks_label,
-      recipient_name: payload.recipient_name,
-      order_meta: payload.order_meta || {}
-    };
+   const orderRow = {
+  lang: payload.lang || 'de',
+  status: 'submitted',
+  shipping_method: payload.shipping_method,
+  shipping_cost: payload.shipping_cost,
+  subtotal: payload.subtotal,
+  total: payload.total,
+  item_count: payload.item_count,
+  customer_email: payload.customer_email,
+  barracks_label: payload.barracks_label,
+  recipient_name: payload.recipient_name,
+  order_meta: payload.order_meta || {},
+
+  // Legacy-Felder
+  language: payload.lang || 'de',
+  currency: 'CHF',
+  subtotal_chf: Number(payload.subtotal || 0),
+  shipping_chf: Number(payload.shipping_cost || 0),
+  total_chf: Number(payload.total || 0),
+  order_status: 'new'
+};
 
     const createdOrder = await insertOrder(orderRow, payload.items);
 
