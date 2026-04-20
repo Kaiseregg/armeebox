@@ -1,13 +1,13 @@
 import nodemailer from 'nodemailer';
 
-const json = (statusCode, body) => ({
-  statusCode,
-  headers: {
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-store'
-  },
-  body: JSON.stringify(body)
-});
+const json = (statusCode, body) =>
+  new Response(JSON.stringify(body), {
+    status: statusCode,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store'
+    }
+  });
 
 function isEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
@@ -196,16 +196,18 @@ async function sendEmails(order) {
   };
 }
 
-export default async function handler(event) {
-  if (event.httpMethod !== 'POST') {
+export default async (request) => {
+  if (request.method !== 'POST') {
     return json(405, { success: false, error: 'Method not allowed' });
   }
 
   try {
-    const payload = JSON.parse(event.body || '{}');
+    const payload = await request.json().catch(() => ({}));
+
     if (!Array.isArray(payload.items) || payload.items.length === 0) {
       return json(400, { success: false, error: 'Cart is empty' });
     }
+
     if (!isEmail(payload.customer_email)) {
       return json(400, { success: false, error: 'Invalid customer email' });
     }
@@ -225,11 +227,13 @@ export default async function handler(event) {
     };
 
     const createdOrder = await insertOrder(orderRow, payload.items);
+
     const orderForMail = {
       ...createdOrder,
       items: payload.items,
       order_meta: payload.order_meta || {}
     };
+
     const emailResult = await sendEmails(orderForMail);
 
     return json(200, {
@@ -245,4 +249,4 @@ export default async function handler(event) {
     console.error('submit-order failed', error);
     return json(500, { success: false, error: error.message || 'Unexpected error' });
   }
-}
+};
