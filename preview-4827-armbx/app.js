@@ -633,7 +633,7 @@ function renderLanguage(){
   return `
   <div class="page hero-box">
     <div class="hero-card language-card">
-      <img class="hero-logo" src="../public/logo.svg" alt="ARMEEBOX">
+      <img class="hero-logo" src="../public/logo.png" alt="ARMEEBOX">
       <div class="goldline">ARMEBOX.CH</div>
       <h1 class="hero-title" style="font-size:62px">${t('langTitle')}</h1>
       <div class="lang-row">
@@ -648,7 +648,7 @@ function renderIntro(){
   <div class="page hero-box">
     <div class="hero-card">
       <div class="goldline">${t('smallTitle')}</div>
-      <img class="hero-logo" src="../public/logo.svg" alt="ARMEEBOX">
+      <img class="hero-logo" src="../public/logo.png" alt="ARMEEBOX">
       <h1 class="hero-title">${t('introTitle')}</h1>
       <p class="hero-copy">${t('introCopy')}</p>
       <div class="hero-actions"><button class="cta primary" id="toShopBtn">${t('toMachine')}</button></div>
@@ -658,7 +658,7 @@ function renderIntro(){
 function renderMachine(){
   const grouped=cartGrouped();
   return `
-  <div class="topbar"><img src="../public/logo.svg" alt="ARMEEBOX"></div>
+  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
   <div class="page">
     <div class="shell">
       <div class="header-row"><h1>${t('machineTitle')}</h1></div>
@@ -703,7 +703,7 @@ function renderMachine(){
 function renderForm(){
   const b=currentBarracks(); const grouped=cartGrouped();
   return `
-  <div class="topbar"><img src="../public/logo.svg" alt="ARMEEBOX"></div>
+  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
   <div class="page">
     <div class="shell">
       <div class="review-actions" style="margin-bottom:16px"><button class="back-btn" id="backMachineBtn">← ${t('backMachine')}</button></div>
@@ -768,7 +768,7 @@ function renderForm(){
 function renderReview(){
   const grouped=cartGrouped(); const b=currentBarracks();
   return `
-  <div class="topbar"><img src="../public/logo.svg" alt="ARMEEBOX"></div>
+  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
   <div class="page">
     <div class="shell">
       <h1 style="margin-top:0">${t('reviewTitle')}</h1>
@@ -799,7 +799,7 @@ function renderReview(){
 }
 function renderConfirm(){
   return `
-  <div class="topbar"><img src="../public/logo.svg" alt="ARMEEBOX"></div>
+  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
   <div class="page center">
     <div class="hero-card confirm-card">
       <h1 class="hero-title" style="font-size:56px">${t('confirmTitle')}</h1>
@@ -824,11 +824,17 @@ function syncFormFields(){
   ids.forEach(id=>{
     const el=document.getElementById(id);
     if(!el) return;
-    el.oninput = el.onchange = ()=>{
+    const update = ()=>{
       if(id==='barracksSelect') state.form.barracksIndex = Number(el.value);
       else state.form[id]=el.value;
-      save(); render();
+      save();
     };
+    if(id==='barracksSelect'){
+      el.onchange = ()=>{ update(); render(); };
+    } else {
+      el.oninput = update;
+      el.onchange = update;
+    }
   });
   document.querySelectorAll('input[name="shipping"]').forEach(r=>r.onchange=()=>{ state.shipping=r.value; save(); render(); });
   const back=document.getElementById('backMachineBtn'); if(back) back.onclick=()=>setRoute('shop');
