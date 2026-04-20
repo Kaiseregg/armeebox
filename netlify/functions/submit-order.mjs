@@ -72,15 +72,25 @@ async function insertOrder(orderRow, items) {
   }
 
   if (items.length) {
-    const itemRows = items.map(item => ({
-      order_id: createdOrder.id,
-      product_id: item.product_id,
-      slot_code: item.slot_code,
-      product_name: item.product_name,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      total_price: item.total_price
-    }));
+  const itemRows = items.map(item => {
+  const unitPrice = Number(item.unit_price ?? item.price ?? 0);
+  const quantity = Number(item.quantity ?? 1);
+  const totalPrice = Number(item.total_price ?? unitPrice * quantity);
+
+  return {
+    order_id: createdOrder.id,
+    product_id: item.product_id != null ? Number(item.product_id) : null,
+    slot_code: item.slot_code ?? null,
+    product_name: item.product_name ?? item.name ?? 'Produkt',
+    quantity,
+    unit_price: unitPrice,
+    total_price: totalPrice,
+
+    // Legacy-Spalten für deine bestehende DB
+    unit_price_chf: unitPrice,
+    total_price_chf: totalPrice
+  };
+});
 
     const itemResponse = await fetch(`${supabaseUrl}/rest/v1/order_items`, {
       method: 'POST',
