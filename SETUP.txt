@@ -1,1 +1,4 @@
-Deploy-ready static preview build.
+1) In Supabase SQL Editor run: sql/armeebox_step13.sql
+2) In Netlify set env vars from .env.example
+3) Deploy to Netlify
+4) Test preview-4827-armbx order flow end to end

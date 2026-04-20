@@ -510,6 +510,7 @@ const texts = {
     senderName: 'Name / Firma',
     senderStreet: 'Strasse / Nr.',
     senderZip: 'PLZ / Ort',
+    senderEmail: 'E-Mail für Bestellbestätigung',
     soldierMsg: 'Nachricht an den Soldaten',
     firstName: 'Vorname',
     lastName: 'Name',
@@ -524,23 +525,39 @@ const texts = {
     backMachine: 'Zurück zum Automaten',
     backForm: 'Zurück zum Formular',
     sendOrder: 'Bestellung abschicken',
+    sendingOrder: 'Bestellung wird gesendet …',
     summary: 'Bestellübersicht',
     subtotal: 'Zwischentotal',
     shipping: 'Versand',
     total: 'Gesamt',
-    note: 'Diese Angaben sollen später im Admin-Dashboard und auf dem Lieferschein erscheinen.',
-    confirmTitle: 'Bestellung eingegangen',
-    confirmCopy: 'Die Bestellung wurde für den nächsten Projekt-Schritt vorbereitet. Später wird sie gespeichert und im Admin-Dashboard sichtbar sein.',
+    note: 'Die Bestellung wird gespeichert, an order@armeebox.ch gemeldet und der Kunde erhält eine Bestätigung per E-Mail.',
+    confirmTitle: 'Bestellung erfolgreich eingegangen',
+    confirmCopy: 'Deine Bestellung wurde gespeichert. Erst jetzt wurden Warenkorb und Formular zurückgesetzt.',
+    confirmOrderNo: 'Bestellnummer',
+    confirmEmail: 'Bestätigung an',
     newOrder: 'Neue Bestellung',
-    remove: 'Entfernen'
+    remove: 'Entfernen',
+    deliveryDetails: 'Lieferdetails',
+    validationCart: 'Bitte mindestens ein Produkt wählen.',
+    validationGeneric: 'Bitte alle Pflichtfelder korrekt ausfüllen.',
+    validationEmail: 'Bitte eine gültige E-Mail-Adresse eingeben.',
+    validationPrivatePhone: 'Bitte eine Telefonnummer eingeben.',
+    validationSoldierName: 'Bitte Vorname und Name des Soldaten eingeben.',
+    validationSender: 'Bitte Absender komplett ausfüllen.',
+    validationPrivateAddress: 'Bitte Privatadresse vollständig ausfüllen.',
+    submitError: 'Die Bestellung konnte nicht gespeichert werden. Bitte erneut versuchen.',
+    orderSavedAdmin: 'Die Bestellung ist für den Admin-Bereich vorbereitet.',
+    formErrorTitle: 'Bitte prüfen',
+    shippingMode: 'Versandart',
+    orderDate: 'Bestellt am'
   },
   fr: {
     langTitle: 'Choisir la langue',
     smallTitle: 'AUTOMATE VIRTUEL POUR PAQUETS DU SOLDAT',
     introTitle: 'À vos marques, prêts, paquet du soldat',
     introCopy: 'Nous livrons ton ravitaillement à la caserne puis à ton domicile',
-    toMachine: "Vers l’automate",
-    machineTitle: 'ARMEEBOX Automat',
+    toMachine: 'Vers l’automate',
+    machineTitle: 'Automate ARMEEBOX',
     machineInner: 'À vos marques, prêts, paquet du soldat',
     order: 'Commander',
     cart: 'Panier',
@@ -554,6 +571,7 @@ const texts = {
     senderName: 'Nom / Société',
     senderStreet: 'Rue / N°',
     senderZip: 'NPA / Ville',
+    senderEmail: 'E-mail pour confirmation',
     soldierMsg: 'Message au soldat',
     firstName: 'Prénom',
     lastName: 'Nom',
@@ -568,22 +586,44 @@ const texts = {
     backMachine: 'Retour à l’automate',
     backForm: 'Retour au formulaire',
     sendOrder: 'Envoyer la commande',
+    sendingOrder: 'Envoi de la commande …',
     summary: 'Résumé de commande',
     subtotal: 'Sous-total',
     shipping: 'Envoi',
     total: 'Total',
-    note: 'Ces informations doivent plus tard apparaître dans le tableau de bord admin et sur le bon de livraison.',
-    confirmTitle: 'Commande reçue',
-    confirmCopy: 'La commande a été préparée pour la prochaine étape du projet. Plus tard elle sera enregistrée et visible dans le tableau de bord admin.',
+    note: 'La commande est enregistrée, signalée à order@armeebox.ch et le client reçoit une confirmation par e-mail.',
+    confirmTitle: 'Commande reçue avec succès',
+    confirmCopy: 'Votre commande a été enregistrée. Le panier et le formulaire n’ont été vidés qu’après la commande finale.',
+    confirmOrderNo: 'N° de commande',
+    confirmEmail: 'Confirmation envoyée à',
     newOrder: 'Nouvelle commande',
-    remove: 'Retirer'
+    remove: 'Retirer',
+    deliveryDetails: 'Détails de livraison',
+    validationCart: 'Veuillez choisir au moins un produit.',
+    validationGeneric: 'Veuillez remplir correctement tous les champs obligatoires.',
+    validationEmail: 'Veuillez saisir une adresse e-mail valide.',
+    validationPrivatePhone: 'Veuillez saisir un numéro de téléphone.',
+    validationSoldierName: 'Veuillez saisir le prénom et le nom du soldat.',
+    validationSender: 'Veuillez compléter les données expéditeur.',
+    validationPrivateAddress: 'Veuillez compléter l’adresse privée.',
+    submitError: 'La commande n’a pas pu être enregistrée. Veuillez réessayer.',
+    orderSavedAdmin: 'La commande est prête pour la zone admin.',
+    formErrorTitle: 'À vérifier',
+    shippingMode: 'Mode d’envoi',
+    orderDate: 'Commandé le'
   }
 };
+
+const STORAGE_KEY = 'armeebox_preview_state_v14';
 const state = {
   lang: 'de',
   route: 'language',
   cart: [],
   shipping: 'barracks',
+  submitting: false,
+  submitError: '',
+  validationErrors: [],
+  lastOrder: null,
   form: {
     barracksIndex: 0,
     soldierFirstName: '',
@@ -593,6 +633,7 @@ const state = {
     senderName: '',
     senderStreet: '',
     senderZip: '',
+    senderEmail: '',
     message: '',
     privateName: '',
     privateStreet: '',
@@ -602,10 +643,14 @@ const state = {
   }
 };
 const app = document.getElementById('app');
+
 function money(n){ return `Fr. ${n}.–`; }
 function t(k){ return texts[state.lang][k] ?? k; }
-function save(){ localStorage.setItem('armeebox_preview_state_v12', JSON.stringify(state)); }
-function load(){ try{ const d=JSON.parse(localStorage.getItem('armeebox_preview_state_v12')); if(d) Object.assign(state,d);}catch(e){} }
+function escapeHtml(value){ return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function isEmail(value){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim()); }
+function getCustomerEmail(){ return state.shipping === 'barracks' ? state.form.senderEmail.trim() : state.form.privateEmail.trim(); }
+function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function load(){ try{ const d=JSON.parse(localStorage.getItem(STORAGE_KEY)); if(d) Object.assign(state,d);}catch(e){} }
 load();
 function currentBarracks(){ return BARRACKS[state.form.barracksIndex] || BARRACKS[0]; }
 function cartItemsDetailed(){ return state.cart.map(id=>PRODUCTS.find(p=>p.id===id)).filter(Boolean); }
@@ -620,14 +665,50 @@ function cartGrouped(){
 function subtotal(){ return cartItemsDetailed().reduce((a,p)=>a+p.price,0); }
 function shippingCost(){ return state.shipping==='private' ? 9 : 0; }
 function total(){ return subtotal()+shippingCost(); }
-function setRoute(route){ state.route=route; save(); render(); }
+function setRoute(route){ state.route=route; state.submitError=''; save(); render(); }
 function updateHash(){
   const map={language:'#language',intro:'#intro',shop:'#shop',order:'#order',review:'#review',confirmation:'#confirmation'};
   if(location.hash!==map[state.route]) history.replaceState(null,'',map[state.route]);
 }
-window.addEventListener('hashchange',()=>{ const h=location.hash.replace('#',''); if(['language','intro','shop','order','review','confirmation'].includes(h)){ state.route=h; render(); }});
+function resetOrderData(){
+  state.cart = [];
+  state.shipping = 'barracks';
+  state.submitError = '';
+  state.validationErrors = [];
+  state.form = {
+    barracksIndex: 0,
+    soldierFirstName: '',
+    soldierLastName: '',
+    soldierKp: '',
+    soldierZug: '',
+    senderName: '',
+    senderStreet: '',
+    senderZip: '',
+    senderEmail: '',
+    message: '',
+    privateName: '',
+    privateStreet: '',
+    privateZip: '',
+    privateEmail: '',
+    privatePhone: ''
+  };
+}
+window.addEventListener('hashchange',()=>{
+  const h=location.hash.replace('#','');
+  if(['language','intro','shop','order','review','confirmation'].includes(h)){
+    state.route=h;
+    render();
+  }
+});
 function onSelectProduct(id){ state.cart.push(id); save(); render(); }
 function removeOne(id){ const idx=state.cart.indexOf(id); if(idx>-1) state.cart.splice(idx,1); save(); render(); }
+
+function renderAlerts(){
+  const items = [...state.validationErrors];
+  if(state.submitError) items.push(state.submitError);
+  if(!items.length) return '';
+  return `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul>${items.map(msg=>`<li>${escapeHtml(msg)}</li>`).join('')}</ul></div>`;
+}
 
 function renderLanguage(){
   return `
@@ -643,6 +724,7 @@ function renderLanguage(){
     </div>
   </div>`;
 }
+
 function renderIntro(){
   return `
   <div class="page hero-box">
@@ -655,6 +737,7 @@ function renderIntro(){
     </div>
   </div>`;
 }
+
 function renderMachine(){
   const grouped=cartGrouped();
   return `
@@ -700,13 +783,16 @@ function renderMachine(){
     </div>
   </div>`;
 }
+
 function renderForm(){
-  const b=currentBarracks(); const grouped=cartGrouped();
+  const b=currentBarracks();
+  const grouped=cartGrouped();
   return `
   <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
   <div class="page">
     <div class="shell">
       <div class="review-actions" style="margin-bottom:16px"><button class="back-btn" id="backMachineBtn">← ${t('backMachine')}</button></div>
+      ${renderAlerts()}
       <div class="form-layout">
         <div class="card">
           <h2>${t('order')}</h2>
@@ -721,31 +807,34 @@ function renderForm(){
             <div class="card" style="padding:12px;margin-top:6px"><strong>${b.label}</strong><br>${b.address_lines.join('<br>')}</div>
           </div>
           <div class="two-col">
-            <div class="field"><label>${t('firstName')}</label><input id="soldierFirstName" value="${state.form.soldierFirstName}"></div>
-            <div class="field"><label>${t('lastName')}</label><input id="soldierLastName" value="${state.form.soldierLastName}"></div>
+            <div class="field"><label>${t('firstName')}</label><input id="soldierFirstName" value="${escapeHtml(state.form.soldierFirstName)}"></div>
+            <div class="field"><label>${t('lastName')}</label><input id="soldierLastName" value="${escapeHtml(state.form.soldierLastName)}"></div>
           </div>
           <div class="two-col">
-            <div class="field"><label>${t('kp')}</label><input id="soldierKp" value="${state.form.soldierKp}"></div>
-            <div class="field"><label>${t('zug')}</label><input id="soldierZug" value="${state.form.soldierZug}"></div>
+            <div class="field"><label>${t('kp')}</label><input id="soldierKp" value="${escapeHtml(state.form.soldierKp)}"></div>
+            <div class="field"><label>${t('zug')}</label><input id="soldierZug" value="${escapeHtml(state.form.soldierZug)}"></div>
           </div>
           <div class="card">
             <h3>${t('sender')}</h3>
             <div class="two-col">
-              <div class="field"><label>${t('senderName')}</label><input id="senderName" value="${state.form.senderName}"></div>
-              <div class="field"><label>${t('senderStreet')}</label><input id="senderStreet" value="${state.form.senderStreet}"></div>
+              <div class="field"><label>${t('senderName')}</label><input id="senderName" value="${escapeHtml(state.form.senderName)}"></div>
+              <div class="field"><label>${t('senderStreet')}</label><input id="senderStreet" value="${escapeHtml(state.form.senderStreet)}"></div>
             </div>
-            <div class="field"><label>${t('senderZip')}</label><input id="senderZip" value="${state.form.senderZip}"></div>
+            <div class="two-col">
+              <div class="field"><label>${t('senderZip')}</label><input id="senderZip" value="${escapeHtml(state.form.senderZip)}"></div>
+              <div class="field"><label>${t('senderEmail')}</label><input id="senderEmail" type="email" value="${escapeHtml(state.form.senderEmail)}"></div>
+            </div>
           </div>
-          <div class="field"><label>${t('soldierMsg')}</label><textarea id="message">${state.form.message}</textarea></div>
+          <div class="field"><label>${t('soldierMsg')}</label><textarea id="message">${escapeHtml(state.form.message)}</textarea></div>
           ` : `
           <div class="card">
             <h3>${t('privateAddress')}</h3>
-            <div class="field"><label>${t('senderName')}</label><input id="privateName" value="${state.form.privateName}"></div>
-            <div class="field"><label>${t('street')}</label><input id="privateStreet" value="${state.form.privateStreet}"></div>
-            <div class="field"><label>${t('zip')}</label><input id="privateZip" value="${state.form.privateZip}"></div>
+            <div class="field"><label>${t('senderName')}</label><input id="privateName" value="${escapeHtml(state.form.privateName)}"></div>
+            <div class="field"><label>${t('street')}</label><input id="privateStreet" value="${escapeHtml(state.form.privateStreet)}"></div>
+            <div class="field"><label>${t('zip')}</label><input id="privateZip" value="${escapeHtml(state.form.privateZip)}"></div>
             <div class="two-col">
-              <div class="field"><label>${t('email')}</label><input id="privateEmail" value="${state.form.privateEmail}"></div>
-              <div class="field"><label>${t('phone')}</label><input id="privatePhone" value="${state.form.privatePhone}"></div>
+              <div class="field"><label>${t('email')}</label><input id="privateEmail" type="email" value="${escapeHtml(state.form.privateEmail)}"></div>
+              <div class="field"><label>${t('phone')}</label><input id="privatePhone" value="${escapeHtml(state.form.privatePhone)}"></div>
             </div>
           </div>`}
         </div>
@@ -765,13 +854,16 @@ function renderForm(){
     </div>
   </div>`;
 }
+
 function renderReview(){
-  const grouped=cartGrouped(); const b=currentBarracks();
+  const grouped=cartGrouped();
+  const b=currentBarracks();
   return `
   <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
   <div class="page">
     <div class="shell">
       <h1 style="margin-top:0">${t('reviewTitle')}</h1>
+      ${renderAlerts()}
       <div class="review-layout">
         <div class="card">
           <h3>${t('summary')}</h3>
@@ -782,28 +874,38 @@ function renderReview(){
           <div class="review-actions" style="margin-top:18px">
             <button class="back-btn" id="reviewBackMachine">← ${t('backMachine')}</button>
             <button class="back-btn" id="reviewBackForm">← ${t('backForm')}</button>
-            <button class="cta primary" id="submitOrderBtn">${t('sendOrder')}</button>
+            <button class="cta primary" id="submitOrderBtn" ${state.submitting ? 'disabled' : ''}>${state.submitting ? t('sendingOrder') : t('sendOrder')}</button>
           </div>
         </div>
         <div class="card">
-          <h3>Lieferschein-Hinweis</h3>
+          <h3>${t('deliveryDetails')}</h3>
+          <div class="summary-line"><span>${t('shippingMode')}</span><strong>${state.shipping==='barracks' ? t('shippingBarracks') : t('shippingPrivate')}</strong></div>
           ${state.shipping==='barracks' ? `
-          <div><strong>${t('shippingBarracks')}</strong><br>${b.label}<br>${state.form.soldierFirstName} ${state.form.soldierLastName}<br>Kp: ${state.form.soldierKp} / Zug: ${state.form.soldierZug}<br>${b.address_lines.join('<br>')}</div>
-          <hr><div><strong>${t('sender')}</strong><br>${state.form.senderName}<br>${state.form.senderStreet}<br>${state.form.senderZip}</div>
-          <hr><div><strong>${t('soldierMsg')}</strong><br>${state.form.message || '-'}</div>` : `
-          <div><strong>${t('shippingPrivate')}</strong><br>${state.form.privateName}<br>${state.form.privateStreet}<br>${state.form.privateZip}<br>${state.form.privateEmail}<br>${state.form.privatePhone}</div>`}
+          <div><strong>${t('shippingBarracks')}</strong><br>${b.label}<br>${escapeHtml(state.form.soldierFirstName)} ${escapeHtml(state.form.soldierLastName)}<br>Kp: ${escapeHtml(state.form.soldierKp)} / Zug: ${escapeHtml(state.form.soldierZug)}<br>${b.address_lines.join('<br>')}</div>
+          <hr><div><strong>${t('sender')}</strong><br>${escapeHtml(state.form.senderName)}<br>${escapeHtml(state.form.senderStreet)}<br>${escapeHtml(state.form.senderZip)}<br>${escapeHtml(state.form.senderEmail)}</div>
+          <hr><div><strong>${t('soldierMsg')}</strong><br>${escapeHtml(state.form.message || '-')}</div>` : `
+          <div><strong>${t('shippingPrivate')}</strong><br>${escapeHtml(state.form.privateName)}<br>${escapeHtml(state.form.privateStreet)}<br>${escapeHtml(state.form.privateZip)}<br>${escapeHtml(state.form.privateEmail)}<br>${escapeHtml(state.form.privatePhone)}</div>`}
         </div>
       </div>
     </div>
   </div>`;
 }
+
 function renderConfirm(){
+  const order = state.lastOrder;
   return `
   <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
   <div class="page center">
     <div class="hero-card confirm-card">
       <h1 class="hero-title" style="font-size:56px">${t('confirmTitle')}</h1>
       <p class="hero-copy" style="font-size:22px">${t('confirmCopy')}</p>
+      ${order ? `
+      <div class="confirm-meta">
+        <div class="summary-line"><span>${t('confirmOrderNo')}</span><strong>${escapeHtml(order.order_number || '-')}</strong></div>
+        <div class="summary-line"><span>${t('confirmEmail')}</span><strong>${escapeHtml(order.customer_email || '-')}</strong></div>
+        <div class="summary-line"><span>${t('orderDate')}</span><strong>${escapeHtml(order.created_at_label || '-')}</strong></div>
+      </div>
+      <div class="note" style="margin-top:12px">${t('orderSavedAdmin')}</div>` : ''}
       <div class="review-actions">
         <button class="back-btn" id="confirmBackMachine">${t('backMachine')}</button>
         <button class="cta primary" id="newOrderBtn">${t('newOrder')}</button>
@@ -811,6 +913,7 @@ function renderConfirm(){
     </div>
   </div>`;
 }
+
 function bindCommon(){
   document.querySelectorAll('[data-lang]').forEach(btn=>btn.onclick=()=>{ state.lang=btn.dataset.lang; setRoute('intro'); });
 }
@@ -820,11 +923,13 @@ function bindMachine(){
   const orderBtn=document.getElementById('goOrderBtn'); if(orderBtn) orderBtn.onclick=()=>setRoute('order');
 }
 function syncFormFields(){
-  const ids=['barracksSelect','soldierFirstName','soldierLastName','soldierKp','soldierZug','senderName','senderStreet','senderZip','message','privateName','privateStreet','privateZip','privateEmail','privatePhone'];
+  const ids=['barracksSelect','soldierFirstName','soldierLastName','soldierKp','soldierZug','senderName','senderStreet','senderZip','senderEmail','message','privateName','privateStreet','privateZip','privateEmail','privatePhone'];
   ids.forEach(id=>{
     const el=document.getElementById(id);
     if(!el) return;
     const update = ()=>{
+      state.validationErrors = [];
+      state.submitError = '';
       if(id==='barracksSelect') state.form.barracksIndex = Number(el.value);
       else state.form[id]=el.value;
       save();
@@ -836,18 +941,127 @@ function syncFormFields(){
       el.onchange = update;
     }
   });
-  document.querySelectorAll('input[name="shipping"]').forEach(r=>r.onchange=()=>{ state.shipping=r.value; save(); render(); });
+  document.querySelectorAll('input[name="shipping"]').forEach(r=>r.onchange=()=>{
+    state.shipping=r.value;
+    state.validationErrors=[];
+    state.submitError='';
+    save();
+    render();
+  });
   const back=document.getElementById('backMachineBtn'); if(back) back.onclick=()=>setRoute('shop');
-  const review=document.getElementById('reviewBtn'); if(review) review.onclick=()=>setRoute('review');
+  const review=document.getElementById('reviewBtn'); if(review) review.onclick=()=>{
+    const ok = validateOrder();
+    if(ok) setRoute('review');
+    else render();
+  };
 }
+
+function validateOrder(){
+  const errors = [];
+  if(!state.cart.length) errors.push(t('validationCart'));
+  if(state.shipping === 'barracks'){
+    if(!state.form.soldierFirstName.trim() || !state.form.soldierLastName.trim()) errors.push(t('validationSoldierName'));
+    if(!state.form.senderName.trim() || !state.form.senderStreet.trim() || !state.form.senderZip.trim()) errors.push(t('validationSender'));
+    if(!isEmail(state.form.senderEmail)) errors.push(t('validationEmail'));
+  } else {
+    if(!state.form.privateName.trim() || !state.form.privateStreet.trim() || !state.form.privateZip.trim()) errors.push(t('validationPrivateAddress'));
+    if(!isEmail(state.form.privateEmail)) errors.push(t('validationEmail'));
+    if(!state.form.privatePhone.trim()) errors.push(t('validationPrivatePhone'));
+  }
+  state.validationErrors = [...new Set(errors)];
+  state.submitError = '';
+  save();
+  return state.validationErrors.length === 0;
+}
+
+function buildOrderPayload(){
+  const grouped = cartGrouped();
+  const barracks = currentBarracks();
+  return {
+    lang: state.lang,
+    shipping_method: state.shipping,
+    shipping_cost: shippingCost(),
+    subtotal: subtotal(),
+    total: total(),
+    item_count: state.cart.length,
+    customer_email: getCustomerEmail(),
+    barracks_label: state.shipping === 'barracks' ? barracks.label : null,
+    recipient_name: state.shipping === 'barracks'
+      ? `${state.form.soldierFirstName.trim()} ${state.form.soldierLastName.trim()}`.trim()
+      : state.form.privateName.trim(),
+    order_meta: {
+      barracksIndex: state.form.barracksIndex,
+      barracksAddress: state.shipping === 'barracks' ? barracks.address_lines : [],
+      soldierFirstName: state.form.soldierFirstName.trim(),
+      soldierLastName: state.form.soldierLastName.trim(),
+      soldierKp: state.form.soldierKp.trim(),
+      soldierZug: state.form.soldierZug.trim(),
+      senderName: state.form.senderName.trim(),
+      senderStreet: state.form.senderStreet.trim(),
+      senderZip: state.form.senderZip.trim(),
+      senderEmail: state.form.senderEmail.trim(),
+      message: state.form.message.trim(),
+      privateName: state.form.privateName.trim(),
+      privateStreet: state.form.privateStreet.trim(),
+      privateZip: state.form.privateZip.trim(),
+      privateEmail: state.form.privateEmail.trim(),
+      privatePhone: state.form.privatePhone.trim()
+    },
+    items: grouped.map(item => ({
+      product_id: item.id,
+      slot_code: item.slot,
+      product_name: item.name[state.lang],
+      quantity: item.qty,
+      unit_price: item.price,
+      total_price: item.price * item.qty
+    }))
+  };
+}
+
+async function submitOrder(){
+  if(state.submitting) return;
+  if(!validateOrder()){
+    render();
+    return;
+  }
+  state.submitting = true;
+  state.submitError = '';
+  save();
+  render();
+  try{
+    const response = await fetch('/.netlify/functions/submit-order', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(buildOrderPayload())
+    });
+    const result = await response.json().catch(()=>({}));
+    if(!response.ok || !result.success){
+      throw new Error(result.error || t('submitError'));
+    }
+    state.lastOrder = {
+      order_number: result.order?.order_number || result.order_number || '-',
+      customer_email: result.order?.customer_email || getCustomerEmail(),
+      created_at_label: new Date().toLocaleString(state.lang === 'fr' ? 'fr-CH' : 'de-CH')
+    };
+    resetOrderData();
+    state.route = 'confirmation';
+  }catch(error){
+    state.submitError = error?.message || t('submitError');
+  }finally{
+    state.submitting = false;
+    save();
+    render();
+  }
+}
+
 function bindReview(){
   document.getElementById('reviewBackMachine').onclick=()=>setRoute('shop');
   document.getElementById('reviewBackForm').onclick=()=>setRoute('order');
-  document.getElementById('submitOrderBtn').onclick=()=>setRoute('confirmation');
+  document.getElementById('submitOrderBtn').onclick=()=>submitOrder();
 }
 function bindConfirm(){
   document.getElementById('confirmBackMachine').onclick=()=>setRoute('shop');
-  document.getElementById('newOrderBtn').onclick=()=>{ state.cart=[]; setRoute('language'); };
+  document.getElementById('newOrderBtn').onclick=()=>setRoute('shop');
 }
 function render(){
   updateHash();
