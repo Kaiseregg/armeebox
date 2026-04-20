@@ -549,7 +549,19 @@ const texts = {
     orderSavedAdmin: 'Die Bestellung ist für den Admin-Bereich vorbereitet.',
     formErrorTitle: 'Bitte prüfen',
     shippingMode: 'Versandart',
-    orderDate: 'Bestellt am'
+    orderDate: 'Bestellt am',
+    adminLogin: 'Admin Login',
+    adminEmail: 'Admin E-Mail',
+    adminPassword: 'Passwort',
+    adminOpen: 'Admin öffnen',
+    adminOrders: 'Bestellungen',
+    adminLogout: 'Logout',
+    adminRefresh: 'Aktualisieren',
+    adminNoOrders: 'Noch keine Bestellungen vorhanden.',
+    adminDetails: 'Bestelldetails',
+    adminStatus: 'Status',
+    adminSaveStatus: 'Status speichern',
+    adminBackList: 'Zurück zur Liste'
   },
   fr: {
     langTitle: 'Choisir la langue',
@@ -610,9 +622,23 @@ const texts = {
     orderSavedAdmin: 'La commande est prête pour la zone admin.',
     formErrorTitle: 'À vérifier',
     shippingMode: 'Mode d’envoi',
-    orderDate: 'Commandé le'
+    orderDate: 'Commandé le',
+    adminLogin: 'Connexion admin',
+    adminEmail: 'E-mail admin',
+    adminPassword: 'Mot de passe',
+    adminOpen: 'Ouvrir admin',
+    adminOrders: 'Commandes',
+    adminLogout: 'Déconnexion',
+    adminRefresh: 'Actualiser',
+    adminNoOrders: 'Aucune commande disponible.',
+    adminDetails: 'Détails de commande',
+    adminStatus: 'Statut',
+    adminSaveStatus: 'Enregistrer le statut',
+    adminBackList: 'Retour à la liste'
   }
 };
+
+const ADMIN_STATUSES = ['new','in_progress','done'];
 
 const STORAGE_KEY = 'armeebox_preview_state_v14';
 const state = {
@@ -624,6 +650,14 @@ const state = {
   submitError: '',
   validationErrors: [],
   lastOrder: null,
+  admin: {
+    loading: false,
+    loggedIn: false,
+    loginError: '',
+    orders: [],
+    currentOrder: null,
+    statusSaving: false
+  },
   form: {
     barracksIndex: 0,
     soldierFirstName: '',
@@ -653,6 +687,124 @@ function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function load(){ try{ const d=JSON.parse(localStorage.getItem(STORAGE_KEY)); if(d) Object.assign(state,d);}catch(e){} }
 load();
 function currentBarracks(){ return BARRACKS[state.form.barracksIndex] || BARRACKS[0]; }
+
+function formatDate(value){
+  if(!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString(state.lang === 'fr' ? 'fr-CH' : 'de-CH');
+}
+function adminStatusLabel(value){
+  if(value==='in_progress') return 'in_progress';
+  if(value==='done') return 'done';
+  return 'new';
+}
+function escapeAttr(value){ return escapeHtml(value).replace(/"/g,'&quot;'); }
+async function adminRequest(action, options={}){
+  const method = options.method || 'GET';
+  const body = options.body;
+  const params = new URLSearchParams();
+  params.set('action', action);
+  if (options.id) params.set('id', options.id);
+  const response = await fetch(`/.netlify/functions/admin-api?${params.toString()}`, {
+    method,
+    headers: body ? {'Content-Type':'application/json'} : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: 'same-origin'
+  });
+  const data = await response.json().catch(()=>({}));
+  if(!response.ok || data.success===false){
+    throw new Error(data.error || 'Admin request failed');
+  }
+  return data;
+}
+async function refreshAdminSession(){
+  try{
+    const data = await adminRequest('session');
+    state.admin.loggedIn = !!data.loggedIn;
+    if(!data.loggedIn){
+      state.admin.orders = [];
+      state.admin.currentOrder = null;
+    }
+  }catch(_){
+    state.admin.loggedIn = false;
+  }
+}
+async function loadAdminOrders(){
+  state.admin.loading = true;
+  state.admin.loginError = '';
+  render();
+  try{
+    const data = await adminRequest('orders');
+    state.admin.orders = Array.isArray(data.orders) ? data.orders : [];
+  }catch(error){
+    state.admin.loginError = error.message || 'Admin load failed';
+  }finally{
+    state.admin.loading = false;
+    save();
+    render();
+  }
+}
+async function loadAdminOrder(id){
+  state.admin.loading = true;
+  state.admin.loginError = '';
+  render();
+  try{
+    const data = await adminRequest('order', {id});
+    state.admin.currentOrder = data.order || null;
+  }catch(error){
+    state.admin.loginError = error.message || 'Order load failed';
+  }finally{
+    state.admin.loading = false;
+    save();
+    render();
+  }
+}
+async function doAdminLogin(email, password){
+  state.admin.loading = true;
+  state.admin.loginError = '';
+  render();
+  try{
+    const data = await adminRequest('login', {method:'POST', body:{email, password}});
+    state.admin.loggedIn = !!data.loggedIn;
+    if(state.admin.loggedIn){
+      state.route = 'admin-orders';
+      await loadAdminOrders();
+      return;
+    }
+  }catch(error){
+    state.admin.loginError = error.message || 'Login failed';
+  }finally{
+    state.admin.loading = false;
+    save();
+    render();
+  }
+}
+async function doAdminLogout(){
+  try{ await adminRequest('logout', {method:'POST'}); }catch(_){ }
+  state.admin.loggedIn = false;
+  state.admin.orders = [];
+  state.admin.currentOrder = null;
+  state.route = 'admin-login';
+  save();
+  render();
+}
+async function saveAdminStatus(orderId, status){
+  state.admin.statusSaving = true;
+  state.admin.loginError = '';
+  render();
+  try{
+    const data = await adminRequest('status', {method:'POST', body:{id: orderId, status}});
+    state.admin.currentOrder = data.order || state.admin.currentOrder;
+    state.admin.orders = state.admin.orders.map(o => o.id === orderId ? {...o, status, order_status: status} : o);
+  }catch(error){
+    state.admin.loginError = error.message || 'Status save failed';
+  }finally{
+    state.admin.statusSaving = false;
+    save();
+    render();
+  }
+}
 function cartItemsDetailed(){ return state.cart.map(id=>PRODUCTS.find(p=>p.id===id)).filter(Boolean); }
 function cartGrouped(){
   const map = new Map();
@@ -667,7 +819,13 @@ function shippingCost(){ return state.shipping==='private' ? 9 : 0; }
 function total(){ return subtotal()+shippingCost(); }
 function setRoute(route){ state.route=route; state.submitError=''; save(); render(); }
 function updateHash(){
-  const map={language:'#language',intro:'#intro',shop:'#shop',order:'#order',review:'#review',confirmation:'#confirmation'};
+  const map={language:'#language',intro:'#intro',shop:'#shop',order:'#order',review:'#review',confirmation:'#confirmation','admin-login':'#admin-login','admin-orders':'#admin-orders','admin-order':'#admin-order'};
+  if(state.route==='admin-order'){
+    const id = state.admin.currentOrder?.id || new URLSearchParams(location.search).get('id') || '';
+    const target = `#admin-order${id ? `?id=${encodeURIComponent(id)}` : ''}`;
+    if(`${location.hash}`!==target) history.replaceState(null,'',target);
+    return;
+  }
   if(location.hash!==map[state.route]) history.replaceState(null,'',map[state.route]);
 }
 function resetOrderData(){
@@ -694,9 +852,13 @@ function resetOrderData(){
   };
 }
 window.addEventListener('hashchange',()=>{
-  const h=location.hash.replace('#','');
-  if(['language','intro','shop','order','review','confirmation'].includes(h)){
+  const h=location.hash.replace('#','').split('?')[0];
+  if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order'].includes(h)){
     state.route=h;
+    if(h==='admin-order'){
+      const id = new URLSearchParams(location.search).get('id');
+      if(id) loadAdminOrder(id);
+    }
     render();
   }
 });
@@ -791,7 +953,7 @@ function renderForm(){
   <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
   <div class="page">
     <div class="shell">
-      <div class="review-actions" style="margin-bottom:16px"><button class="back-btn" id="backMachineBtn">← ${t('backMachine')}</button></div>
+      <div class="order-top-actions"><button class="back-btn" id="backMachineBtn">← ${t('backMachine')}</button><button class="back-btn" id="openAdminBtn">Admin</button></div>
       ${renderAlerts()}
       <div class="form-layout">
         <div class="card">
@@ -914,6 +1076,129 @@ function renderConfirm(){
   </div>`;
 }
 
+
+function renderAdminLogin(){
+  return `
+  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
+  <div class="page center">
+    <div class="hero-card admin-login-card">
+      <div class="goldline">ARMEEBOX ADMIN</div>
+      <h1 class="hero-title" style="font-size:48px">${t('adminLogin')}</h1>
+      ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
+      <div class="field"><label>${t('adminEmail')}</label><input id="adminEmailInput" type="email" autocomplete="username"></div>
+      <div class="field"><label>${t('adminPassword')}</label><input id="adminPasswordInput" type="password" autocomplete="current-password"></div>
+      <div class="review-actions">
+        <button class="back-btn" id="adminBackToLanguage">← ${t('backMachine')}</button>
+        <button class="cta primary" id="adminLoginBtn" ${state.admin.loading ? 'disabled' : ''}>${state.admin.loading ? t('sendingOrder') : t('adminOpen')}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderAdminOrders(){
+  const rows = state.admin.orders.map(order => `
+    <tr>
+      <td>${escapeHtml(order.order_number || '-')}</td>
+      <td>${escapeHtml(formatDate(order.created_at))}</td>
+      <td>${escapeHtml(order.customer_email || '-')}</td>
+      <td>${escapeHtml(order.shipping_method || '-')}</td>
+      <td>${money(order.total ?? order.total_chf ?? 0)}</td>
+      <td><span class="admin-chip ${escapeAttr(adminStatusLabel(order.order_status || order.status))}">${escapeHtml(order.order_status || order.status || 'new')}</span></td>
+      <td><button class="back-btn" data-open-order="${escapeAttr(order.id)}">Öffnen</button></td>
+    </tr>`).join('');
+  return `
+  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
+  <div class="page">
+    <div class="shell">
+      <div class="admin-toolbar">
+        <div><h1 style="margin:0;font-size:48px">${t('adminOrders')}</h1><div class="note">Admin-Grundgerüst – Bestellübersicht</div></div>
+        <div class="admin-actions">
+          <button class="back-btn" id="adminRefreshBtn">${t('adminRefresh')}</button>
+          <button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button>
+        </div>
+      </div>
+      ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
+      <div class="card table-wrap">
+        ${state.admin.loading ? `<div class="note">Lade Bestellungen …</div>` : state.admin.orders.length ? `
+        <table class="admin-table">
+          <thead><tr><th>Bestellung</th><th>Datum</th><th>E-Mail</th><th>Versand</th><th>Total</th><th>Status</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>` : `<div class="note">${t('adminNoOrders')}</div>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderAdminOrder(){
+  const order = state.admin.currentOrder;
+  if(!order){
+    return `
+    <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
+    <div class="page"><div class="shell"><div class="note">Bestellung wird geladen …</div></div></div>`;
+  }
+  const meta = order.order_meta || {};
+  const itemsHtml = (order.items || []).map(item => `
+    <div class="summary-line"><span>${escapeHtml(item.product_name || '-')} x${escapeHtml(item.quantity || 1)}</span><strong>${money(item.total_price ?? item.line_total_chf ?? item.unit_price ?? item.unit_price_chf ?? 0)}</strong></div>`).join('');
+  const barracksAddr = Array.isArray(meta.barracksAddress) ? meta.barracksAddress.filter(Boolean).join('<br>') : '';
+  return `
+  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
+  <div class="page">
+    <div class="shell">
+      <div class="admin-toolbar">
+        <div><h1 style="margin:0;font-size:44px">${t('adminDetails')}</h1><div class="note">${escapeHtml(order.order_number || '-')}</div></div>
+        <div class="admin-actions">
+          <button class="back-btn" id="adminBackToOrders">${t('adminBackList')}</button>
+          <button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button>
+        </div>
+      </div>
+      ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
+      <div class="admin-detail-grid">
+        <div class="card">
+          <h3>Artikel</h3>
+          ${itemsHtml || '<div class="note">Keine Positionen</div>'}
+          <div class="summary-line"><span>${t('subtotal')}</span><strong>${money(order.subtotal ?? order.subtotal_chf ?? 0)}</strong></div>
+          <div class="summary-line"><span>${t('shipping')}</span><strong>${money(order.shipping_cost ?? order.shipping_chf ?? 0)}</strong></div>
+          <div class="summary-line"><span>${t('total')}</span><strong>${money(order.total ?? order.total_chf ?? 0)}</strong></div>
+        </div>
+        <div class="card admin-meta">
+          <h3>Bestellinfo</h3>
+          <p><strong>Datum:</strong><br>${escapeHtml(formatDate(order.created_at))}</p>
+          <p><strong>Kunden E-Mail:</strong><br>${escapeHtml(order.customer_email || '-')}</p>
+          <p><strong>Versandart:</strong><br>${escapeHtml(order.shipping_method || '-')}</p>
+          <div class="field">
+            <label>${t('adminStatus')}</label>
+            <select id="adminStatusSelect" class="form-select">${ADMIN_STATUSES.map(status => `<option value="${status}" ${(order.order_status || order.status || 'new')===status ? 'selected' : ''}>${status}</option>`).join('')}</select>
+          </div>
+          <div class="review-actions" style="justify-content:flex-start">
+            <button class="cta primary" id="adminSaveStatusBtn" ${state.admin.statusSaving ? 'disabled' : ''}>${state.admin.statusSaving ? t('sendingOrder') : t('adminSaveStatus')}</button>
+          </div>
+        </div>
+      </div>
+      <div class="admin-detail-grid" style="margin-top:18px">
+        <div class="card admin-block">
+          <h3>Lieferadresse</h3>
+          ${order.shipping_method === 'private' ? `
+            <p>${escapeHtml(meta.privateName || '')}<br>${escapeHtml(meta.privateStreet || '')}<br>${escapeHtml(meta.privateZip || '')}${meta.privateCity ? ' ' + escapeHtml(meta.privateCity) : ''}<br>${escapeHtml(meta.privateEmail || '')}<br>${escapeHtml(meta.privatePhone || '')}</p>
+          ` : `
+            <p>${escapeHtml(meta.soldierFirstName || '')} ${escapeHtml(meta.soldierLastName || '')}<br>${escapeHtml(meta.soldierKp ? `Kp: ${meta.soldierKp}` : '')}${meta.soldierKp && meta.soldierZug ? ' / ' : ''}${escapeHtml(meta.soldierZug ? `Zug: ${meta.soldierZug}` : '')}<br>${barracksAddr}</p>
+          `}
+        </div>
+        <div class="card admin-block">
+          <h3>${order.shipping_method === 'private' ? 'Kontakt' : 'Absender'}</h3>
+          ${order.shipping_method === 'private' ? `
+            <p>${escapeHtml(order.customer_email || '')}</p>
+          ` : `
+            <p>${escapeHtml(meta.senderName || '')}<br>${escapeHtml(meta.senderStreet || '')}<br>${escapeHtml(meta.senderZip || '')}<br>${escapeHtml(meta.senderEmail || '')}</p>
+          `}
+        </div>
+      </div>
+      <div class="card admin-block" style="margin-top:18px">
+        <h3>Nachricht / Metadaten</h3>
+        <div class="admin-note">${escapeHtml(meta.message || order.notes || '-')}</div>
+      </div>
+    </div>
+  </div>`;
+}
 function bindCommon(){
   document.querySelectorAll('[data-lang]').forEach(btn=>btn.onclick=()=>{ state.lang=btn.dataset.lang; setRoute('intro'); });
 }
@@ -949,6 +1234,7 @@ function syncFormFields(){
     render();
   });
   const back=document.getElementById('backMachineBtn'); if(back) back.onclick=()=>setRoute('shop');
+  const openAdmin=document.getElementById('openAdminBtn'); if(openAdmin) openAdmin.onclick=()=>setRoute('admin-login');
   const review=document.getElementById('reviewBtn'); if(review) review.onclick=()=>{
     const ok = validateOrder();
     if(ok) setRoute('review');
@@ -1063,6 +1349,40 @@ function bindConfirm(){
   document.getElementById('confirmBackMachine').onclick=()=>setRoute('shop');
   document.getElementById('newOrderBtn').onclick=()=>setRoute('shop');
 }
+
+function bindAdminLogin(){
+  const back = document.getElementById('adminBackToLanguage');
+  if(back) back.onclick = ()=>setRoute('language');
+  const btn = document.getElementById('adminLoginBtn');
+  if(btn) btn.onclick = ()=>{
+    const email = document.getElementById('adminEmailInput')?.value || '';
+    const password = document.getElementById('adminPasswordInput')?.value || '';
+    doAdminLogin(email, password);
+  };
+}
+function bindAdminOrders(){
+  const refresh = document.getElementById('adminRefreshBtn');
+  if(refresh) refresh.onclick = ()=>loadAdminOrders();
+  const logout = document.getElementById('adminLogoutBtn');
+  if(logout) logout.onclick = ()=>doAdminLogout();
+  document.querySelectorAll('[data-open-order]').forEach(btn => btn.onclick = ()=>{
+    const id = btn.getAttribute('data-open-order');
+    history.replaceState(null,'',`#admin-order?id=${encodeURIComponent(id)}`);
+    state.route = 'admin-order';
+    loadAdminOrder(id);
+  });
+}
+function bindAdminOrder(){
+  const back = document.getElementById('adminBackToOrders');
+  if(back) back.onclick = ()=>{ history.replaceState(null,'','#admin-orders'); setRoute('admin-orders'); loadAdminOrders(); };
+  const logout = document.getElementById('adminLogoutBtn');
+  if(logout) logout.onclick = ()=>doAdminLogout();
+  const saveBtn = document.getElementById('adminSaveStatusBtn');
+  if(saveBtn) saveBtn.onclick = ()=>{
+    const status = document.getElementById('adminStatusSelect')?.value || 'new';
+    if(state.admin.currentOrder?.id) saveAdminStatus(state.admin.currentOrder.id, status);
+  };
+}
 function render(){
   updateHash();
   let html='';
@@ -1072,6 +1392,9 @@ function render(){
   if(state.route==='order') html=renderForm();
   if(state.route==='review') html=renderReview();
   if(state.route==='confirmation') html=renderConfirm();
+  if(state.route==='admin-login') html=renderAdminLogin();
+  if(state.route==='admin-orders') html=renderAdminOrders();
+  if(state.route==='admin-order') html=renderAdminOrder();
   app.innerHTML=html;
   bindCommon();
   if(state.route==='intro') document.getElementById('toShopBtn').onclick=()=>setRoute('shop');
@@ -1079,7 +1402,30 @@ function render(){
   if(state.route==='order') syncFormFields();
   if(state.route==='review') bindReview();
   if(state.route==='confirmation') bindConfirm();
+  if(state.route==='admin-login') bindAdminLogin();
+  if(state.route==='admin-orders') bindAdminOrders();
+  if(state.route==='admin-order') bindAdminOrder();
 }
 const initialHash = location.hash.replace('#','');
-if(['language','intro','shop','order','review','confirmation'].includes(initialHash)) state.route=initialHash;
-render();
+if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order'].includes(initialHash)) state.route=initialHash;
+(async()=>{
+  if(state.route.startsWith('admin-')){
+    await refreshAdminSession();
+    if(!state.admin.loggedIn){
+      state.route='admin-login';
+    } else if(state.route==='admin-orders') {
+      await loadAdminOrders();
+      return;
+    } else if(state.route==='admin-order') {
+      const id = new URLSearchParams(location.search).get('id');
+      if(id){
+        await loadAdminOrder(id);
+        return;
+      }
+      state.route='admin-orders';
+      await loadAdminOrders();
+      return;
+    }
+  }
+  render();
+})();

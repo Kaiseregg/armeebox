@@ -2,3 +2,11 @@
 2) In Netlify set env vars from .env.example
 3) Deploy to Netlify
 4) Test preview-4827-armbx order flow end to end
+
+
+STEP 14 ADMIN
+- Neue Netlify Variablen:
+  ADMIN_EMAIL=deine-admin-mail
+  ADMIN_PASSWORD=dein-admin-passwort
+  ADMIN_SESSION_SECRET=ein-langer-zufallswert
+- Admin Login aufrufen: /preview-4827-armbx/#admin-login
