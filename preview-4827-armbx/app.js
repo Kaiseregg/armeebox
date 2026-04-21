@@ -530,7 +530,7 @@ const texts = {
     subtotal: 'Zwischentotal',
     shipping: 'Versand',
     total: 'Gesamt',
-    note: 'Die Bestellung wird gespeichert, an order@armeebox.ch gemeldet und der Kunde erhält eine Bestätigung per E-Mail.',
+    note: '',
     confirmTitle: 'Bestellung erfolgreich eingegangen',
     confirmCopy: 'Deine Bestellung wurde gespeichert. Erst jetzt wurden Warenkorb und Formular zurückgesetzt.',
     confirmOrderNo: 'Bestellnummer',
@@ -1081,7 +1081,7 @@ function renderForm(){
             <div class="summary-line"><span>${t('shipping')}</span><strong>${money(shippingCost())}</strong></div>
             <div class="summary-line"><span>${t('total')}</span><strong>${money(total())}</strong></div>
             <button class="order-btn" id="reviewBtn">${t('reviewTitle')}</button>
-            <div class="note">${t('note')}</div>
+            
           </div>
         </div>
       </div>
@@ -1478,9 +1478,17 @@ function bindAdminOrders(){
   const search = document.getElementById('adminSearchInput');
   if(search){
     search.oninput = ()=>{
-      state.admin.search = search.value;
+      const value = search.value;
+      state.admin.search = value;
       save();
       render();
+      requestAnimationFrame(() => {
+        const next = document.getElementById('adminSearchInput');
+        if(next){
+          next.focus();
+          try { next.setSelectionRange(value.length, value.length); } catch(_) {}
+        }
+      });
     };
   }
   const filter = document.getElementById('adminFilterSelect');
@@ -1537,7 +1545,11 @@ function render(){
   if(state.route==='admin-order') bindAdminOrder();
 }
 const initialHash = location.hash.replace('#','').split('?')[0];
-if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order'].includes(initialHash)) state.route=initialHash;
+if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order'].includes(initialHash)) {
+  state.route=initialHash;
+} else if(!initialHash) {
+  state.route='language';
+}
 (async()=>{
   if(state.route.startsWith('admin-')){
     await refreshAdminSession();
