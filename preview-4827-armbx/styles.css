@@ -29,7 +29,7 @@ img{max-width:100%;display:block}
 .machine-red{border-radius:18px;background:linear-gradient(180deg,#b12929,#811515);padding:10px;box-shadow: inset 0 0 0 1px rgba(255,255,255,.18);}
 .machine-inner{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:14px;border-radius:14px;background:linear-gradient(180deg,#3a4550,#262f38);padding:12px;box-shadow: inset 0 0 0 3px #607184}
 .machine-banner{grid-column:1 / -1;border-radius:10px;background:linear-gradient(90deg,#111722,#283544,#111722);padding:16px 22px;font-size:58px;font-weight:800;color:white;border:2px solid #6f8094}
-.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(4,minmax(0,1fr))}
 .slot{background:linear-gradient(180deg,#334557,#1e2b39);border-radius:14px;padding:10px;border:2px solid #6e8093;box-shadow:inset 0 0 0 2px #32455d;transition:transform .15s ease,border-color .15s ease, box-shadow .15s ease}
 .slot:hover,.slot:focus-visible{transform:translateY(-1px);border-color:#b4e74f;box-shadow:inset 0 0 0 2px #32455d,0 0 0 2px rgba(180,231,79,.18)}
 .slot.selected{border-color:#b4e74f;box-shadow:inset 0 0 0 2px #32455d,0 0 0 3px rgba(180,231,79,.25)}

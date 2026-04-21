@@ -590,7 +590,6 @@ const texts = {
     adminProductsRefresh: 'Produkte laden',
     adminAddSlot: 'Slot hinzufügen',
     adminSlotNumber: 'Slotnummer',
-    adminNextSlotAdded: 'Neuer Slot wurde hinzugefügt.',
     adminProductsSaved: 'Produkte wurden gespeichert.',
     adminSlot: 'Slot',
     adminProductName: 'Produktname',
@@ -698,9 +697,6 @@ const texts = {
     adminBackOrders: 'Retour aux commandes',
     adminProductsSave: 'Enregistrer les produits',
     adminProductsRefresh: 'Charger les produits',
-    adminAddSlot: 'Ajouter un slot',
-    adminSlotNumber: 'Numéro du slot',
-    adminNextSlotAdded: 'Nouveau slot ajouté.',
     adminProductsSaved: 'Les produits ont été enregistrés.',
     adminSlot: 'Slot',
     adminProductName: 'Nom du produit',
@@ -812,31 +808,6 @@ function currentProducts(){
 function adminProductsList(){
   const source = Array.isArray(state.admin.products) && state.admin.products.length ? state.admin.products : (Array.isArray(state.catalog.products) && state.catalog.products.length ? state.catalog.products : DEFAULT_PRODUCTS);
   return source.map((row, index) => normalizeCatalogProduct(row, index)).sort((a,b)=>a.slotNumber-b.slotNumber);
-}
-function nextAdminSlotNumber(){
-  return adminProductsList().reduce((max, product) => Math.max(max, Number(product.slotNumber || 0)), 0) + 1;
-}
-function addAdminSlot(){
-  const products = adminProductsList();
-  const nextSlot = nextAdminSlotNumber();
-  products.push({
-    id: `slot-${nextSlot}-${Date.now()}`,
-    slot: String(nextSlot).padStart(2,'0'),
-    slotNumber: nextSlot,
-    name: { de: '', fr: '' },
-    price: 0,
-    active: true,
-    image_url: '',
-    sort_order: 0
-  });
-  state.admin.products = products.sort((a,b)=>a.slotNumber-b.slotNumber);
-  state.admin.productsMessage = t('adminNextSlotAdded');
-  save();
-  render();
-  requestAnimationFrame(() => {
-    const field = document.querySelector(`[data-product-field=\"slotNumber\"][data-product-index=\"${products.length - 1}\"]`) || document.querySelector(`[data-product-field=\"name\"][data-product-index=\"${products.length - 1}\"]`);
-    if(field) field.focus();
-  });
 }
 
 function formatDate(value){
@@ -1741,8 +1712,6 @@ function bindAdminProducts(){
   if(refresh) refresh.onclick = ()=>loadAdminProducts();
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
-  const addSlotBtn = document.getElementById('adminAddSlotBtn');
-  if(addSlotBtn) addSlotBtn.onclick = ()=>addAdminSlot();
   document.querySelectorAll('[data-product-field]').forEach(input => {
     input.oninput = input.onchange = ()=>{
       const index = Number(input.getAttribute('data-product-index'));
@@ -1752,17 +1721,19 @@ function bindAdminProducts(){
       if(!product) return;
       if(field === 'active') product.active = !!input.checked;
       else if(field === 'price') product.price = Number(input.value || 0);
-      else if(field === 'name') product.name = { de: input.value, fr: input.value };
       else if(field === 'slotNumber') {
-        const nextSlot = Math.max(1, Number(input.value || product.slotNumber || 1));
-        product.slotNumber = nextSlot;
-        product.slot = String(nextSlot).padStart(2,'0');
+        const value = Number(input.value || 0);
+        product.slotNumber = Number.isInteger(value) && value > 0 ? value : product.slotNumber;
+        product.slot = String(product.slotNumber).padStart(2,'0');
       }
+      else if(field === 'name') product.name = { de: input.value, fr: input.value };
       else product[field] = input.value;
-      state.admin.products = products.sort((a,b)=>a.slotNumber-b.slotNumber);
+      state.admin.products = products;
       save();
     };
   });
+  const addSlotBtn = document.getElementById('adminAddSlotBtn');
+  if(addSlotBtn) addSlotBtn.onclick = ()=>addAdminSlot();
   const saveBtn = document.getElementById('adminSaveProductsBtn');
   if(saveBtn) saveBtn.onclick = ()=>saveAdminProducts();
 }
