@@ -767,16 +767,19 @@ function currentBarracks(){ return BARRACKS[state.form.barracksIndex] || BARRACK
 function normalizeCatalogProduct(row, index){
   const fallback = DEFAULT_PRODUCTS[index] || {};
   const slotNumber = Number(row?.slot ?? fallback.slot ?? (index + 1));
-  const fallbackName = fallback.name?.de || `Slot ${String(slotNumber).padStart(2,'0')}`;
-  const name = String(row?.name || fallbackName);
+  const fallbackNameDe = fallback.name?.de || `Slot ${String(slotNumber).padStart(2,'0')}`;
+  const fallbackNameFr = fallback.name?.fr || fallbackNameDe;
+  const nameDe = String(row?.name_de || row?.name || fallbackNameDe);
+  const nameFr = String(row?.name_fr || row?.name_de || row?.name || fallbackNameFr);
   return {
     id: String(row?.id ?? row?.slot ?? fallback.id ?? slotNumber),
     slot: String(slotNumber).padStart(2,'0'),
     slotNumber,
-    name: { de: name, fr: name },
-    price: Number(row?.price ?? fallback.price ?? 0),
-    active: row?.active !== false,
-    image_url: row?.image_url || ''
+    name: { de: nameDe, fr: nameFr },
+    price: Number(row?.price_chf ?? row?.price ?? fallback.price ?? 0),
+    active: Boolean(row?.is_active ?? row?.active ?? true),
+    image_url: row?.image_url || '',
+    sort_order: Number(row?.sort_order ?? 0)
   };
 }
 function currentProducts(){
@@ -976,12 +979,14 @@ async function saveAdminProducts(){
   try{
     const rows = adminProductsList().map(product => ({
       slot: Number(product.slotNumber),
-      name: product.name?.de || '',
-      price: Number(product.price || 0),
-      active: product.active !== false,
-      image_url: product.image_url || ''
+      name_de: product.name?.de || '',
+      name_fr: product.name?.fr || product.name?.de || '',
+      price_chf: Number(product.price || 0),
+      is_active: product.active !== false,
+      image_url: product.image_url || '',
+      sort_order: Number(product.sort_order || 0)
     }));
-    const data = await adminRequest('save-products', { method:'POST', body:{ products: rows } });
+    const data = await adminRequest('products', { method:'POST', body:{ products: rows } });
     const products = Array.isArray(data.products) ? data.products : rows;
     state.admin.products = products;
     state.catalog.products = products;

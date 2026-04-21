@@ -75,14 +75,18 @@ function normalizeOrder(row) {
   };
 }
 
-function normalizeProductRow(row, slot) {
+function normalizeProductRow(row) {
   return {
     id: row?.id || null,
-    slot,
-    name: row?.name || row?.name_de || '',
-    price: Number(row?.price ?? row?.price_chf ?? 0),
-    active: Boolean(row?.active ?? row?.is_active ?? false),
-    image_url: row?.image_url || ''
+    slot: Number(row?.slot || 0),
+    name_de: String(row?.name_de || row?.name || ''),
+    name_fr: String(row?.name_fr || row?.name_de || row?.name || ''),
+    description_de: String(row?.description_de || ''),
+    description_fr: String(row?.description_fr || ''),
+    price_chf: Number(row?.price_chf ?? row?.price ?? 0),
+    is_active: Boolean(row?.is_active ?? row?.active ?? false),
+    image_url: row?.image_url || '',
+    sort_order: Number(row?.sort_order ?? 0)
   };
 }
 
@@ -99,12 +103,18 @@ function normalizeIncomingProducts(body) {
     .map((item, index) => {
       const slot = Number(item?.slot ?? item?.slot_number ?? index + 1);
       if (!Number.isInteger(slot) || slot <= 0) return null;
+      const nameDe = String(item?.name_de ?? item?.name ?? item?.product_name ?? '').trim();
+      const nameFr = String(item?.name_fr ?? item?.name_de ?? item?.name ?? item?.product_name ?? '').trim();
       return {
         slot,
-        name: String(item?.name ?? item?.product_name ?? '').trim(),
-        price: Number(item?.price ?? 0),
-        active: Boolean(item?.active),
-        image_url: String(item?.image_url ?? '').trim()
+        name_de: nameDe,
+        name_fr: nameFr || nameDe,
+        description_de: String(item?.description_de ?? '').trim(),
+        description_fr: String(item?.description_fr ?? '').trim(),
+        price_chf: Number(item?.price_chf ?? item?.price ?? 0),
+        is_active: Boolean(item?.is_active ?? item?.active),
+        image_url: String(item?.image_url ?? '').trim(),
+        sort_order: Number(item?.sort_order ?? 0)
       };
     })
     .filter(Boolean);
@@ -112,13 +122,7 @@ function normalizeIncomingProducts(body) {
 
 async function listProducts() {
   const rows = await supa('products?select=*&order=slot.asc');
-  const bySlot = new Map((Array.isArray(rows) ? rows : []).map((row) => [Number(row.slot), row]));
-
-  const products = [];
-  for (let slot = 1; slot <= 16; slot += 1) {
-    products.push(normalizeProductRow(bySlot.get(slot), slot));
-  }
-  return products;
+  return (Array.isArray(rows) ? rows : []).map(normalizeProductRow).sort((a, b) => a.slot - b.slot);
 }
 
 async function saveProducts(body) {
@@ -127,13 +131,27 @@ async function saveProducts(body) {
     throw new Error('Keine Produktdaten erhalten');
   }
 
-  const payload = items.map((item) => ({
-    slot: item.slot,
-    name: item.name,
-    price: Number.isFinite(item.price) ? item.price : 0,
-    active: item.active,
-    image_url: item.image_url || null
-  }));
+  const payload = items.map((item) => {
+    const price = Number.isFinite(item.price_chf) ? item.price_chf : 0;
+    const nameDe = item.name_de || '';
+    const nameFr = item.name_fr || nameDe;
+    const active = item.is_active === true;
+    return {
+      slot: item.slot,
+      name: nameDe,
+      name_de: nameDe,
+      name_fr: nameFr,
+      description_de: item.description_de || null,
+      description_fr: item.description_fr || null,
+      price: price,
+      price_chf: price,
+      active,
+      is_active: active,
+      image_url: item.image_url || null,
+      sort_order: Number.isFinite(item.sort_order) ? item.sort_order : 0,
+      updated_at: new Date().toISOString()
+    };
+  });
 
   await supa('products?on_conflict=slot', {
     method: 'POST',

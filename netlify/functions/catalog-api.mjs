@@ -32,13 +32,28 @@ async function supa(path) {
   return data;
 }
 
+function normalizeProductRow(row) {
+  return {
+    id: row?.id || null,
+    slot: Number(row?.slot || 0),
+    name_de: String(row?.name_de || row?.name || ''),
+    name_fr: String(row?.name_fr || row?.name_de || row?.name || ''),
+    description_de: String(row?.description_de || ''),
+    description_fr: String(row?.description_fr || ''),
+    price_chf: Number(row?.price_chf ?? row?.price ?? 0),
+    image_url: row?.image_url || '',
+    is_active: Boolean(row?.is_active ?? row?.active ?? false),
+    sort_order: Number(row?.sort_order ?? 0)
+  };
+}
+
 export default async (request) => {
   try {
     const url = new URL(request.url);
     const action = url.searchParams.get('action') || 'products';
     if (action === 'products' && request.method === 'GET') {
-      const rows = await supa('products?select=id,slot,name,price,active,image_url&active=eq.true&order=slot.asc');
-      return json(200, { success: true, products: Array.isArray(rows) ? rows : [] });
+      const rows = await supa('products?select=id,slot,name,name_de,name_fr,description_de,description_fr,price,price_chf,active,is_active,image_url,sort_order&is_active=eq.true&order=slot.asc');
+      return json(200, { success: true, products: Array.isArray(rows) ? rows.map(normalizeProductRow) : [] });
     }
     return json(405, { success: false, error: 'Methode/Aktion nicht erlaubt' });
   } catch (error) {
