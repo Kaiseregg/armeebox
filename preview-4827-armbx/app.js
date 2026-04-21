@@ -588,6 +588,9 @@ const texts = {
     adminBackOrders: 'Zurück zu Bestellungen',
     adminProductsSave: 'Produkte speichern',
     adminProductsRefresh: 'Produkte laden',
+    adminAddSlot: 'Slot hinzufügen',
+    adminSlotNumber: 'Slotnummer',
+    adminNextSlotAdded: 'Neuer Slot wurde hinzugefügt.',
     adminProductsSaved: 'Produkte wurden gespeichert.',
     adminSlot: 'Slot',
     adminProductName: 'Produktname',
@@ -695,6 +698,9 @@ const texts = {
     adminBackOrders: 'Retour aux commandes',
     adminProductsSave: 'Enregistrer les produits',
     adminProductsRefresh: 'Charger les produits',
+    adminAddSlot: 'Ajouter un slot',
+    adminSlotNumber: 'Numéro du slot',
+    adminNextSlotAdded: 'Nouveau slot ajouté.',
     adminProductsSaved: 'Les produits ont été enregistrés.',
     adminSlot: 'Slot',
     adminProductName: 'Nom du produit',
@@ -806,6 +812,31 @@ function currentProducts(){
 function adminProductsList(){
   const source = Array.isArray(state.admin.products) && state.admin.products.length ? state.admin.products : (Array.isArray(state.catalog.products) && state.catalog.products.length ? state.catalog.products : DEFAULT_PRODUCTS);
   return source.map((row, index) => normalizeCatalogProduct(row, index)).sort((a,b)=>a.slotNumber-b.slotNumber);
+}
+function nextAdminSlotNumber(){
+  return adminProductsList().reduce((max, product) => Math.max(max, Number(product.slotNumber || 0)), 0) + 1;
+}
+function addAdminSlot(){
+  const products = adminProductsList();
+  const nextSlot = nextAdminSlotNumber();
+  products.push({
+    id: `slot-${nextSlot}-${Date.now()}`,
+    slot: String(nextSlot).padStart(2,'0'),
+    slotNumber: nextSlot,
+    name: { de: '', fr: '' },
+    price: 0,
+    active: true,
+    image_url: '',
+    sort_order: 0
+  });
+  state.admin.products = products.sort((a,b)=>a.slotNumber-b.slotNumber);
+  state.admin.productsMessage = t('adminNextSlotAdded');
+  save();
+  render();
+  requestAnimationFrame(() => {
+    const field = document.querySelector(`[data-product-field=\"slotNumber\"][data-product-index=\"${products.length - 1}\"]`) || document.querySelector(`[data-product-field=\"name\"][data-product-index=\"${products.length - 1}\"]`);
+    if(field) field.focus();
+  });
 }
 
 function formatDate(value){
@@ -1624,6 +1655,7 @@ function renderAdminProducts(){
         <div class="admin-actions">
           <button class="back-btn" id="adminBackToOrdersBtn">${t('adminBackOrders')}</button>
           <button class="back-btn" id="adminProductsRefreshBtn">${t('adminProductsRefresh')}</button>
+          <button class="back-btn" id="adminAddSlotBtn">${t('adminAddSlot')}</button>
           <button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button>
         </div>
       </div>
@@ -1633,6 +1665,7 @@ function renderAdminProducts(){
         ${products.length ? products.map((product, index) => `
           <div class="card admin-product-card">
             <div class="admin-product-slot">${t('adminSlot')} ${escapeHtml(product.slot)}</div>
+            <div class="field"><label>${t('adminSlotNumber')}</label><input data-product-field="slotNumber" data-product-index="${index}" type="number" min="1" step="1" value="${escapeAttr(String(product.slotNumber || index + 1))}"></div>
             <div class="field"><label>${t('adminProductName')}</label><input data-product-field="name" data-product-index="${index}" value="${escapeAttr(product.name?.de || '')}"></div>
             <div class="admin-product-row">
               <div class="field"><label>${t('adminPrice')}</label><input data-product-field="price" data-product-index="${index}" type="number" min="0" step="0.05" value="${escapeAttr(String(product.price ?? 0))}"></div>
@@ -1708,6 +1741,8 @@ function bindAdminProducts(){
   if(refresh) refresh.onclick = ()=>loadAdminProducts();
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
+  const addSlotBtn = document.getElementById('adminAddSlotBtn');
+  if(addSlotBtn) addSlotBtn.onclick = ()=>addAdminSlot();
   document.querySelectorAll('[data-product-field]').forEach(input => {
     input.oninput = input.onchange = ()=>{
       const index = Number(input.getAttribute('data-product-index'));
@@ -1718,8 +1753,13 @@ function bindAdminProducts(){
       if(field === 'active') product.active = !!input.checked;
       else if(field === 'price') product.price = Number(input.value || 0);
       else if(field === 'name') product.name = { de: input.value, fr: input.value };
+      else if(field === 'slotNumber') {
+        const nextSlot = Math.max(1, Number(input.value || product.slotNumber || 1));
+        product.slotNumber = nextSlot;
+        product.slot = String(nextSlot).padStart(2,'0');
+      }
       else product[field] = input.value;
-      state.admin.products = products;
+      state.admin.products = products.sort((a,b)=>a.slotNumber-b.slotNumber);
       save();
     };
   });
