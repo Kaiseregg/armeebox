@@ -526,6 +526,7 @@ const texts = {
     backForm: 'Zurück zum Formular',
     sendOrder: 'Bestellung abschicken',
     sendingOrder: 'Bestellung wird gesendet …',
+    adminProductsSaving: 'Produkte werden gespeichert …',
     summary: 'Bestellübersicht',
     subtotal: 'Zwischentotal',
     shipping: 'Versand',
@@ -632,6 +633,7 @@ const texts = {
     backForm: 'Retour au formulaire',
     sendOrder: 'Envoyer la commande',
     sendingOrder: 'Envoi de la commande …',
+    adminProductsSaving: 'Enregistrement des produits …',
     summary: 'Résumé de commande',
     subtotal: 'Sous-total',
     shipping: 'Envoi',
@@ -754,7 +756,12 @@ const state = {
 };
 const app = document.getElementById('app');
 
-function money(n){ return `Fr. ${n}.–`; }
+function money(n){
+  const value = Number(n || 0);
+  if(!Number.isFinite(value)) return 'Fr. 0.–';
+  if(Math.abs(value - Math.round(value)) < 0.000001) return `Fr. ${Math.round(value)}.–`;
+  return `Fr. ${value.toFixed(2)}`;
+}
 function t(k){ return texts[state.lang][k] ?? k; }
 function escapeHtml(value){ return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function isEmail(value){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim()); }
@@ -1636,7 +1643,7 @@ function renderAdminProducts(){
         `).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
       </div>
       <div class="review-actions" style="justify-content:flex-start;margin-top:18px">
-        <button class="cta primary" id="adminSaveProductsBtn" ${state.admin.productsSaving ? 'disabled' : ''}>${state.admin.productsSaving ? t('sendingOrder') : t('adminProductsSave')}</button>
+        <button class="cta primary" id="adminSaveProductsBtn" ${state.admin.productsSaving ? 'disabled' : ''}>${state.admin.productsSaving ? t('adminProductsSaving') : t('adminProductsSave')}</button>
       </div>
     </div>
   </div>`;
