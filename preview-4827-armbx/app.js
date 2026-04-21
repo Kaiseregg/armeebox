@@ -589,7 +589,6 @@ const texts = {
     adminProductsSave: 'Produkte speichern',
     adminProductsRefresh: 'Produkte laden',
     adminAddSlot: 'Slot hinzufügen',
-    adminSlotNumber: 'Slotnummer',
     adminProductsSaved: 'Produkte wurden gespeichert.',
     adminSlot: 'Slot',
     adminProductName: 'Produktname',
@@ -809,6 +808,30 @@ function adminProductsList(){
   const source = Array.isArray(state.admin.products) && state.admin.products.length ? state.admin.products : (Array.isArray(state.catalog.products) && state.catalog.products.length ? state.catalog.products : DEFAULT_PRODUCTS);
   return source.map((row, index) => normalizeCatalogProduct(row, index)).sort((a,b)=>a.slotNumber-b.slotNumber);
 }
+function addAdminSlot(){
+  const products = adminProductsList();
+  const used = new Set(products.map(product => Number(product.slotNumber)).filter(Number.isFinite));
+  let nextSlot = 1;
+  while(used.has(nextSlot)) nextSlot++;
+  products.push({
+    id: `new-${nextSlot}-${Date.now()}`,
+    slot: String(nextSlot).padStart(2,'0'),
+    slotNumber: nextSlot,
+    name: { de: `Slot ${String(nextSlot).padStart(2,'0')}`, fr: `Slot ${String(nextSlot).padStart(2,'0')}` },
+    price: 0,
+    active: true,
+    image_url: '',
+    sort_order: 0
+  });
+  state.admin.products = products.sort((a,b)=>a.slotNumber-b.slotNumber);
+  state.admin.productsMessage = '';
+  save();
+  render();
+  requestAnimationFrame(() => {
+    const input = document.querySelector(`[data-product-index=\"${state.admin.products.length - 1}\"][data-product-field=\"name\"]`);
+    if(input) input.focus();
+  });
+}
 
 function formatDate(value){
   if(!value) return '-';
@@ -996,7 +1019,19 @@ async function saveAdminProducts(){
   state.admin.productsMessage = '';
   render();
   try{
-    const rows = adminProductsList().map(product => ({
+    const list = adminProductsList();
+    const usedSlots = new Set();
+    for (const product of list){
+      const slotNumber = Number(product.slotNumber);
+      if(!Number.isInteger(slotNumber) || slotNumber < 1){
+        throw new Error('Ungültige Slotnummer');
+      }
+      if(usedSlots.has(slotNumber)){
+        throw new Error('Slotnummern müssen eindeutig sein');
+      }
+      usedSlots.add(slotNumber);
+    }
+    const rows = list.map(product => ({
       slot: Number(product.slotNumber),
       name_de: product.name?.de || '',
       name_fr: product.name?.fr || product.name?.de || '',
@@ -1626,7 +1661,7 @@ function renderAdminProducts(){
         <div class="admin-actions">
           <button class="back-btn" id="adminBackToOrdersBtn">${t('adminBackOrders')}</button>
           <button class="back-btn" id="adminProductsRefreshBtn">${t('adminProductsRefresh')}</button>
-          <button class="back-btn" id="adminAddSlotBtn">${t('adminAddSlot')}</button>
+          <button class="back-btn admin-add-slot-btn" id="adminAddSlotBtn">${t('adminAddSlot')}</button>
           <button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button>
         </div>
       </div>
@@ -1635,8 +1670,10 @@ function renderAdminProducts(){
       <div class="admin-products-grid">
         ${products.length ? products.map((product, index) => `
           <div class="card admin-product-card">
-            <div class="admin-product-slot">${t('adminSlot')} ${escapeHtml(product.slot)}</div>
-            <div class="field"><label>${t('adminSlotNumber')}</label><input data-product-field="slotNumber" data-product-index="${index}" type="number" min="1" step="1" value="${escapeAttr(String(product.slotNumber || index + 1))}"></div>
+            <div class="admin-slot-head">
+              <div class="admin-product-slot">${t('adminSlot')} ${escapeHtml(product.slot)}</div>
+              <div class="field" style="margin:0"><label>Slotnummer</label><input class="admin-slot-number" data-product-field="slotNumber" data-product-index="${index}" type="number" min="1" step="1" value="${escapeAttr(String(product.slotNumber))}"></div>
+            </div>
             <div class="field"><label>${t('adminProductName')}</label><input data-product-field="name" data-product-index="${index}" value="${escapeAttr(product.name?.de || '')}"></div>
             <div class="admin-product-row">
               <div class="field"><label>${t('adminPrice')}</label><input data-product-field="price" data-product-index="${index}" type="number" min="0" step="0.05" value="${escapeAttr(String(product.price ?? 0))}"></div>
@@ -1646,7 +1683,7 @@ function renderAdminProducts(){
           </div>
         `).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
       </div>
-      <div class="review-actions" style="justify-content:flex-start;margin-top:18px">
+      <div class="admin-primary-row">
         <button class="cta primary" id="adminSaveProductsBtn" ${state.admin.productsSaving ? 'disabled' : ''}>${state.admin.productsSaving ? t('adminProductsSaving') : t('adminProductsSave')}</button>
       </div>
     </div>
@@ -1722,9 +1759,9 @@ function bindAdminProducts(){
       if(field === 'active') product.active = !!input.checked;
       else if(field === 'price') product.price = Number(input.value || 0);
       else if(field === 'slotNumber') {
-        const value = Number(input.value || 0);
-        product.slotNumber = Number.isInteger(value) && value > 0 ? value : product.slotNumber;
-        product.slot = String(product.slotNumber).padStart(2,'0');
+        const nextSlot = Math.max(1, Number(input.value || product.slotNumber || 1));
+        product.slotNumber = nextSlot;
+        product.slot = String(nextSlot).padStart(2,'0');
       }
       else if(field === 'name') product.name = { de: input.value, fr: input.value };
       else product[field] = input.value;
@@ -1732,8 +1769,8 @@ function bindAdminProducts(){
       save();
     };
   });
-  const addSlotBtn = document.getElementById('adminAddSlotBtn');
-  if(addSlotBtn) addSlotBtn.onclick = ()=>addAdminSlot();
+  const addBtn = document.getElementById('adminAddSlotBtn');
+  if(addBtn) addBtn.onclick = ()=>addAdminSlot();
   const saveBtn = document.getElementById('adminSaveProductsBtn');
   if(saveBtn) saveBtn.onclick = ()=>saveAdminProducts();
 }
