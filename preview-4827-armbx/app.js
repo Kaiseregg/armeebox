@@ -561,7 +561,27 @@ const texts = {
     adminDetails: 'Bestelldetails',
     adminStatus: 'Status',
     adminSaveStatus: 'Status speichern',
-    adminBackList: 'Zurück zur Liste'
+    adminBackList: 'Zurück zur Liste',
+    adminSearch: 'Suche',
+    adminSearchPlaceholder: 'Bestellnummer, E-Mail oder Name',
+    adminFilter: 'Filter',
+    adminFilterAll: 'Alle',
+    adminFilterNew: 'Neu',
+    adminFilterProgress: 'In Bearbeitung',
+    adminFilterDone: 'Erledigt',
+    adminNoResults: 'Keine Bestellungen für diese Suche / diesen Filter.',
+    adminShippingBarracks: 'Versand Kaserne',
+    adminShippingPrivate: 'Versand Privat',
+    adminStatusNew: 'Neu',
+    adminStatusInProgress: 'In Bearbeitung',
+    adminStatusDone: 'Erledigt',
+    adminListHint: 'Suche, Filter und Statusübersicht',
+    adminOrderInfo: 'Bestellinfo',
+    adminItems: 'Artikel',
+    adminDeliveryAddress: 'Lieferadresse',
+    adminSender: 'Absender',
+    adminContact: 'Kontakt',
+    adminMessageMeta: 'Nachricht / Metadaten'
   },
   fr: {
     langTitle: 'Choisir la langue',
@@ -634,7 +654,27 @@ const texts = {
     adminDetails: 'Détails de commande',
     adminStatus: 'Statut',
     adminSaveStatus: 'Enregistrer le statut',
-    adminBackList: 'Retour à la liste'
+    adminBackList: 'Retour à la liste',
+    adminSearch: 'Recherche',
+    adminSearchPlaceholder: 'N° de commande, e-mail ou nom',
+    adminFilter: 'Filtre',
+    adminFilterAll: 'Tous',
+    adminFilterNew: 'Nouveau',
+    adminFilterProgress: 'En cours',
+    adminFilterDone: 'Terminé',
+    adminNoResults: 'Aucune commande pour cette recherche / ce filtre.',
+    adminShippingBarracks: 'Envoi caserne',
+    adminShippingPrivate: 'Envoi privé',
+    adminStatusNew: 'Nouveau',
+    adminStatusInProgress: 'En cours',
+    adminStatusDone: 'Terminé',
+    adminListHint: 'Recherche, filtres et aperçu des statuts',
+    adminOrderInfo: 'Infos commande',
+    adminItems: 'Articles',
+    adminDeliveryAddress: 'Adresse de livraison',
+    adminSender: 'Expéditeur',
+    adminContact: 'Contact',
+    adminMessageMeta: 'Message / métadonnées'
   }
 };
 
@@ -656,7 +696,9 @@ const state = {
     loginError: '',
     orders: [],
     currentOrder: null,
-    statusSaving: false
+    statusSaving: false,
+    search: '',
+    filter: 'all'
   },
   form: {
     barracksIndex: 0,
@@ -698,6 +740,36 @@ function adminStatusLabel(value){
   if(value==='in_progress') return 'in_progress';
   if(value==='done') return 'done';
   return 'new';
+}
+function adminStatusText(value){
+  const status = adminStatusLabel(value);
+  if(status==='in_progress') return t('adminStatusInProgress');
+  if(status==='done') return t('adminStatusDone');
+  return t('adminStatusNew');
+}
+function shippingMethodText(value){
+  return value === 'private' ? t('adminShippingPrivate') : t('adminShippingBarracks');
+}
+function filteredAdminOrders(){
+  const search = String(state.admin.search || '').trim().toLowerCase();
+  const filter = state.admin.filter || 'all';
+  return (state.admin.orders || []).filter(order => {
+    const status = adminStatusLabel(order.order_status || order.status);
+    if(filter !== 'all' && status !== filter) return false;
+    if(!search) return true;
+    const meta = order.order_meta || {};
+    const haystack = [
+      order.order_number,
+      order.customer_email,
+      order.recipient_name,
+      order.barracks_label,
+      meta.soldierFirstName,
+      meta.soldierLastName,
+      meta.senderName,
+      meta.privateName
+    ].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(search);
+  });
 }
 function escapeAttr(value){ return escapeHtml(value).replace(/"/g,'&quot;'); }
 async function adminRequest(action, options={}){
@@ -1085,45 +1157,81 @@ function renderAdminLogin(){
       <div class="goldline">ARMEEBOX ADMIN</div>
       <h1 class="hero-title" style="font-size:48px">${t('adminLogin')}</h1>
       ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
-      <div class="field"><label>${t('adminEmail')}</label><input id="adminEmailInput" type="email" autocomplete="username"></div>
-      <div class="field"><label>${t('adminPassword')}</label><input id="adminPasswordInput" type="password" autocomplete="current-password"></div>
-      <div class="review-actions">
-        <button class="back-btn" id="adminBackToLanguage">← ${t('backMachine')}</button>
-        <button class="cta primary" id="adminLoginBtn" ${state.admin.loading ? 'disabled' : ''}>${state.admin.loading ? t('sendingOrder') : t('adminOpen')}</button>
-      </div>
+      <form id="adminLoginForm" class="admin-login-form">
+        <div class="field"><label>${t('adminEmail')}</label><input id="adminEmailInput" type="email" autocomplete="username"></div>
+        <div class="field"><label>${t('adminPassword')}</label><input id="adminPasswordInput" type="password" autocomplete="current-password"></div>
+        <div class="review-actions">
+          <button type="button" class="back-btn" id="adminBackToLanguage">← ${t('backMachine')}</button>
+          <button type="submit" class="cta primary" id="adminLoginBtn" ${state.admin.loading ? 'disabled' : ''}>${state.admin.loading ? t('sendingOrder') : t('adminOpen')}</button>
+        </div>
+      </form>
     </div>
   </div>`;
 }
 
 function renderAdminOrders(){
-  const rows = state.admin.orders.map(order => `
+  const filtered = filteredAdminOrders();
+  const rows = filtered.map(order => `
     <tr>
       <td>${escapeHtml(order.order_number || '-')}</td>
       <td>${escapeHtml(formatDate(order.created_at))}</td>
       <td>${escapeHtml(order.customer_email || '-')}</td>
-      <td>${escapeHtml(order.shipping_method || '-')}</td>
+      <td>${escapeHtml(shippingMethodText(order.shipping_method || '-'))}</td>
       <td>${money(order.total ?? order.total_chf ?? 0)}</td>
-      <td><span class="admin-chip ${escapeAttr(adminStatusLabel(order.order_status || order.status))}">${escapeHtml(order.order_status || order.status || 'new')}</span></td>
+      <td><span class="admin-chip ${escapeAttr(adminStatusLabel(order.order_status || order.status))}">${escapeHtml(adminStatusText(order.order_status || order.status || 'new'))}</span></td>
       <td><button class="back-btn" data-open-order="${escapeAttr(order.id)}">Öffnen</button></td>
     </tr>`).join('');
+  const cards = filtered.map(order => `
+    <div class="admin-order-card">
+      <div class="admin-order-card-head">
+        <div>
+          <div class="admin-order-number">${escapeHtml(order.order_number || '-')}</div>
+          <div class="note">${escapeHtml(formatDate(order.created_at))}</div>
+        </div>
+        <span class="admin-chip ${escapeAttr(adminStatusLabel(order.order_status || order.status))}">${escapeHtml(adminStatusText(order.order_status || order.status || 'new'))}</span>
+      </div>
+      <div class="admin-order-meta"><strong>E-Mail:</strong> ${escapeHtml(order.customer_email || '-')}</div>
+      <div class="admin-order-meta"><strong>Versand:</strong> ${escapeHtml(shippingMethodText(order.shipping_method || '-'))}</div>
+      <div class="admin-order-meta"><strong>Total:</strong> ${money(order.total ?? order.total_chf ?? 0)}</div>
+      <button class="back-btn admin-open-btn" data-open-order="${escapeAttr(order.id)}">Öffnen</button>
+    </div>`).join('');
   return `
   <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
   <div class="page">
     <div class="shell">
       <div class="admin-toolbar">
-        <div><h1 style="margin:0;font-size:48px">${t('adminOrders')}</h1><div class="note">Admin-Grundgerüst – Bestellübersicht</div></div>
+        <div><h1 style="margin:0;font-size:48px">${t('adminOrders')}</h1><div class="note">${t('adminListHint')}</div></div>
         <div class="admin-actions">
           <button class="back-btn" id="adminRefreshBtn">${t('adminRefresh')}</button>
           <button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button>
         </div>
       </div>
       ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
+      <div class="card admin-filters">
+        <div class="field" style="margin:0">
+          <label>${t('adminSearch')}</label>
+          <input id="adminSearchInput" type="search" placeholder="${escapeAttr(t('adminSearchPlaceholder'))}" value="${escapeAttr(state.admin.search || '')}">
+        </div>
+        <div class="field" style="margin:0">
+          <label>${t('adminFilter')}</label>
+          <select id="adminFilterSelect" class="form-select">
+            <option value="all" ${state.admin.filter==='all'?'selected':''}>${t('adminFilterAll')}</option>
+            <option value="new" ${state.admin.filter==='new'?'selected':''}>${t('adminFilterNew')}</option>
+            <option value="in_progress" ${state.admin.filter==='in_progress'?'selected':''}>${t('adminFilterProgress')}</option>
+            <option value="done" ${state.admin.filter==='done'?'selected':''}>${t('adminFilterDone')}</option>
+          </select>
+        </div>
+        <div class="admin-filter-stats note">${filtered.length} / ${(state.admin.orders || []).length} ${t('adminOrders').toLowerCase()}</div>
+      </div>
       <div class="card table-wrap">
-        ${state.admin.loading ? `<div class="note">Lade Bestellungen …</div>` : state.admin.orders.length ? `
-        <table class="admin-table">
-          <thead><tr><th>Bestellung</th><th>Datum</th><th>E-Mail</th><th>Versand</th><th>Total</th><th>Status</th><th></th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>` : `<div class="note">${t('adminNoOrders')}</div>`}
+        ${state.admin.loading ? `<div class="note">Lade Bestellungen …</div>` : filtered.length ? `
+        <div class="admin-table-desktop">
+          <table class="admin-table">
+            <thead><tr><th>Bestellung</th><th>Datum</th><th>E-Mail</th><th>Versand</th><th>Total</th><th>Status</th><th></th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div class="admin-mobile-list">${cards}</div>` : `<div class="note">${state.admin.orders.length ? t('adminNoResults') : t('adminNoOrders')}</div>`}
       </div>
     </div>
   </div>`;
@@ -1154,20 +1262,20 @@ function renderAdminOrder(){
       ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
       <div class="admin-detail-grid">
         <div class="card">
-          <h3>Artikel</h3>
+          <h3>${t('adminItems')}</h3>
           ${itemsHtml || '<div class="note">Keine Positionen</div>'}
           <div class="summary-line"><span>${t('subtotal')}</span><strong>${money(order.subtotal ?? order.subtotal_chf ?? 0)}</strong></div>
           <div class="summary-line"><span>${t('shipping')}</span><strong>${money(order.shipping_cost ?? order.shipping_chf ?? 0)}</strong></div>
           <div class="summary-line"><span>${t('total')}</span><strong>${money(order.total ?? order.total_chf ?? 0)}</strong></div>
         </div>
         <div class="card admin-meta">
-          <h3>Bestellinfo</h3>
-          <p><strong>Datum:</strong><br>${escapeHtml(formatDate(order.created_at))}</p>
+          <h3>${t('adminOrderInfo')}</h3>
+          <p><strong>${t('orderDate')}:</strong><br>${escapeHtml(formatDate(order.created_at))}</p>
           <p><strong>Kunden E-Mail:</strong><br>${escapeHtml(order.customer_email || '-')}</p>
-          <p><strong>Versandart:</strong><br>${escapeHtml(order.shipping_method || '-')}</p>
+          <p><strong>${t('shippingMode')}:</strong><br>${escapeHtml(shippingMethodText(order.shipping_method || '-'))}</p>
           <div class="field">
             <label>${t('adminStatus')}</label>
-            <select id="adminStatusSelect" class="form-select">${ADMIN_STATUSES.map(status => `<option value="${status}" ${(order.order_status || order.status || 'new')===status ? 'selected' : ''}>${status}</option>`).join('')}</select>
+            <select id="adminStatusSelect" class="form-select">${ADMIN_STATUSES.map(status => `<option value="${status}" ${(order.order_status || order.status || 'new')===status ? 'selected' : ''}>${escapeHtml(adminStatusText(status))}</option>`).join('')}</select>
           </div>
           <div class="review-actions" style="justify-content:flex-start">
             <button class="cta primary" id="adminSaveStatusBtn" ${state.admin.statusSaving ? 'disabled' : ''}>${state.admin.statusSaving ? t('sendingOrder') : t('adminSaveStatus')}</button>
@@ -1176,7 +1284,7 @@ function renderAdminOrder(){
       </div>
       <div class="admin-detail-grid" style="margin-top:18px">
         <div class="card admin-block">
-          <h3>Lieferadresse</h3>
+          <h3>${t('adminDeliveryAddress')}</h3>
           ${order.shipping_method === 'private' ? `
             <p>${escapeHtml(meta.privateName || '')}<br>${escapeHtml(meta.privateStreet || '')}<br>${escapeHtml(meta.privateZip || '')}${meta.privateCity ? ' ' + escapeHtml(meta.privateCity) : ''}<br>${escapeHtml(meta.privateEmail || '')}<br>${escapeHtml(meta.privatePhone || '')}</p>
           ` : `
@@ -1184,7 +1292,7 @@ function renderAdminOrder(){
           `}
         </div>
         <div class="card admin-block">
-          <h3>${order.shipping_method === 'private' ? 'Kontakt' : 'Absender'}</h3>
+          <h3>${order.shipping_method === 'private' ? t('adminContact') : t('adminSender')}</h3>
           ${order.shipping_method === 'private' ? `
             <p>${escapeHtml(order.customer_email || '')}</p>
           ` : `
@@ -1193,7 +1301,7 @@ function renderAdminOrder(){
         </div>
       </div>
       <div class="card admin-block" style="margin-top:18px">
-        <h3>Nachricht / Metadaten</h3>
+        <h3>${t('adminMessageMeta')}</h3>
         <div class="admin-note">${escapeHtml(meta.message || order.notes || '-')}</div>
       </div>
     </div>
@@ -1353,18 +1461,36 @@ function bindConfirm(){
 function bindAdminLogin(){
   const back = document.getElementById('adminBackToLanguage');
   if(back) back.onclick = ()=>setRoute('language');
-  const btn = document.getElementById('adminLoginBtn');
-  if(btn) btn.onclick = ()=>{
+  const form = document.getElementById('adminLoginForm');
+  if(form) form.onsubmit = (event)=>{
+    event.preventDefault();
     const email = document.getElementById('adminEmailInput')?.value || '';
     const password = document.getElementById('adminPasswordInput')?.value || '';
     doAdminLogin(email, password);
   };
 }
+
 function bindAdminOrders(){
   const refresh = document.getElementById('adminRefreshBtn');
   if(refresh) refresh.onclick = ()=>loadAdminOrders();
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
+  const search = document.getElementById('adminSearchInput');
+  if(search){
+    search.oninput = ()=>{
+      state.admin.search = search.value;
+      save();
+      render();
+    };
+  }
+  const filter = document.getElementById('adminFilterSelect');
+  if(filter){
+    filter.onchange = ()=>{
+      state.admin.filter = filter.value;
+      save();
+      render();
+    };
+  }
   document.querySelectorAll('[data-open-order]').forEach(btn => btn.onclick = ()=>{
     const id = btn.getAttribute('data-open-order');
     history.replaceState(null,'',`#admin-order?id=${encodeURIComponent(id)}`);
@@ -1372,6 +1498,7 @@ function bindAdminOrders(){
     loadAdminOrder(id);
   });
 }
+
 function bindAdminOrder(){
   const back = document.getElementById('adminBackToOrders');
   if(back) back.onclick = ()=>{ history.replaceState(null,'','#admin-orders'); setRoute('admin-orders'); loadAdminOrders(); };
@@ -1384,6 +1511,9 @@ function bindAdminOrder(){
   };
 }
 function render(){
+  if((state.route==='admin-orders' || state.route==='admin-order') && !state.admin.loggedIn){
+    state.route = 'admin-login';
+  }
   updateHash();
   let html='';
   if(state.route==='language') html=renderLanguage();
@@ -1406,7 +1536,7 @@ function render(){
   if(state.route==='admin-orders') bindAdminOrders();
   if(state.route==='admin-order') bindAdminOrder();
 }
-const initialHash = location.hash.replace('#','');
+const initialHash = location.hash.replace('#','').split('?')[0];
 if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order'].includes(initialHash)) state.route=initialHash;
 (async()=>{
   if(state.route.startsWith('admin-')){

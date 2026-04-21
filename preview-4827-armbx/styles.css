@@ -114,3 +114,27 @@ hr{border:none;border-top:1px solid rgba(255,255,255,.08);margin:16px 0}
 .form-select{width:100%;background:#08172d;color:#fff;border:1px solid #4b6a90;border-radius:12px;padding:14px 14px;font-size:16px}
 @media (max-width:900px){.admin-grid,.admin-detail-grid{grid-template-columns:1fr}.admin-login-card{max-width:none}.admin-table{font-size:14px}}
 @media (max-width:700px){.order-top-actions .back-btn{width:100%;justify-content:center;text-align:center}.radio-card{padding:14px}.field .card{padding:14px}.admin-toolbar{align-items:stretch}.admin-actions{width:100%}.admin-actions .back-btn,.admin-actions .cta{flex:1 1 180px;text-align:center;justify-content:center}.admin-table th,.admin-table td{padding:10px 8px;font-size:13px}.card h2{font-size:42px;line-height:1.05}.review-actions{flex-direction:column;align-items:stretch}.review-actions .back-btn,.review-actions .cta{width:100%;text-align:center;justify-content:center}}
+
+
+.admin-login-form{display:flex;flex-direction:column;gap:0}
+.admin-filters{display:grid;grid-template-columns:minmax(0,1fr) 220px auto;gap:14px;align-items:end;margin-bottom:16px}
+.admin-filter-stats{justify-self:end;white-space:nowrap;padding-bottom:10px}
+.admin-table-desktop{display:block}
+.admin-mobile-list{display:none}
+.admin-order-card{border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:14px;background:rgba(255,255,255,.03);display:flex;flex-direction:column;gap:10px}
+.admin-order-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.admin-order-number{font-size:20px;font-weight:800;word-break:break-word}
+.admin-order-meta{font-size:15px;color:var(--text)}
+.admin-open-btn{margin-top:6px;align-self:flex-start}
+.admin-meta .field{margin-top:10px}
+@media (max-width:900px){
+  .admin-filters{grid-template-columns:1fr 1fr;align-items:stretch}
+  .admin-filter-stats{grid-column:1 / -1;justify-self:start;padding-bottom:0}
+}
+@media (max-width:760px){
+  .admin-table-desktop{display:none}
+  .admin-mobile-list{display:grid;gap:12px}
+  .admin-filters{grid-template-columns:1fr}
+  .admin-order-number{font-size:18px}
+  .admin-block p,.admin-note,.admin-meta p{font-size:15px;line-height:1.45}
+}
