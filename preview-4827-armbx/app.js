@@ -769,14 +769,24 @@ function normalizeCatalogProduct(row, index){
   const slotNumber = Number(row?.slot ?? fallback.slot ?? (index + 1));
   const fallbackNameDe = fallback.name?.de || `Slot ${String(slotNumber).padStart(2,'0')}`;
   const fallbackNameFr = fallback.name?.fr || fallbackNameDe;
-  const nameDe = String(row?.name_de || row?.name || fallbackNameDe);
-  const nameFr = String(row?.name_fr || row?.name_de || row?.name || fallbackNameFr);
+  const rawName = row?.name;
+  const legacyNameDe = rawName && typeof rawName === 'object' ? (rawName.de || rawName.fr || '') : rawName;
+  const nameDe = String(row?.name_de || legacyNameDe || fallbackNameDe);
+  const nameFr = String(row?.name_fr || row?.name_de || legacyNameDe || fallbackNameFr);
+  const priceChf = Number(row?.price_chf);
+  const legacyPrice = Number(row?.price);
+  const fallbackPrice = Number(fallback.price ?? 0);
+  const price = (Number.isFinite(priceChf) && priceChf > 0)
+    ? priceChf
+    : (Number.isFinite(legacyPrice) && legacyPrice > 0)
+      ? legacyPrice
+      : (Number.isFinite(priceChf) ? priceChf : (Number.isFinite(legacyPrice) ? legacyPrice : fallbackPrice));
   return {
     id: String(row?.id ?? row?.slot ?? fallback.id ?? slotNumber),
     slot: String(slotNumber).padStart(2,'0'),
     slotNumber,
     name: { de: nameDe, fr: nameFr },
-    price: Number(row?.price_chf ?? row?.price ?? fallback.price ?? 0),
+    price,
     active: Boolean(row?.is_active ?? row?.active ?? true),
     image_url: row?.image_url || '',
     sort_order: Number(row?.sort_order ?? 0)

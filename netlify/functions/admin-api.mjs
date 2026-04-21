@@ -75,15 +75,32 @@ function normalizeOrder(row) {
   };
 }
 
+function coerceNameValue(value, fallback = '') {
+  if (value && typeof value === 'object') {
+    return String(value.de || value.fr || fallback || '');
+  }
+  return String(value || fallback || '');
+}
+
+function coercePrice(row) {
+  const priceChf = Number(row?.price_chf);
+  const price = Number(row?.price);
+  if (Number.isFinite(priceChf) && priceChf > 0) return priceChf;
+  if (Number.isFinite(price) && price > 0) return price;
+  if (Number.isFinite(priceChf)) return priceChf;
+  if (Number.isFinite(price)) return price;
+  return 0;
+}
+
 function normalizeProductRow(row) {
   return {
     id: row?.id || null,
     slot: Number(row?.slot || 0),
-    name_de: String(row?.name_de || row?.name || ''),
-    name_fr: String(row?.name_fr || row?.name_de || row?.name || ''),
+    name_de: coerceNameValue(row?.name_de, row?.name),
+    name_fr: coerceNameValue(row?.name_fr, row?.name_de || row?.name),
     description_de: String(row?.description_de || ''),
     description_fr: String(row?.description_fr || ''),
-    price_chf: Number(row?.price_chf ?? row?.price ?? 0),
+    price_chf: coercePrice(row),
     is_active: Boolean(row?.is_active ?? row?.active ?? false),
     image_url: row?.image_url || '',
     sort_order: Number(row?.sort_order ?? 0)
@@ -131,12 +148,19 @@ async function saveProducts(body) {
     throw new Error('Keine Produktdaten erhalten');
   }
 
-  const payload = items.map((item) => {
+  const existingRows = await supa('products?select=id,slot');
+  const existingBySlot = new Map(
+    (Array.isArray(existingRows) ? existingRows : [])
+      .map((row) => [Number(row?.slot || 0), row])
+      .filter(([slot]) => Number.isInteger(slot) && slot > 0)
+  );
+
+  for (const item of items) {
     const price = Number.isFinite(item.price_chf) ? item.price_chf : 0;
     const nameDe = item.name_de || '';
     const nameFr = item.name_fr || nameDe;
     const active = item.is_active === true;
-    return {
+    const payload = {
       slot: item.slot,
       name: nameDe,
       name_de: nameDe,
@@ -151,15 +175,21 @@ async function saveProducts(body) {
       sort_order: Number.isFinite(item.sort_order) ? item.sort_order : 0,
       updated_at: new Date().toISOString()
     };
-  });
 
-  await supa('products?on_conflict=slot', {
-    method: 'POST',
-    headers: {
-      Prefer: 'resolution=merge-duplicates,return=representation'
-    },
-    body: JSON.stringify(payload)
-  });
+    if (existingBySlot.has(item.slot)) {
+      await supa(`products?slot=eq.${encodeURIComponent(item.slot)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify(payload)
+      });
+    } else {
+      await supa('products', {
+        method: 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ ...payload, created_at: new Date().toISOString() })
+      });
+    }
+  }
 
   return listProducts();
 }
