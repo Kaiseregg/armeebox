@@ -1,5 +1,5 @@
 
-const PRODUCTS = [
+const DEFAULT_PRODUCTS = [
   {
     "id": 1,
     "slot": "01",
@@ -581,7 +581,20 @@ const texts = {
     adminDeliveryAddress: 'Lieferadresse',
     adminSender: 'Absender',
     adminContact: 'Kontakt',
-    adminMessageMeta: 'Nachricht / Metadaten'
+    adminMessageMeta: 'Nachricht / Metadaten',
+    adminProducts: 'Produkte / Slots',
+    adminProductsHint: 'Produkte, Preise und Slot-Belegung verwalten',
+    adminBackOrders: 'Zurück zu Bestellungen',
+    adminProductsSave: 'Produkte speichern',
+    adminProductsRefresh: 'Produkte laden',
+    adminProductsSaved: 'Produkte wurden gespeichert.',
+    adminSlot: 'Slot',
+    adminProductName: 'Produktname',
+    adminPrice: 'Preis',
+    adminActive: 'Aktiv',
+    adminImageUrl: 'Bild-URL (später)',
+    adminNoProducts: 'Noch keine Produkte vorhanden.',
+    adminCatalogLoadError: 'Produkte konnten nicht geladen werden.'
   },
   fr: {
     langTitle: 'Choisir la langue',
@@ -674,13 +687,26 @@ const texts = {
     adminDeliveryAddress: 'Adresse de livraison',
     adminSender: 'Expéditeur',
     adminContact: 'Contact',
-    adminMessageMeta: 'Message / métadonnées'
+    adminMessageMeta: 'Message / métadonnées',
+    adminProducts: 'Produits / Slots',
+    adminProductsHint: 'Gérer les produits, prix et emplacements',
+    adminBackOrders: 'Retour aux commandes',
+    adminProductsSave: 'Enregistrer les produits',
+    adminProductsRefresh: 'Charger les produits',
+    adminProductsSaved: 'Les produits ont été enregistrés.',
+    adminSlot: 'Slot',
+    adminProductName: 'Nom du produit',
+    adminPrice: 'Prix',
+    adminActive: 'Actif',
+    adminImageUrl: 'URL image (plus tard)',
+    adminNoProducts: 'Aucun produit disponible.',
+    adminCatalogLoadError: 'Impossible de charger les produits.'
   }
 };
 
 const ADMIN_STATUSES = ['new','in_progress','done'];
 
-const STORAGE_KEY = 'armeebox_preview_state_v14';
+const STORAGE_KEY = 'armeebox_preview_state_v17';
 const state = {
   lang: 'de',
   route: 'language',
@@ -696,9 +722,17 @@ const state = {
     loginError: '',
     orders: [],
     currentOrder: null,
+    products: [],
     statusSaving: false,
+    productsSaving: false,
+    productsMessage: '',
     search: '',
     filter: 'all'
+  },
+  catalog: {
+    loading: false,
+    error: '',
+    products: []
   },
   form: {
     barracksIndex: 0,
@@ -729,6 +763,30 @@ function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function load(){ try{ const d=JSON.parse(localStorage.getItem(STORAGE_KEY)); if(d) Object.assign(state,d);}catch(e){} }
 load();
 function currentBarracks(){ return BARRACKS[state.form.barracksIndex] || BARRACKS[0]; }
+
+function normalizeCatalogProduct(row, index){
+  const fallback = DEFAULT_PRODUCTS[index] || {};
+  const slotNumber = Number(row?.slot ?? fallback.slot ?? (index + 1));
+  const fallbackName = fallback.name?.de || `Slot ${String(slotNumber).padStart(2,'0')}`;
+  const name = String(row?.name || fallbackName);
+  return {
+    id: String(row?.id ?? row?.slot ?? fallback.id ?? slotNumber),
+    slot: String(slotNumber).padStart(2,'0'),
+    slotNumber,
+    name: { de: name, fr: name },
+    price: Number(row?.price ?? fallback.price ?? 0),
+    active: row?.active !== false,
+    image_url: row?.image_url || ''
+  };
+}
+function currentProducts(){
+  const source = Array.isArray(state.catalog.products) && state.catalog.products.length ? state.catalog.products : DEFAULT_PRODUCTS;
+  return source.map((row, index) => normalizeCatalogProduct(row, index)).filter(product => product.active !== false).sort((a,b)=>a.slotNumber-b.slotNumber);
+}
+function adminProductsList(){
+  const source = Array.isArray(state.admin.products) && state.admin.products.length ? state.admin.products : (Array.isArray(state.catalog.products) && state.catalog.products.length ? state.catalog.products : DEFAULT_PRODUCTS);
+  return source.map((row, index) => normalizeCatalogProduct(row, index)).sort((a,b)=>a.slotNumber-b.slotNumber);
+}
 
 function formatDate(value){
   if(!value) return '-';
@@ -877,7 +935,66 @@ async function saveAdminStatus(orderId, status){
     render();
   }
 }
-function cartItemsDetailed(){ return state.cart.map(id=>PRODUCTS.find(p=>p.id===id)).filter(Boolean); }
+async function loadCatalogProducts(){
+  state.catalog.loading = true;
+  state.catalog.error = '';
+  try{
+    const response = await fetch('/.netlify/functions/catalog-api?action=products', { credentials:'same-origin' });
+    const data = await response.json().catch(()=>({}));
+    if(response.ok && data.success !== false && Array.isArray(data.products) && data.products.length){
+      state.catalog.products = data.products;
+    }
+  }catch(error){
+    state.catalog.error = error?.message || '';
+  }finally{
+    state.catalog.loading = false;
+    save();
+    render();
+  }
+}
+async function loadAdminProducts(){
+  state.admin.loading = true;
+  state.admin.loginError = '';
+  state.admin.productsMessage = '';
+  render();
+  try{
+    const data = await adminRequest('products');
+    state.admin.products = Array.isArray(data.products) && data.products.length ? data.products : currentProducts();
+  }catch(error){
+    state.admin.loginError = error.message || t('adminCatalogLoadError');
+  }finally{
+    state.admin.loading = false;
+    save();
+    render();
+  }
+}
+async function saveAdminProducts(){
+  state.admin.productsSaving = true;
+  state.admin.loginError = '';
+  state.admin.productsMessage = '';
+  render();
+  try{
+    const rows = adminProductsList().map(product => ({
+      slot: Number(product.slotNumber),
+      name: product.name?.de || '',
+      price: Number(product.price || 0),
+      active: product.active !== false,
+      image_url: product.image_url || ''
+    }));
+    const data = await adminRequest('save-products', { method:'POST', body:{ products: rows } });
+    const products = Array.isArray(data.products) ? data.products : rows;
+    state.admin.products = products;
+    state.catalog.products = products;
+    state.admin.productsMessage = t('adminProductsSaved');
+  }catch(error){
+    state.admin.loginError = error.message || t('adminCatalogLoadError');
+  }finally{
+    state.admin.productsSaving = false;
+    save();
+    render();
+  }
+}
+function cartItemsDetailed(){ const products = currentProducts(); return state.cart.map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean); }
 function cartGrouped(){
   const map = new Map();
   for (const p of cartItemsDetailed()){
@@ -891,7 +1008,7 @@ function shippingCost(){ return state.shipping==='private' ? 9 : 0; }
 function total(){ return subtotal()+shippingCost(); }
 function setRoute(route){ state.route=route; state.submitError=''; save(); render(); }
 function updateHash(){
-  const map={language:'#language',intro:'#intro',shop:'#shop',order:'#order',review:'#review',confirmation:'#confirmation','admin-login':'#admin-login','admin-orders':'#admin-orders','admin-order':'#admin-order'};
+  const map={language:'#language',intro:'#intro',shop:'#shop',order:'#order',review:'#review',confirmation:'#confirmation','admin-login':'#admin-login','admin-orders':'#admin-orders','admin-order':'#admin-order','admin-products':'#admin-products'};
   if(state.route==='admin-order'){
     const id = state.admin.currentOrder?.id || new URLSearchParams(location.search).get('id') || '';
     const target = `#admin-order${id ? `?id=${encodeURIComponent(id)}` : ''}`;
@@ -925,7 +1042,7 @@ function resetOrderData(){
 }
 window.addEventListener('hashchange',()=>{
   const h=location.hash.replace('#','').split('?')[0];
-  if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order'].includes(h)){
+  if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products'].includes(h)){
     state.route=h;
     if(h==='admin-order'){
       const id = new URLSearchParams(location.search).get('id');
@@ -982,7 +1099,7 @@ function renderMachine(){
       <div class="machine"><div class="machine-red"><div class="machine-inner">
         <div class="machine-banner">${t('machineInner')}</div>
         <div><div class="grid">
-          ${PRODUCTS.map(p=>`
+          ${currentProducts().map(p=>`
           <button class="slot" data-id="${p.id}">
             <div class="slot-top">
               <div class="badge">${p.slot}</div>
@@ -1202,6 +1319,7 @@ function renderAdminOrders(){
       <div class="admin-toolbar">
         <div><h1 style="margin:0;font-size:48px">${t('adminOrders')}</h1><div class="note">${t('adminListHint')}</div></div>
         <div class="admin-actions">
+          <button class="back-btn" id="adminProductsBtn">${t('adminProducts')}</button>
           <button class="back-btn" id="adminRefreshBtn">${t('adminRefresh')}</button>
           <button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button>
         </div>
@@ -1470,9 +1588,50 @@ function bindAdminLogin(){
   };
 }
 
+function renderAdminProducts(){
+  const products = adminProductsList();
+  return `
+  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
+  <div class="page">
+    <div class="shell admin-shell">
+      <div class="admin-head">
+        <div>
+          <h1>${t('adminProducts')}</h1>
+          <div class="note">${t('adminProductsHint')}</div>
+        </div>
+        <div class="admin-actions">
+          <button class="back-btn" id="adminBackToOrdersBtn">${t('adminBackOrders')}</button>
+          <button class="back-btn" id="adminProductsRefreshBtn">${t('adminProductsRefresh')}</button>
+          <button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button>
+        </div>
+      </div>
+      ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
+      ${state.admin.productsMessage ? `<div class="note">${escapeHtml(state.admin.productsMessage)}</div>` : ''}
+      <div class="admin-products-grid">
+        ${products.length ? products.map((product, index) => `
+          <div class="card admin-product-card">
+            <div class="admin-product-slot">${t('adminSlot')} ${escapeHtml(product.slot)}</div>
+            <div class="field"><label>${t('adminProductName')}</label><input data-product-field="name" data-product-index="${index}" value="${escapeAttr(product.name?.de || '')}"></div>
+            <div class="admin-product-row">
+              <div class="field"><label>${t('adminPrice')}</label><input data-product-field="price" data-product-index="${index}" type="number" min="0" step="0.05" value="${escapeAttr(String(product.price ?? 0))}"></div>
+              <div class="field admin-active-field"><label>${t('adminActive')}</label><label class="admin-toggle"><input data-product-field="active" data-product-index="${index}" type="checkbox" ${product.active !== false ? 'checked' : ''}><span>${product.active !== false ? 'On' : 'Off'}</span></label></div>
+            </div>
+            <div class="field"><label>${t('adminImageUrl')}</label><input data-product-field="image_url" data-product-index="${index}" value="${escapeAttr(product.image_url || '')}"></div>
+          </div>
+        `).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
+      </div>
+      <div class="review-actions" style="justify-content:flex-start;margin-top:18px">
+        <button class="cta primary" id="adminSaveProductsBtn" ${state.admin.productsSaving ? 'disabled' : ''}>${state.admin.productsSaving ? t('sendingOrder') : t('adminProductsSave')}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function bindAdminOrders(){
   const refresh = document.getElementById('adminRefreshBtn');
   if(refresh) refresh.onclick = ()=>loadAdminOrders();
+  const productsBtn = document.getElementById('adminProductsBtn');
+  if(productsBtn) productsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-products'); state.route='admin-products'; loadAdminProducts(); };
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
   const search = document.getElementById('adminSearchInput');
@@ -1512,14 +1671,41 @@ function bindAdminOrder(){
   if(back) back.onclick = ()=>{ history.replaceState(null,'','#admin-orders'); setRoute('admin-orders'); loadAdminOrders(); };
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
+  const productsBtn = document.getElementById('adminGoProductsBtn');
+  if(productsBtn) productsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-products'); state.route='admin-products'; loadAdminProducts(); };
   const saveBtn = document.getElementById('adminSaveStatusBtn');
   if(saveBtn) saveBtn.onclick = ()=>{
     const status = document.getElementById('adminStatusSelect')?.value || 'new';
     if(state.admin.currentOrder?.id) saveAdminStatus(state.admin.currentOrder.id, status);
   };
 }
+function bindAdminProducts(){
+  const back = document.getElementById('adminBackToOrdersBtn');
+  if(back) back.onclick = ()=>{ history.replaceState(null,'','#admin-orders'); state.route='admin-orders'; loadAdminOrders(); };
+  const refresh = document.getElementById('adminProductsRefreshBtn');
+  if(refresh) refresh.onclick = ()=>loadAdminProducts();
+  const logout = document.getElementById('adminLogoutBtn');
+  if(logout) logout.onclick = ()=>doAdminLogout();
+  document.querySelectorAll('[data-product-field]').forEach(input => {
+    input.oninput = input.onchange = ()=>{
+      const index = Number(input.getAttribute('data-product-index'));
+      const field = input.getAttribute('data-product-field');
+      const products = adminProductsList();
+      const product = products[index];
+      if(!product) return;
+      if(field === 'active') product.active = !!input.checked;
+      else if(field === 'price') product.price = Number(input.value || 0);
+      else if(field === 'name') product.name = { de: input.value, fr: input.value };
+      else product[field] = input.value;
+      state.admin.products = products;
+      save();
+    };
+  });
+  const saveBtn = document.getElementById('adminSaveProductsBtn');
+  if(saveBtn) saveBtn.onclick = ()=>saveAdminProducts();
+}
 function render(){
-  if((state.route==='admin-orders' || state.route==='admin-order') && !state.admin.loggedIn){
+  if((state.route==='admin-orders' || state.route==='admin-order' || state.route==='admin-products') && !state.admin.loggedIn){
     state.route = 'admin-login';
   }
   updateHash();
@@ -1533,6 +1719,7 @@ function render(){
   if(state.route==='admin-login') html=renderAdminLogin();
   if(state.route==='admin-orders') html=renderAdminOrders();
   if(state.route==='admin-order') html=renderAdminOrder();
+  if(state.route==='admin-products') html=renderAdminProducts();
   app.innerHTML=html;
   bindCommon();
   if(state.route==='intro') document.getElementById('toShopBtn').onclick=()=>setRoute('shop');
@@ -1543,20 +1730,25 @@ function render(){
   if(state.route==='admin-login') bindAdminLogin();
   if(state.route==='admin-orders') bindAdminOrders();
   if(state.route==='admin-order') bindAdminOrder();
+  if(state.route==='admin-products') bindAdminProducts();
 }
 const initialHash = location.hash.replace('#','').split('?')[0];
-if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order'].includes(initialHash)) {
+if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products'].includes(initialHash)) {
   state.route=initialHash;
 } else if(!initialHash) {
   state.route='language';
 }
 (async()=>{
+  await loadCatalogProducts();
   if(state.route.startsWith('admin-')){
     await refreshAdminSession();
     if(!state.admin.loggedIn){
       state.route='admin-login';
     } else if(state.route==='admin-orders') {
       await loadAdminOrders();
+      return;
+    } else if(state.route==='admin-products') {
+      await loadAdminProducts();
       return;
     } else if(state.route==='admin-order') {
       const id = new URLSearchParams(location.search).get('id');

@@ -138,3 +138,13 @@ hr{border:none;border-top:1px solid rgba(255,255,255,.08);margin:16px 0}
   .admin-order-number{font-size:18px}
   .admin-block p,.admin-note,.admin-meta p{font-size:15px;line-height:1.45}
 }
+
+.admin-products-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+.admin-product-card{padding:16px}
+.admin-product-slot{font-size:20px;font-weight:800;margin-bottom:8px}
+.admin-product-row{display:grid;grid-template-columns:1fr 160px;gap:14px}
+.admin-active-field{display:flex;flex-direction:column;justify-content:flex-end}
+.admin-toggle{display:flex;align-items:center;gap:10px;background:#08172d;border:1px solid #4b6a90;border-radius:12px;padding:14px}
+.admin-toggle input{width:18px;height:18px}
+.slot img.slot-image{width:90px;height:90px;object-fit:cover;border-radius:16px;border:1px solid rgba(255,255,255,.18);background:#fff}
+@media (max-width:900px){.admin-products-grid{grid-template-columns:1fr}.admin-product-row{grid-template-columns:1fr}}
