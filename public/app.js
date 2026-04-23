@@ -1518,7 +1518,7 @@ function bindCommon(){
   document.querySelectorAll('[data-lang]').forEach(btn=>btn.onclick=()=>{ state.lang=btn.dataset.lang; setRoute('intro'); });
 }
 function bindMachine(){
-  document.querySelectorAll('.slot').forEach(el=>{ el.onclick=()=>onSelectProduct(el.dataset.id); el.onkeydown=(e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); onSelectProduct(el.dataset.id); } }; });
+  document.querySelectorAll('.slot').forEach(el=>el.onclick=()=>onSelectProduct(el.dataset.id));
   document.querySelectorAll('[data-remove]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); removeOne(el.dataset.remove); });
   const orderBtn=document.getElementById('goOrderBtn'); if(orderBtn) orderBtn.onclick=()=>setRoute('order');
 }

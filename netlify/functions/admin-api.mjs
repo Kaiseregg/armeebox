@@ -97,7 +97,7 @@ function coercePrice(row) {
 function parseBundleMeta(row) {
   const raw = String(row?.description_fr || '');
   const fallbackContent = String(row?.description_de || '');
-  const base = { slot_type: 'normal', bundle_content: fallbackContent, quantity_options: [2, 3, 4] };
+  const base = { slot_type: 'normal', bundle_content_de: fallbackContent, bundle_content_fr: '', option_label_de: '', option_label_fr: '', quantity_options: [2, 3, 4] };
   if (!raw.startsWith(META_PREFIX)) return base;
   try {
     const meta = JSON.parse(raw.slice(META_PREFIX.length));
@@ -106,7 +106,10 @@ function parseBundleMeta(row) {
       : base.quantity_options;
     return {
       slot_type: meta?.slot_type === 'bundle' ? 'bundle' : 'normal',
-      bundle_content: String(meta?.content ?? fallbackContent ?? ''),
+      bundle_content_de: String(meta?.content_de ?? meta?.content ?? fallbackContent ?? ''),
+      bundle_content_fr: String(meta?.content_fr ?? ''),
+      option_label_de: String(meta?.option_label_de ?? ''),
+      option_label_fr: String(meta?.option_label_fr ?? ''),
       quantity_options: quantity_options.length ? quantity_options : base.quantity_options
     };
   } catch (_) {
@@ -117,7 +120,10 @@ function parseBundleMeta(row) {
 function encodeBundleMeta(row) {
   return `${META_PREFIX}${JSON.stringify({
     slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
-    content: String(row?.bundle_content || row?.description_de || ''),
+    content_de: String(row?.bundle_content_de || row?.bundle_content || row?.description_de || ''),
+    content_fr: String(row?.bundle_content_fr || ''),
+    option_label_de: String(row?.option_label_de || ''),
+    option_label_fr: String(row?.option_label_fr || ''),
     quantity_options: (Array.isArray(row?.quantity_options) ? row.quantity_options : []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
   })}`;
 }
@@ -136,7 +142,10 @@ function normalizeProductRow(row) {
     image_url: row?.image_url || '',
     sort_order: Number(row?.sort_order ?? 0),
     slot_type: meta.slot_type,
-    bundle_content: meta.bundle_content,
+    bundle_content_de: meta.bundle_content_de,
+    bundle_content_fr: meta.bundle_content_fr || meta.bundle_content_de,
+    option_label_de: meta.option_label_de,
+    option_label_fr: meta.option_label_fr || meta.option_label_de,
     quantity_options: meta.quantity_options
   };
 }
@@ -160,14 +169,17 @@ function normalizeIncomingProducts(body) {
         slot,
         name_de: nameDe,
         name_fr: nameFr || nameDe,
-        description_de: String(item?.bundle_content ?? item?.description_de ?? '').trim(),
-        description_fr: String(item?.description_fr ?? '').trim(),
+        description_de: String(item?.bundle_content_de ?? item?.bundle_content ?? item?.description_de ?? '').trim(),
+        description_fr: String(item?.bundle_content_fr ?? item?.description_fr ?? '').trim(),
         price_chf: Number(item?.price_chf ?? item?.price ?? 0),
         is_active: Boolean(item?.is_active ?? item?.active),
         image_url: String(item?.image_url ?? '').trim(),
         sort_order: Number(item?.sort_order ?? 0),
         slot_type: item?.slot_type === 'bundle' ? 'bundle' : 'normal',
-        bundle_content: String(item?.bundle_content ?? item?.description_de ?? '').trim(),
+        bundle_content_de: String(item?.bundle_content_de ?? item?.bundle_content ?? item?.description_de ?? '').trim(),
+        bundle_content_fr: String(item?.bundle_content_fr ?? item?.description_fr ?? '').trim(),
+        option_label_de: String(item?.option_label_de ?? '').trim(),
+        option_label_fr: String(item?.option_label_fr ?? '').trim(),
         quantity_options: Array.isArray(item?.quantity_options) ? item.quantity_options : []
       };
     })
@@ -204,7 +216,7 @@ async function saveProducts(body) {
       name: nameDe,
       name_de: nameDe,
       name_fr: nameFr,
-      description_de: item.bundle_content || item.description_de || null,
+      description_de: item.bundle_content_de || item.description_de || null,
       description_fr: encodeBundleMeta(item),
       price: price,
       price_chf: price,
