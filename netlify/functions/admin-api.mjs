@@ -169,7 +169,7 @@ function normalizeIncomingProducts(body) {
       const slot = Number(item?.slot ?? item?.slot_number ?? index + 1);
       if (!Number.isInteger(slot) || slot <= 0) return null;
       const nameDe = String(item?.name_de ?? item?.name ?? item?.product_name ?? '').trim();
-      const nameFr = String(item?.name_fr ?? item?.name_de ?? item?.name ?? item?.product_name ?? '').trim();
+      const nameFr = ('name_fr' in (item || {})) ? String(item?.name_fr ?? '').trim() : '';
       return {
         slot,
         name_de: nameDe,
@@ -214,7 +214,7 @@ async function saveProducts(body) {
   for (const item of items) {
     const price = Number.isFinite(item.price_chf) ? item.price_chf : 0;
     const nameDe = item.name_de || '';
-    const nameFr = item.name_fr || nameDe;
+    const nameFr = ('name_fr' in (item || {})) ? String(item.name_fr || '') : '';
     const active = item.is_active === true;
     const payload = {
       slot: item.slot,

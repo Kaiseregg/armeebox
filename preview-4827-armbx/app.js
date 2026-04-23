@@ -1260,7 +1260,7 @@ async function saveAdminProducts(){
     const rows = list.map(product => ({
       slot: Number(product.slotNumber),
       name_de: product.name?.de || '',
-      name_fr: product.name?.fr || product.name?.de || '',
+      name_fr: product.name?.fr || '',
       price_chf: Number(product.price || 0),
       is_active: product.active !== false,
       image_url: product.image_url || '',
