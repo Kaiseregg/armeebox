@@ -1,19 +1,15 @@
-import React from 'react'
-import { Link, useParams } from 'react-router-dom'
-import Layout from '../components/Layout'
-import Seo from '../components/Seo'
+[build]
+  command = "npm run build"
+  publish = "dist"
 
-export default function DonePage() {
-  const { orderId } = useParams()
-  return (
-    <Layout>
-      <Seo title='ARMEEBOX – Bestellung erhalten' description='Bestellbestätigung ARMEEBOX.' />
-      <section className='panel centerPanel'>
-        <h1>Bestellung gespeichert</h1>
-        <p>Die Bestellung wurde in Supabase gespeichert. E-Mail- und Zahlungslogik werden im nächsten Stand angeschlossen.</p>
-        <p className='subtle'>Order ID: {orderId}</p>
-        <div className='actionRow'><Link className='btn' to='/shop'>Zurück zum Shop</Link></div>
-      </section>
-    </Layout>
-  )
-}
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_CONFIG_REGISTRY = "https://registry.npmjs.org/"
+
+[functions]
+  directory = "netlify/functions"
+
+[[redirects]]
+  from = "/preview-4827-armbx"
+  to = "/preview-4827-armbx/"
+  status = 301

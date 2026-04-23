@@ -967,42 +967,13 @@ function normalizeCatalogProduct(row, index){
     quantity_options: meta.quantity_options
   };
 }
-function normalizeAdminProduct(row, index){
-  const product = normalizeCatalogProduct(row, index);
-  const rawNameFr = row && typeof row === 'object' && 'name_fr' in row ? row.name_fr : undefined;
-  const rawName = row && typeof row === 'object' ? row.name : undefined;
-  if(rawNameFr !== undefined){
-    product.name.fr = String(rawNameFr ?? '');
-  } else if(rawName && typeof rawName === 'object' && 'fr' in rawName){
-    product.name.fr = String(rawName.fr ?? '');
-  }
-  const rawNameDe = row && typeof row === 'object' && 'name_de' in row ? row.name_de : undefined;
-  if(rawNameDe !== undefined){
-    product.name.de = String(rawNameDe ?? '');
-  }
-
-  const rawContentDe = row?.bundle_content_de ?? (row?.bundle_content && typeof row.bundle_content === 'object' ? row.bundle_content.de : undefined);
-  const rawContentFr = row?.bundle_content_fr ?? (row?.bundle_content && typeof row.bundle_content === 'object' ? row.bundle_content.fr : undefined);
-  product.bundle_content = {
-    de: String(rawContentDe ?? product.bundle_content?.de ?? ''),
-    fr: String(rawContentFr ?? '')
-  };
-
-  const rawLabelDe = row?.option_label_de ?? (row?.option_label && typeof row.option_label === 'object' ? row.option_label.de : undefined);
-  const rawLabelFr = row?.option_label_fr ?? (row?.option_label && typeof row.option_label === 'object' ? row.option_label.fr : undefined);
-  product.option_label = {
-    de: String(rawLabelDe ?? product.option_label?.de ?? ''),
-    fr: String(rawLabelFr ?? '')
-  };
-  return product;
-}
 function currentProducts(){
   const source = Array.isArray(state.catalog.products) && state.catalog.products.length ? state.catalog.products : DEFAULT_PRODUCTS;
   return source.map((row, index) => normalizeCatalogProduct(row, index)).filter(product => product.active !== false).sort((a,b)=>a.slotNumber-b.slotNumber);
 }
 function adminProductsList(){
   const source = Array.isArray(state.admin.products) && state.admin.products.length ? state.admin.products : (Array.isArray(state.catalog.products) && state.catalog.products.length ? state.catalog.products : DEFAULT_PRODUCTS);
-  return source.map((row, index) => normalizeAdminProduct(row, index)).sort((a,b)=>a.slotNumber-b.slotNumber);
+  return source.map((row, index) => normalizeCatalogProduct(row, index)).sort((a,b)=>a.slotNumber-b.slotNumber);
 }
 function reindexAdminProducts(products){
   return products.map((product, index) => ({
@@ -1214,6 +1185,13 @@ async function loadCatalogProducts(){
     const data = await response.json().catch(()=>({}));
     if(response.ok && data.success !== false && Array.isArray(data.products) && data.products.length){
       state.catalog.products = data.products;
+      state.bundleSelections = {};
+      state.catalog.products.forEach((product)=>{
+        if(product?.slot_type === 'bundle'){
+          const options = Array.isArray(product.quantity_options) && product.quantity_options.length ? product.quantity_options : [2,3,4];
+          state.bundleSelections[product.id] = Number(options[0]) || 1;
+        }
+      });
     }
   }catch(error){
     state.catalog.error = error?.message || '';
@@ -1260,7 +1238,7 @@ async function saveAdminProducts(){
     const rows = list.map(product => ({
       slot: Number(product.slotNumber),
       name_de: product.name?.de || '',
-      name_fr: product.name?.fr || '',
+      name_fr: product.name?.fr || product.name?.de || '',
       price_chf: Number(product.price || 0),
       is_active: product.active !== false,
       image_url: product.image_url || '',
@@ -2096,7 +2074,7 @@ function bindAdminProducts(){
         products.splice(targetIndex, 0, moved);
         products = reindexAdminProducts(products);
       }
-      else if(field === 'name_de') product.name = { ...(product.name || {}), de: input.value, fr: product.name?.fr ?? '' };
+      else if(field === 'name_de') product.name = { ...(product.name || {}), de: input.value, fr: product.name?.fr || input.value };
       else if(field === 'name_fr') product.name = { ...(product.name || {}), de: product.name?.de || '', fr: input.value };
       else product[field] = input.value;
       state.admin.products = field === 'slotNumber' ? products : products;

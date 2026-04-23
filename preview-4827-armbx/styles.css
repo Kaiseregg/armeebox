@@ -41,7 +41,7 @@ img{max-width:100%;display:block}
 .namebar{min-height:54px;max-height:54px;overflow:hidden;text-align:center;line-height:1.15;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-top:6px;border-radius:10px;background:linear-gradient(180deg,#648825,#486517);border:1px solid #84aa41;padding:8px 10px;font-size:17px;font-weight:700}
 .select-light{margin-top:10px;height:44px;border-radius:10px;background:linear-gradient(180deg,#081019,#06090d);border:1px solid #586878;display:grid;place-items:center}
 .namebar-bundle{display:grid;grid-template-columns:36px minmax(0,1fr);align-items:center;gap:8px;padding:6px 8px}
-.namebar-bundle .namebar-text{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-align:center;line-height:1.15;word-break:break-word}
+.namebar-bundle .namebar-text{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-align:left;justify-self:start;line-height:1.15;word-break:break-word}
 .select-light-bundle{display:flex;align-items:center;justify-content:center;padding:6px 8px}
 .slot-mini-btn{border:none;border-radius:11px;background:linear-gradient(180deg,#102240,#0a1628);color:#fff;border:1px solid #7b96b8;min-width:34px;height:32px;padding:0 10px;font-size:13px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;box-shadow:0 4px 10px rgba(0,0,0,.18)}
 .slot-info-btn{padding:0;min-width:36px;width:36px}
@@ -187,4 +187,4 @@ hr{border:none;border-top:1px solid rgba(255,255,255,.08);margin:16px 0}
 
 .shell.admin-shell{width:min(1600px, calc(100vw - 32px));}
 
-@media (max-width:520px){.slot-bundle-select{height:28px;font-size:12px;padding:0 28px 0 10px;background-position:calc(100% - 14px) 10px, calc(100% - 8px) 10px;background-size:5px 5px,5px 5px}.slot-info-btn{min-width:30px;width:30px;height:28px}.slot-info-icon{width:16px;height:16px;font-size:11px}}
+@media (max-width:520px){.slot-bundle-select{height:28px;font-size:12px;padding:0 28px 0 10px;background-position:calc(100% - 14px) 10px, calc(100% - 8px) 10px;background-size:5px 5px,5px 5px}.slot-info-btn{min-width:30px;width:30px;height:28px}.slot-info-icon{width:16px;height:16px;font-size:11px}.namebar-bundle{grid-template-columns:30px minmax(0,1fr);gap:8px;padding:6px 8px}.namebar-bundle .namebar-text{text-align:left;justify-self:start}}

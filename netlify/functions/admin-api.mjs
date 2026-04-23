@@ -139,7 +139,7 @@ function normalizeProductRow(row) {
     id: row?.id || null,
     slot: Number(row?.slot || 0),
     name_de: coerceNameValue(row?.name_de, row?.name),
-    name_fr: ('name_fr' in (row || {})) ? String(row?.name_fr ?? '') : '',
+    name_fr: coerceNameValue(row?.name_fr, row?.name_de || row?.name),
     description_de: String(row?.description_de || ''),
     description_fr: String(row?.description_fr || ''),
     price_chf: coercePrice(row),
@@ -148,9 +148,9 @@ function normalizeProductRow(row) {
     sort_order: Number(row?.sort_order ?? 0),
     slot_type: meta.slot_type,
     bundle_content_de: meta.bundle_content_de,
-    bundle_content_fr: meta.bundle_content_fr || '',
+    bundle_content_fr: meta.bundle_content_fr || meta.bundle_content_de,
     option_label_de: meta.option_label_de,
-    option_label_fr: meta.option_label_fr || '',
+    option_label_fr: meta.option_label_fr || meta.option_label_de,
     quantity_options: meta.quantity_options
   };
 }
@@ -169,11 +169,11 @@ function normalizeIncomingProducts(body) {
       const slot = Number(item?.slot ?? item?.slot_number ?? index + 1);
       if (!Number.isInteger(slot) || slot <= 0) return null;
       const nameDe = String(item?.name_de ?? item?.name ?? item?.product_name ?? '').trim();
-      const nameFr = ('name_fr' in (item || {})) ? String(item?.name_fr ?? '').trim() : '';
+      const nameFr = String(item?.name_fr ?? item?.name_de ?? item?.name ?? item?.product_name ?? '').trim();
       return {
         slot,
         name_de: nameDe,
-        name_fr: nameFr,
+        name_fr: nameFr || nameDe,
         description_de: coerceLocalizedText(item?.bundle_content_de ?? item?.bundle_content ?? item?.description_de ?? '', item?.description_de ?? '').trim(),
         description_fr: coerceLocalizedText(item?.bundle_content_fr ?? item?.description_fr ?? '', '').trim(),
         price_chf: Number(item?.price_chf ?? item?.price ?? 0),
@@ -214,7 +214,7 @@ async function saveProducts(body) {
   for (const item of items) {
     const price = Number.isFinite(item.price_chf) ? item.price_chf : 0;
     const nameDe = item.name_de || '';
-    const nameFr = ('name_fr' in (item || {})) ? String(item.name_fr || '') : '';
+    const nameFr = item.name_fr || nameDe;
     const active = item.is_active === true;
     const payload = {
       slot: item.slot,
