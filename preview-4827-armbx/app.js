@@ -810,7 +810,7 @@ function parseBundleMeta(row){
     : [];
   const base = {
     slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
-    content: String(row?.bundle_content ?? row?.description_de || ''),
+    content: String(row?.bundle_content ?? row?.description_de ?? ''),
     quantity_options: directOptions.length ? directOptions : [2,3,4]
   };
   const raw = String(row?.description_fr || '');
