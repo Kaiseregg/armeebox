@@ -1,3 +1,4 @@
+const META_PREFIX = '__ARMBX_META__';
 function json(statusCode, body, headers = {}) {
   return new Response(JSON.stringify(body), {
     status: statusCode,
@@ -47,6 +48,34 @@ function coercePrice(row) {
   if (Number.isFinite(priceChf)) return priceChf;
   if (Number.isFinite(price)) return price;
   return 0;
+}
+
+function parseBundleMeta(row) {
+  const raw = String(row?.description_fr || '');
+  const fallbackContent = String(row?.description_de || '');
+  const base = { slot_type: 'normal', bundle_content: fallbackContent, quantity_options: [2, 3, 4] };
+  if (!raw.startsWith(META_PREFIX)) return base;
+  try {
+    const meta = JSON.parse(raw.slice(META_PREFIX.length));
+    const quantity_options = Array.isArray(meta?.quantity_options)
+      ? meta.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+      : base.quantity_options;
+    return {
+      slot_type: meta?.slot_type === 'bundle' ? 'bundle' : 'normal',
+      bundle_content: String(meta?.content ?? fallbackContent ?? ''),
+      quantity_options: quantity_options.length ? quantity_options : base.quantity_options
+    };
+  } catch (_) {
+    return base;
+  }
+}
+
+function encodeBundleMeta(row) {
+  return `${META_PREFIX}${JSON.stringify({
+    slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
+    content: String(row?.bundle_content || row?.description_de || ''),
+    quantity_options: (Array.isArray(row?.quantity_options) ? row.quantity_options : []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+  })}`;
 }
 
 function normalizeProductRow(row) {

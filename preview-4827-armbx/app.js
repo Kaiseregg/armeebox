@@ -598,7 +598,18 @@ const texts = {
     adminActive: 'Aktiv',
     adminImageUrl: 'Bild-URL (später)',
     adminNoProducts: 'Noch keine Produkte vorhanden.',
-    adminCatalogLoadError: 'Produkte konnten nicht geladen werden.'
+    adminCatalogLoadError: 'Produkte konnten nicht geladen werden.',
+    adminSlotType: 'Slot-Typ',
+    adminSlotTypeNormal: 'Normaler Slot',
+    adminSlotTypeBundle: 'Abo / Fresspäckli',
+    adminBundleContent: 'Inhalt / Beschreibung',
+    adminBundleOptions: 'Optionen pro Woche (z. B. 2,3,4)',
+    slotInfo: 'Inhalt',
+    slotWeeklyChoice: 'Pro Woche',
+    slotAddBundle: 'Abo hinzufügen',
+    slotChooseOption: 'Option wählen',
+    slotInfoTitle: 'Inhalt des Fresspäckli',
+    close: 'Schliessen'
   },
   fr: {
     langTitle: 'Choisir la langue',
@@ -708,13 +719,25 @@ const texts = {
     adminActive: 'Actif',
     adminImageUrl: 'URL image (plus tard)',
     adminNoProducts: 'Aucun produit disponible.',
-    adminCatalogLoadError: 'Impossible de charger les produits.'
+    adminCatalogLoadError: 'Impossible de charger les produits.',
+    adminSlotType: 'Type de slot',
+    adminSlotTypeNormal: 'Slot normal',
+    adminSlotTypeBundle: 'Abonnement / paquet',
+    adminBundleContent: 'Contenu / description',
+    adminBundleOptions: 'Options par semaine (p. ex. 2,3,4)',
+    slotInfo: 'Contenu',
+    slotWeeklyChoice: 'Par semaine',
+    slotAddBundle: 'Ajouter abonnement',
+    slotChooseOption: 'Choisir',
+    slotInfoTitle: 'Contenu du paquet',
+    close: 'Fermer'
   }
 };
 
 const ADMIN_STATUSES = ['new','in_progress','done'];
 
-const STORAGE_KEY = 'armeebox_preview_state_v17';
+const STORAGE_KEY = 'armeebox_preview_state_v18';
+const META_PREFIX = '__ARMBX_META__';
 const state = {
   lang: 'de',
   route: 'language',
@@ -742,6 +765,10 @@ const state = {
     error: '',
     products: []
   },
+  ui: {
+    slotInfoProductId: null
+  },
+  bundleSelections: {},
   form: {
     barracksIndex: 0,
     soldierFirstName: '',
@@ -777,6 +804,88 @@ function load(){ try{ const d=JSON.parse(localStorage.getItem(STORAGE_KEY)); if(
 load();
 function currentBarracks(){ return BARRACKS[state.form.barracksIndex] || BARRACKS[0]; }
 
+function parseBundleMeta(row){
+  const base = { slot_type: 'normal', content: String(row?.description_de || ''), quantity_options: [2,3,4] };
+  const raw = String(row?.description_fr || '');
+  if(raw.startsWith(META_PREFIX)){
+    try{
+      const meta = JSON.parse(raw.slice(META_PREFIX.length));
+      const options = Array.isArray(meta?.quantity_options) ? meta.quantity_options.map((value)=>Number(value)).filter((value)=>Number.isFinite(value) && value > 0) : base.quantity_options;
+      return {
+        slot_type: meta?.slot_type === 'bundle' ? 'bundle' : 'normal',
+        content: String(meta?.content ?? base.content ?? ''),
+        quantity_options: options.length ? options : base.quantity_options
+      };
+    }catch(_){ }
+  }
+  return base;
+}
+function encodeBundleMeta(product){
+  return `${META_PREFIX}${JSON.stringify({
+    slot_type: product.slot_type === 'bundle' ? 'bundle' : 'normal',
+    content: String(product.bundle_content || ''),
+    quantity_options: (Array.isArray(product.quantity_options) ? product.quantity_options : []).map((value)=>Number(value)).filter((value)=>Number.isFinite(value) && value > 0)
+  })}`;
+}
+function bundleOptionsFromInput(value){
+  const options = String(value || '')
+    .split(/[;,|\s]+/)
+    .map((part)=>Number(part.trim().replace(/x/gi,'')))
+    .filter((num, index, arr)=>Number.isFinite(num) && num > 0 && arr.indexOf(num) === index);
+  return options.length ? options : [2,3,4];
+}
+function ensureBundleSelection(product){
+  if(product?.slot_type !== 'bundle') return null;
+  const options = Array.isArray(product.quantity_options) && product.quantity_options.length ? product.quantity_options : [2,3,4];
+  const current = Number(state.bundleSelections?.[product.id]);
+  const next = options.includes(current) ? current : options[0];
+  state.bundleSelections[product.id] = next;
+  return next;
+}
+function selectedBundleMultiplier(product){
+  if(product?.slot_type !== 'bundle') return 1;
+  return ensureBundleSelection(product) || 1;
+}
+function displayPrice(product){
+  const base = Number(product?.price || 0);
+  if(product?.slot_type === 'bundle') return base * selectedBundleMultiplier(product);
+  return base;
+}
+function cartEntryProductId(entry){
+  if(entry && typeof entry === 'object') return entry.productId ?? entry.id ?? '';
+  return entry;
+}
+function cartEntryKey(entry){
+  if(entry && typeof entry === 'object') return `${entry.productId || entry.id}::${entry.kind || 'normal'}::${entry.multiplier || 1}`;
+  return String(entry);
+}
+function cartEntryMultiplier(entry){
+  if(entry && typeof entry === 'object') return Number(entry.multiplier || 1);
+  return 1;
+}
+function cartEntryKind(entry){
+  if(entry && typeof entry === 'object') return entry.kind || 'normal';
+  return 'normal';
+}
+function openSlotInfo(productId){ state.ui.slotInfoProductId = String(productId); save(); render(); }
+function closeSlotInfo(){ state.ui.slotInfoProductId = null; save(); render(); }
+function addBundleProduct(productId){
+  const product = currentProducts().find((item)=>String(item.id)===String(productId));
+  if(!product) return;
+  const multiplier = selectedBundleMultiplier(product);
+  state.cart.push({ productId: String(product.id), kind: 'bundle', multiplier });
+  save(); render();
+}
+function cycleBundleOption(productId){
+  const product = currentProducts().find((item)=>String(item.id)===String(productId));
+  if(!product || product.slot_type !== 'bundle') return;
+  const options = Array.isArray(product.quantity_options) && product.quantity_options.length ? product.quantity_options : [2,3,4];
+  const current = selectedBundleMultiplier(product);
+  const index = options.indexOf(current);
+  state.bundleSelections[product.id] = options[(index + 1) % options.length];
+  save(); render();
+}
+
 function normalizeCatalogProduct(row, index){
   const fallback = DEFAULT_PRODUCTS[index] || {};
   const slotNumber = Number(row?.slot ?? fallback.slot ?? (index + 1));
@@ -794,6 +903,7 @@ function normalizeCatalogProduct(row, index){
     : (Number.isFinite(legacyPrice) && legacyPrice > 0)
       ? legacyPrice
       : (Number.isFinite(priceChf) ? priceChf : (Number.isFinite(legacyPrice) ? legacyPrice : fallbackPrice));
+  const meta = parseBundleMeta(row);
   return {
     id: String(row?.id ?? row?.slot ?? fallback.id ?? slotNumber),
     slot: String(slotNumber).padStart(2,'0'),
@@ -802,7 +912,10 @@ function normalizeCatalogProduct(row, index){
     price,
     active: Boolean(row?.is_active ?? row?.active ?? true),
     image_url: row?.image_url || '',
-    sort_order: Number(row?.sort_order ?? 0)
+    sort_order: Number(row?.sort_order ?? 0),
+    slot_type: meta.slot_type,
+    bundle_content: meta.content,
+    quantity_options: meta.quantity_options
   };
 }
 function currentProducts(){
@@ -852,7 +965,10 @@ function addAdminSlot(){
     price: 0,
     active: true,
     image_url: '',
-    sort_order: 0
+    sort_order: 0,
+    slot_type: 'normal',
+    bundle_content: '',
+    quantity_options: [2,3,4]
   });
   state.admin.products = products.sort((a,b)=>a.slotNumber-b.slotNumber);
   state.admin.productsMessage = '';
@@ -1069,7 +1185,10 @@ async function saveAdminProducts(){
       price_chf: Number(product.price || 0),
       is_active: product.active !== false,
       image_url: product.image_url || '',
-      sort_order: Number(product.sort_order || 0)
+      sort_order: Number(product.sort_order || 0),
+      slot_type: product.slot_type === 'bundle' ? 'bundle' : 'normal',
+      bundle_content: product.bundle_content || '',
+      quantity_options: Array.isArray(product.quantity_options) ? product.quantity_options : []
     }));
     const data = await adminRequest('products', { method:'POST', body:{ products: rows } });
     const products = Array.isArray(data.products) ? data.products : rows;
@@ -1084,16 +1203,34 @@ async function saveAdminProducts(){
     render();
   }
 }
-function cartItemsDetailed(){ const products = currentProducts(); return state.cart.map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean); }
+function cartItemsDetailed(){
+  const products = currentProducts();
+  return state.cart.map((entry)=>{
+    const product = products.find((item)=>String(item.id)===String(cartEntryProductId(entry)));
+    if(!product) return null;
+    const kind = cartEntryKind(entry);
+    const multiplier = cartEntryMultiplier(entry);
+    const effectivePrice = kind === 'bundle' ? Number(product.price || 0) * multiplier : Number(product.price || 0);
+    return {
+      ...product,
+      kind,
+      multiplier,
+      price: effectivePrice,
+      cartKey: cartEntryKey(entry),
+      qtyLabel: kind === 'bundle' ? `${multiplier}x / ${t('slotWeeklyChoice')}` : ''
+    };
+  }).filter(Boolean);
+}
 function cartGrouped(){
   const map = new Map();
   for (const p of cartItemsDetailed()){
-    if(!map.has(p.id)) map.set(p.id,{...p, qty:0});
-    map.get(p.id).qty++;
+    const key = `${p.id}::${p.kind || 'normal'}::${p.multiplier || 1}`;
+    if(!map.has(key)) map.set(key,{...p, qty:0, groupKey:key});
+    map.get(key).qty++;
   }
   return [...map.values()];
 }
-function subtotal(){ return cartItemsDetailed().reduce((a,p)=>a+p.price,0); }
+function subtotal(){ return cartItemsDetailed().reduce((a,p)=>a+Number(p.price || 0),0); }
 function shippingCost(){ return state.shipping==='private' ? 9 : 0; }
 function total(){ return subtotal()+shippingCost(); }
 function setRoute(route){ state.route=route; state.submitError=''; save(); render(); }
@@ -1141,8 +1278,8 @@ window.addEventListener('hashchange',()=>{
     render();
   }
 });
-function onSelectProduct(id){ state.cart.push(id); save(); render(); }
-function removeOne(id){ const idx=state.cart.indexOf(id); if(idx>-1) state.cart.splice(idx,1); save(); render(); }
+function onSelectProduct(id){ const product = currentProducts().find((item)=>String(item.id)===String(id)); if(!product) return; if(product.slot_type==='bundle'){ addBundleProduct(id); return; } state.cart.push(id); save(); render(); }
+function removeOne(id){ const key = String(id); const idx = state.cart.findIndex((entry)=>cartEntryKey(entry)===key || String(cartEntryProductId(entry))===key); if(idx>-1) state.cart.splice(idx,1); save(); render(); }
 
 function renderAlerts(){
   const items = [...state.validationErrors];
@@ -1179,6 +1316,20 @@ function renderIntro(){
   </div>`;
 }
 
+
+function renderSlotInfoModal(){
+  const product = currentProducts().find((item)=>String(item.id)===String(state.ui.slotInfoProductId || ''));
+  if(!product || !state.ui.slotInfoProductId) return '';
+  return `
+    <div class="modal-backdrop" id="slotInfoBackdrop">
+      <div class="modal-card">
+        <div class="modal-head"><h3>${t('slotInfoTitle')}</h3><button class="back-btn" id="closeSlotInfoBtn">${t('close')}</button></div>
+        <div class="modal-title">${escapeHtml(product.name[state.lang])}</div>
+        <div class="modal-content">${escapeHtml(product.bundle_content || '').replace(/\n/g,'<br>')}</div>
+      </div>
+    </div>`;
+}
+
 function renderMachine(){
   const grouped=cartGrouped();
   return `
@@ -1189,39 +1340,52 @@ function renderMachine(){
       <div class="machine"><div class="machine-red"><div class="machine-inner">
         <div class="machine-banner">${t('machineInner')}</div>
         <div><div class="grid">
-          ${currentProducts().map(p=>`
-          <button class="slot" data-id="${p.id}">
+          ${currentProducts().map(p=>{
+            const isBundle = p.slot_type === 'bundle';
+            const currentMultiplier = isBundle ? selectedBundleMultiplier(p) : 1;
+            const optionLabel = isBundle ? `${currentMultiplier}x` : '';
+            const displayName = p.name[state.lang];
+            const displayPriceValue = displayPrice(p);
+            return `
+          <button class="slot ${isBundle ? 'slot-bundle' : ''}" data-id="${p.id}">
             <div class="slot-top">
               <div class="img-placeholder">SPÄTER BILD</div>
               <div class="spirals">◜◜◜</div>
             </div>
-            <div class="price">${money(p.price)}</div>
-            <div class="namebar" title="${escapeAttr(p.name[state.lang])}">${p.name[state.lang]}</div>
-            <div class="select-light"><span></span></div>
-          </button>`).join('')}
+            <div class="price">${money(displayPriceValue)}</div>
+            <div class="namebar ${isBundle ? 'namebar-bundle' : ''}" title="${escapeAttr(displayName)}">
+              ${isBundle ? `<button class="slot-mini-btn" type="button" data-slot-info="${p.id}">i</button>` : ''}
+              <span class="namebar-text">${displayName}</span>
+            </div>
+            <div class="select-light ${isBundle ? 'select-light-bundle' : ''}">
+              ${isBundle ? `<button class="slot-mini-btn slot-option-btn" type="button" data-slot-option="${p.id}">${optionLabel}</button>` : '<span></span>'}
+            </div>
+          </button>`;
+          }).join('')}
         </div></div>
         <aside class="side">
           <div class="led">
             <div class="line"><span class="currency">Fr.</span><span class="amount">${total()}</span></div>
             <div class="line"><span class="small">${t('total')}:</span><span class="small">${state.cart.length}</span></div>
           </div>
-          <div class="cartbox">
+          <div class="cartbox cartbox-compact">
             <h3>${t('cart')}</h3>
             <div class="cart-list">
               ${grouped.length ? grouped.map(item=>`
               <div class="cart-item">
-                <div><strong>${item.name[state.lang]}</strong><div>x${item.qty}</div></div>
+                <div><strong>${item.name[state.lang]}</strong>${item.kind==='bundle' ? `<div class="cart-subnote">${item.multiplier}x / ${t('slotWeeklyChoice')}</div>` : ''}<div>x${item.qty}</div></div>
                 <div>${money(item.price*item.qty)}</div>
-                <button class="remove-btn" data-remove="${item.id}" aria-label="${t('remove')}">×</button>
+                <button class="remove-btn" data-remove="${item.groupKey}" aria-label="${t('remove')}">×</button>
               </div>`).join('') : `<div class="note">${t('empty')}</div>`}
             </div>
+            <button class="order-btn order-btn-inline" id="goOrderBtn">${t('order')}</button>
           </div>
-          <button class="order-btn" id="goOrderBtn">${t('order')}</button>
           <div class="dots"><span class="dot"></span><span class="dot green"></span></div>
         </aside>
       </div></div></div>
     </div>
-  </div>`;
+  </div>
+  ${renderSlotInfoModal()}`;
 }
 
 function renderForm(){
@@ -1520,7 +1684,11 @@ function bindCommon(){
 function bindMachine(){
   document.querySelectorAll('.slot').forEach(el=>el.onclick=()=>onSelectProduct(el.dataset.id));
   document.querySelectorAll('[data-remove]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); removeOne(el.dataset.remove); });
+  document.querySelectorAll('[data-slot-info]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); openSlotInfo(el.getAttribute('data-slot-info')); });
+  document.querySelectorAll('[data-slot-option]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); cycleBundleOption(el.getAttribute('data-slot-option')); });
   const orderBtn=document.getElementById('goOrderBtn'); if(orderBtn) orderBtn.onclick=()=>setRoute('order');
+  const closeInfo=document.getElementById('closeSlotInfoBtn'); if(closeInfo) closeInfo.onclick=()=>closeSlotInfo();
+  const backdrop=document.getElementById('slotInfoBackdrop'); if(backdrop) backdrop.onclick=(e)=>{ if(e.target===backdrop) closeSlotInfo(); };
 }
 function syncFormFields(){
   const ids=['barracksSelect','soldierFirstName','soldierLastName','soldierKp','soldierZug','senderName','senderStreet','senderZip','senderEmail','message','privateName','privateStreet','privateZip','privateEmail','privatePhone'];
@@ -1611,8 +1779,8 @@ function buildOrderPayload(){
     items: grouped.map(item => ({
       product_id: item.id,
       slot_code: item.slot,
-      product_name: item.name[state.lang],
-      quantity: item.qty,
+      product_name: item.kind === 'bundle' ? `${item.name[state.lang]} (${item.multiplier}x / ${t('slotWeeklyChoice')})` : item.name[state.lang],
+      quantity: item.kind === 'bundle' ? item.qty : item.qty,
       unit_price: item.price,
       total_price: item.price * item.qty
     }))
@@ -1710,11 +1878,14 @@ function renderAdminProducts(){
                 <button class="back-btn admin-delete-slot-btn" type="button" data-delete-slot="${index}">${t('adminDeleteSlot')}</button>
               </div>
             </div>
+            <div class="field"><label>${t('adminSlotType')}</label><select data-product-field="slot_type" data-product-index="${index}"><option value="normal" ${product.slot_type !== 'bundle' ? 'selected' : ''}>${t('adminSlotTypeNormal')}</option><option value="bundle" ${product.slot_type === 'bundle' ? 'selected' : ''}>${t('adminSlotTypeBundle')}</option></select></div>
             <div class="field"><label>${t('adminProductName')}</label><input data-product-field="name" data-product-index="${index}" value="${escapeAttr(product.name?.de || '')}"></div>
             <div class="admin-product-row">
               <div class="field"><label>${t('adminPrice')}</label><input data-product-field="price" data-product-index="${index}" type="number" min="0" step="0.05" value="${escapeAttr(String(product.price ?? 0))}"></div>
               <div class="field admin-active-field"><label>${t('adminActive')}</label><label class="admin-toggle"><input data-product-field="active" data-product-index="${index}" type="checkbox" ${product.active !== false ? 'checked' : ''}><span>${product.active !== false ? 'On' : 'Off'}</span></label></div>
             </div>
+            <div class="field bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}"><label>${t('adminBundleContent')}</label><textarea data-product-field="bundle_content" data-product-index="${index}">${escapeHtml(product.bundle_content || '')}</textarea></div>
+            <div class="field bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}"><label>${t('adminBundleOptions')}</label><input data-product-field="quantity_options" data-product-index="${index}" value="${escapeAttr((product.quantity_options || [2,3,4]).join(','))}"></div>
             <div class="field"><label>${t('adminImageUrl')}</label><input data-product-field="image_url" data-product-index="${index}" value="${escapeAttr(product.image_url || '')}"></div>
           </div>
         `).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
@@ -1794,6 +1965,9 @@ function bindAdminProducts(){
       if(!product) return;
       if(field === 'active') product.active = !!input.checked;
       else if(field === 'price') product.price = Number(input.value || 0);
+      else if(field === 'slot_type') product.slot_type = input.value === 'bundle' ? 'bundle' : 'normal';
+      else if(field === 'bundle_content') product.bundle_content = input.value;
+      else if(field === 'quantity_options') product.quantity_options = bundleOptionsFromInput(input.value);
       else if(field === 'slotNumber') {
         const desired = Math.max(1, Number(input.value || product.slotNumber || 1));
         const currentIndex = index;
@@ -1807,7 +1981,7 @@ function bindAdminProducts(){
       state.admin.products = field === 'slotNumber' ? products : products;
       state.admin.productsMessage = '';
       save();
-      if(field === 'slotNumber') render();
+      if(field === 'slotNumber' || field === 'slot_type') render();
     };
   });
   const addBtn = document.getElementById('adminAddSlotBtn');

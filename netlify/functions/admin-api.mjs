@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
 
+const META_PREFIX = '__ARMBX_META__';
+
 const json = (statusCode, body, headers = {}) =>
   new Response(JSON.stringify(body), {
     status: statusCode,
@@ -92,7 +94,36 @@ function coercePrice(row) {
   return 0;
 }
 
+function parseBundleMeta(row) {
+  const raw = String(row?.description_fr || '');
+  const fallbackContent = String(row?.description_de || '');
+  const base = { slot_type: 'normal', bundle_content: fallbackContent, quantity_options: [2, 3, 4] };
+  if (!raw.startsWith(META_PREFIX)) return base;
+  try {
+    const meta = JSON.parse(raw.slice(META_PREFIX.length));
+    const quantity_options = Array.isArray(meta?.quantity_options)
+      ? meta.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+      : base.quantity_options;
+    return {
+      slot_type: meta?.slot_type === 'bundle' ? 'bundle' : 'normal',
+      bundle_content: String(meta?.content ?? fallbackContent ?? ''),
+      quantity_options: quantity_options.length ? quantity_options : base.quantity_options
+    };
+  } catch (_) {
+    return base;
+  }
+}
+
+function encodeBundleMeta(row) {
+  return `${META_PREFIX}${JSON.stringify({
+    slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
+    content: String(row?.bundle_content || row?.description_de || ''),
+    quantity_options: (Array.isArray(row?.quantity_options) ? row.quantity_options : []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+  })}`;
+}
+
 function normalizeProductRow(row) {
+  const meta = parseBundleMeta(row);
   return {
     id: row?.id || null,
     slot: Number(row?.slot || 0),
@@ -103,7 +134,10 @@ function normalizeProductRow(row) {
     price_chf: coercePrice(row),
     is_active: Boolean(row?.is_active ?? row?.active ?? false),
     image_url: row?.image_url || '',
-    sort_order: Number(row?.sort_order ?? 0)
+    sort_order: Number(row?.sort_order ?? 0),
+    slot_type: meta.slot_type,
+    bundle_content: meta.bundle_content,
+    quantity_options: meta.quantity_options
   };
 }
 
@@ -126,12 +160,15 @@ function normalizeIncomingProducts(body) {
         slot,
         name_de: nameDe,
         name_fr: nameFr || nameDe,
-        description_de: String(item?.description_de ?? '').trim(),
+        description_de: String(item?.bundle_content ?? item?.description_de ?? '').trim(),
         description_fr: String(item?.description_fr ?? '').trim(),
         price_chf: Number(item?.price_chf ?? item?.price ?? 0),
         is_active: Boolean(item?.is_active ?? item?.active),
         image_url: String(item?.image_url ?? '').trim(),
-        sort_order: Number(item?.sort_order ?? 0)
+        sort_order: Number(item?.sort_order ?? 0),
+        slot_type: item?.slot_type === 'bundle' ? 'bundle' : 'normal',
+        bundle_content: String(item?.bundle_content ?? item?.description_de ?? '').trim(),
+        quantity_options: Array.isArray(item?.quantity_options) ? item.quantity_options : []
       };
     })
     .filter(Boolean);
@@ -167,8 +204,8 @@ async function saveProducts(body) {
       name: nameDe,
       name_de: nameDe,
       name_fr: nameFr,
-      description_de: item.description_de || null,
-      description_fr: item.description_fr || null,
+      description_de: item.bundle_content || item.description_de || null,
+      description_fr: encodeBundleMeta(item),
       price: price,
       price_chf: price,
       active,
