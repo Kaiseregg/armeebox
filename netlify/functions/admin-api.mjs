@@ -139,7 +139,7 @@ function normalizeProductRow(row) {
     id: row?.id || null,
     slot: Number(row?.slot || 0),
     name_de: coerceNameValue(row?.name_de, row?.name),
-    name_fr: coerceNameValue(row?.name_fr, row?.name_de || row?.name),
+    name_fr: ('name_fr' in (row || {})) ? String(row?.name_fr ?? '') : '',
     description_de: String(row?.description_de || ''),
     description_fr: String(row?.description_fr || ''),
     price_chf: coercePrice(row),
@@ -148,9 +148,9 @@ function normalizeProductRow(row) {
     sort_order: Number(row?.sort_order ?? 0),
     slot_type: meta.slot_type,
     bundle_content_de: meta.bundle_content_de,
-    bundle_content_fr: meta.bundle_content_fr || meta.bundle_content_de,
+    bundle_content_fr: meta.bundle_content_fr || '',
     option_label_de: meta.option_label_de,
-    option_label_fr: meta.option_label_fr || meta.option_label_de,
+    option_label_fr: meta.option_label_fr || '',
     quantity_options: meta.quantity_options
   };
 }
@@ -173,7 +173,7 @@ function normalizeIncomingProducts(body) {
       return {
         slot,
         name_de: nameDe,
-        name_fr: nameFr || nameDe,
+        name_fr: nameFr,
         description_de: coerceLocalizedText(item?.bundle_content_de ?? item?.bundle_content ?? item?.description_de ?? '', item?.description_de ?? '').trim(),
         description_fr: coerceLocalizedText(item?.bundle_content_fr ?? item?.description_fr ?? '', '').trim(),
         price_chf: Number(item?.price_chf ?? item?.price ?? 0),
