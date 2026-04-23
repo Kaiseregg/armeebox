@@ -805,16 +805,23 @@ load();
 function currentBarracks(){ return BARRACKS[state.form.barracksIndex] || BARRACKS[0]; }
 
 function parseBundleMeta(row){
-  const base = { slot_type: 'normal', content: String(row?.description_de || ''), quantity_options: [2,3,4] };
+  const directOptions = Array.isArray(row?.quantity_options)
+    ? row.quantity_options.map((value)=>Number(value)).filter((value)=>Number.isFinite(value) && value > 0)
+    : [];
+  const base = {
+    slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
+    content: String(row?.bundle_content ?? row?.description_de || ''),
+    quantity_options: directOptions.length ? directOptions : [2,3,4]
+  };
   const raw = String(row?.description_fr || '');
   if(raw.startsWith(META_PREFIX)){
     try{
       const meta = JSON.parse(raw.slice(META_PREFIX.length));
       const options = Array.isArray(meta?.quantity_options) ? meta.quantity_options.map((value)=>Number(value)).filter((value)=>Number.isFinite(value) && value > 0) : base.quantity_options;
       return {
-        slot_type: meta?.slot_type === 'bundle' ? 'bundle' : 'normal',
-        content: String(meta?.content ?? base.content ?? ''),
-        quantity_options: options.length ? options : base.quantity_options
+        slot_type: row?.slot_type === 'bundle' || meta?.slot_type === 'bundle' ? 'bundle' : 'normal',
+        content: String(row?.bundle_content ?? meta?.content ?? base.content ?? ''),
+        quantity_options: directOptions.length ? directOptions : (options.length ? options : base.quantity_options)
       };
     }catch(_){ }
   }
@@ -1279,7 +1286,22 @@ window.addEventListener('hashchange',()=>{
   }
 });
 function onSelectProduct(id){ const product = currentProducts().find((item)=>String(item.id)===String(id)); if(!product) return; if(product.slot_type==='bundle'){ addBundleProduct(id); return; } state.cart.push(id); save(); render(); }
-function removeOne(id){ const key = String(id); const idx = state.cart.findIndex((entry)=>cartEntryKey(entry)===key || String(cartEntryProductId(entry))===key); if(idx>-1) state.cart.splice(idx,1); save(); render(); }
+function removeOne(id){
+  const key = String(id);
+  const parts = key.split('::');
+  const targetProductId = parts[0] || key;
+  const targetKind = parts[1] || 'normal';
+  const targetMultiplier = String(parts[2] || '1');
+  const idx = state.cart.findIndex((entry)=>{
+    if(cartEntryKey(entry)===key) return true;
+    return String(cartEntryProductId(entry))===targetProductId
+      && cartEntryKind(entry)===targetKind
+      && String(cartEntryMultiplier(entry))===targetMultiplier;
+  });
+  if(idx>-1) state.cart.splice(idx,1);
+  save();
+  render();
+}
 
 function renderAlerts(){
   const items = [...state.validationErrors];

@@ -79,6 +79,7 @@ function encodeBundleMeta(row) {
 }
 
 function normalizeProductRow(row) {
+  const meta = parseBundleMeta(row);
   return {
     id: row?.id || null,
     slot: Number(row?.slot || 0),
@@ -89,7 +90,10 @@ function normalizeProductRow(row) {
     price_chf: coercePrice(row),
     image_url: row?.image_url || '',
     is_active: Boolean(row?.is_active ?? row?.active ?? false),
-    sort_order: Number(row?.sort_order ?? 0)
+    sort_order: Number(row?.sort_order ?? 0),
+    slot_type: meta.slot_type,
+    bundle_content: meta.bundle_content,
+    quantity_options: meta.quantity_options
   };
 }
 
