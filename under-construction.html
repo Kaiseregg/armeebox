@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ARMEEBOX</title>
+    <meta name="description" content="ARMEEBOX - Fresspäckli einfach und modern bestellen." />
+    <link rel="icon" type="image/png" href="./logo.png" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <section id="screen-language" class="screen screen--active">
+        <div class="language-card">
+          <img src="./logo.png" alt="ARMEEBOX" class="hero-logo" />
+          <div class="lang-copy">
+            <p>Bitte Sprache wählen</p>
+            <p>Veuillez choisir la langue</p>
+          </div>
+          <div class="lang-actions">
+            <button class="btn btn--primary" data-lang="de">Deutsch</button>
+            <button class="btn btn--secondary" data-lang="fr">Français</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-intro" class="screen">
+        <div class="intro-wrap">
+          <img src="./logo.png" alt="ARMEEBOX" class="intro-logo" />
+          <p class="eyebrow" id="intro-eyebrow"></p>
+          <h1 id="intro-title"></h1>
+          <p id="intro-text" class="intro-text"></p>
+          <div class="intro-actions">
+            <button class="btn btn--primary" id="intro-start"></button>
+            <button class="btn btn--ghost" id="intro-skip"></button>
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-shop" class="screen">
+        <header class="site-header">
+          <div class="brand">
+            <img src="./logo.png" alt="ARMEEBOX" class="brand-logo" />
+          </div>
+          <div class="header-actions">
+            <button class="chip" id="lang-toggle"></button>
+            <button class="chip" id="nav-home">Shop</button>
+            <button class="chip" data-page="idea">Grundidee</button>
+            <button class="chip" data-page="agb">AGB</button>
+            <button class="chip" data-page="contact">Kontakt</button>
+          </div>
+        </header>
+
+        <main class="shop-layout">
+          <section class="machine-panel">
+            <div class="machine-topbar">
+              <div>
+                <p class="machine-kicker" id="shop-kicker"></p>
+                <h2 id="shop-title"></h2>
+              </div>
+              <span class="status-pill" id="slot-count-pill"></span>
+            </div>
+            <div class="slots-grid" id="slots-grid"></div>
+          </section>
+
+          <aside class="display-panel">
+            <div class="display-screen">
+              <p class="display-label" id="display-label"></p>
+              <h3 id="display-title"></h3>
+              <p id="display-text"></p>
+            </div>
+            <button class="btn btn--primary btn--full" id="to-cart-btn"></button>
+            <p class="helper-text" id="display-helper"></p>
+          </aside>
+        </main>
+      </section>
+
+      <section id="screen-page" class="screen">
+        <div class="content-page">
+          <button class="back-link" id="back-to-shop">← Zurück zum Shop</button>
+          <h2 id="page-title"></h2>
+          <div id="page-body" class="page-body"></div>
+        </div>
+      </section>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
