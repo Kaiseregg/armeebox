@@ -1369,20 +1369,20 @@ function renderMachine(){
             const displayName = p.name[state.lang];
             const displayPriceValue = displayPrice(p);
             return `
-          <button class="slot ${isBundle ? 'slot-bundle' : ''}" data-id="${p.id}">
+          <div class="slot ${isBundle ? 'slot-bundle' : ''}" data-id="${p.id}" role="button" tabindex="0" aria-label="${escapeAttr(displayName)}">
             <div class="slot-top">
               <div class="img-placeholder">SPÄTER BILD</div>
               <div class="spirals">◜◜◜</div>
             </div>
             <div class="price">${money(displayPriceValue)}</div>
             <div class="namebar ${isBundle ? 'namebar-bundle' : ''}" title="${escapeAttr(displayName)}">
-              ${isBundle ? `<button class="slot-mini-btn" type="button" data-slot-info="${p.id}">i</button>` : ''}
+              ${isBundle ? `<button class="slot-mini-btn" type="button" data-slot-info="${p.id}" aria-label="Info">i</button>` : ''}
               <span class="namebar-text">${displayName}</span>
             </div>
             <div class="select-light ${isBundle ? 'select-light-bundle' : ''}">
-              ${isBundle ? `<button class="slot-mini-btn slot-option-btn" type="button" data-slot-option="${p.id}">${optionLabel}</button>` : '<span></span>'}
+              ${isBundle ? `<button class="slot-mini-btn slot-option-btn" type="button" data-slot-option="${p.id}" aria-label="Option wechseln">${optionLabel}</button>` : '<span></span>'}
             </div>
-          </button>`;
+          </div>`;
           }).join('')}
         </div></div>
         <aside class="side">
@@ -1704,7 +1704,7 @@ function bindCommon(){
   document.querySelectorAll('[data-lang]').forEach(btn=>btn.onclick=()=>{ state.lang=btn.dataset.lang; setRoute('intro'); });
 }
 function bindMachine(){
-  document.querySelectorAll('.slot').forEach(el=>el.onclick=()=>onSelectProduct(el.dataset.id));
+  document.querySelectorAll('.slot').forEach(el=>{ el.onclick=()=>onSelectProduct(el.dataset.id); el.onkeydown=(e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); onSelectProduct(el.dataset.id); } }; });
   document.querySelectorAll('[data-remove]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); removeOne(el.dataset.remove); });
   document.querySelectorAll('[data-slot-info]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); openSlotInfo(el.getAttribute('data-slot-info')); });
   document.querySelectorAll('[data-slot-option]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); cycleBundleOption(el.getAttribute('data-slot-option')); });
