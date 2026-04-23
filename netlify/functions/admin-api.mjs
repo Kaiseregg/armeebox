@@ -94,6 +94,11 @@ function coercePrice(row) {
   return 0;
 }
 
+function coerceLocalizedText(value, fallback = '') {
+  if (value && typeof value === 'object') return String(value.de || value.fr || fallback || '');
+  return String(value ?? fallback ?? '');
+}
+
 function parseBundleMeta(row) {
   const raw = String(row?.description_fr || '');
   const fallbackContent = String(row?.description_de || '');
@@ -107,9 +112,9 @@ function parseBundleMeta(row) {
     return {
       slot_type: meta?.slot_type === 'bundle' ? 'bundle' : 'normal',
       bundle_content_de: String(meta?.content_de ?? meta?.content ?? fallbackContent ?? ''),
-      bundle_content_fr: String(meta?.content_fr ?? ''),
-      option_label_de: String(meta?.option_label_de ?? ''),
-      option_label_fr: String(meta?.option_label_fr ?? ''),
+      bundle_content_fr: coerceLocalizedText(meta?.content_fr ?? '', ''),
+      option_label_de: coerceLocalizedText(meta?.option_label_de ?? '', ''),
+      option_label_fr: coerceLocalizedText(meta?.option_label_fr ?? '', ''),
       quantity_options: quantity_options.length ? quantity_options : base.quantity_options
     };
   } catch (_) {
@@ -120,10 +125,10 @@ function parseBundleMeta(row) {
 function encodeBundleMeta(row) {
   return `${META_PREFIX}${JSON.stringify({
     slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
-    content_de: String(row?.bundle_content_de || row?.bundle_content || row?.description_de || ''),
-    content_fr: String(row?.bundle_content_fr || ''),
-    option_label_de: String(row?.option_label_de || ''),
-    option_label_fr: String(row?.option_label_fr || ''),
+    content_de: coerceLocalizedText(row?.bundle_content_de || row?.bundle_content || row?.description_de || '', row?.description_de || ''),
+    content_fr: coerceLocalizedText(row?.bundle_content_fr || '', ''),
+    option_label_de: coerceLocalizedText(row?.option_label_de || '', ''),
+    option_label_fr: coerceLocalizedText(row?.option_label_fr || '', ''),
     quantity_options: (Array.isArray(row?.quantity_options) ? row.quantity_options : []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
   })}`;
 }
@@ -169,17 +174,17 @@ function normalizeIncomingProducts(body) {
         slot,
         name_de: nameDe,
         name_fr: nameFr || nameDe,
-        description_de: String(item?.bundle_content_de ?? item?.bundle_content ?? item?.description_de ?? '').trim(),
-        description_fr: String(item?.bundle_content_fr ?? item?.description_fr ?? '').trim(),
+        description_de: coerceLocalizedText(item?.bundle_content_de ?? item?.bundle_content ?? item?.description_de ?? '', item?.description_de ?? '').trim(),
+        description_fr: coerceLocalizedText(item?.bundle_content_fr ?? item?.description_fr ?? '', '').trim(),
         price_chf: Number(item?.price_chf ?? item?.price ?? 0),
         is_active: Boolean(item?.is_active ?? item?.active),
         image_url: String(item?.image_url ?? '').trim(),
         sort_order: Number(item?.sort_order ?? 0),
         slot_type: item?.slot_type === 'bundle' ? 'bundle' : 'normal',
-        bundle_content_de: String(item?.bundle_content_de ?? item?.bundle_content ?? item?.description_de ?? '').trim(),
-        bundle_content_fr: String(item?.bundle_content_fr ?? item?.description_fr ?? '').trim(),
-        option_label_de: String(item?.option_label_de ?? '').trim(),
-        option_label_fr: String(item?.option_label_fr ?? '').trim(),
+        bundle_content_de: coerceLocalizedText(item?.bundle_content_de ?? item?.bundle_content ?? item?.description_de ?? '', item?.description_de ?? '').trim(),
+        bundle_content_fr: coerceLocalizedText(item?.bundle_content_fr ?? item?.description_fr ?? '', '').trim(),
+        option_label_de: coerceLocalizedText(item?.option_label_de ?? '', '').trim(),
+        option_label_fr: coerceLocalizedText(item?.option_label_fr ?? '', '').trim(),
         quantity_options: Array.isArray(item?.quantity_options) ? item.quantity_options : []
       };
     })

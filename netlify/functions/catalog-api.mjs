@@ -50,6 +50,11 @@ function coercePrice(row) {
   return 0;
 }
 
+function coerceLocalizedText(value, fallback = '') {
+  if (value && typeof value === 'object') return String(value.de || value.fr || fallback || '');
+  return String(value ?? fallback ?? '');
+}
+
 function parseBundleMeta(row) {
   const raw = String(row?.description_fr || '');
   const fallbackContent = String(row?.description_de || '');
@@ -63,9 +68,9 @@ function parseBundleMeta(row) {
     return {
       slot_type: meta?.slot_type === 'bundle' ? 'bundle' : 'normal',
       bundle_content_de: String(meta?.content_de ?? meta?.content ?? fallbackContent ?? ''),
-      bundle_content_fr: String(meta?.content_fr ?? ''),
-      option_label_de: String(meta?.option_label_de ?? ''),
-      option_label_fr: String(meta?.option_label_fr ?? ''),
+      bundle_content_fr: coerceLocalizedText(meta?.content_fr ?? '', ''),
+      option_label_de: coerceLocalizedText(meta?.option_label_de ?? '', ''),
+      option_label_fr: coerceLocalizedText(meta?.option_label_fr ?? '', ''),
       quantity_options: quantity_options.length ? quantity_options : base.quantity_options
     };
   } catch (_) {
@@ -76,10 +81,10 @@ function parseBundleMeta(row) {
 function encodeBundleMeta(row) {
   return `${META_PREFIX}${JSON.stringify({
     slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
-    content_de: String(row?.bundle_content_de || row?.bundle_content || row?.description_de || ''),
-    content_fr: String(row?.bundle_content_fr || ''),
-    option_label_de: String(row?.option_label_de || ''),
-    option_label_fr: String(row?.option_label_fr || ''),
+    content_de: coerceLocalizedText(row?.bundle_content_de || row?.bundle_content || row?.description_de || '', row?.description_de || ''),
+    content_fr: coerceLocalizedText(row?.bundle_content_fr || '', ''),
+    option_label_de: coerceLocalizedText(row?.option_label_de || '', ''),
+    option_label_fr: coerceLocalizedText(row?.option_label_fr || '', ''),
     quantity_options: (Array.isArray(row?.quantity_options) ? row.quantity_options : []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
   })}`;
 }
