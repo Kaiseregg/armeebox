@@ -155,6 +155,8 @@ async function saveProducts(body) {
       .filter(([slot]) => Number.isInteger(slot) && slot > 0)
   );
 
+  const incomingSlots = new Set(items.map((item) => item.slot));
+
   for (const item of items) {
     const price = Number.isFinite(item.price_chf) ? item.price_chf : 0;
     const nameDe = item.name_de || '';
@@ -189,6 +191,40 @@ async function saveProducts(body) {
         body: JSON.stringify({ ...payload, created_at: new Date().toISOString() })
       });
     }
+  }
+
+  for (const [slot, row] of existingBySlot.entries()) {
+    if (!incomingSlots.has(slot) && row?.id) {
+      await supa(`products?id=eq.${encodeURIComponent(row.id)}`, { method: 'DELETE' });
+    }
+  }
+
+  try {
+    const existingSlots = await supa('slots?select=id,slot_number');
+    const slotsByNumber = new Map((Array.isArray(existingSlots) ? existingSlots : []).map((row) => [Number(row?.slot_number || 0), row]).filter(([slot]) => Number.isInteger(slot) && slot > 0));
+    for (const item of items) {
+      const slotPayload = { slot_number: item.slot, is_active: item.is_active === true, updated_at: new Date().toISOString() };
+      if (slotsByNumber.has(item.slot)) {
+        await supa(`slots?slot_number=eq.${encodeURIComponent(item.slot)}`, {
+          method: 'PATCH',
+          headers: { Prefer: 'return=representation' },
+          body: JSON.stringify(slotPayload)
+        });
+      } else {
+        await supa('slots', {
+          method: 'POST',
+          headers: { Prefer: 'return=representation' },
+          body: JSON.stringify({ ...slotPayload, created_at: new Date().toISOString(), product_id: null })
+        });
+      }
+    }
+    for (const [slot, row] of slotsByNumber.entries()) {
+      if (!incomingSlots.has(slot) && row?.id) {
+        await supa(`slots?id=eq.${encodeURIComponent(row.id)}`, { method: 'DELETE' });
+      }
+    }
+  } catch (_) {
+    // slots table is optional for the active preview flow; keep products save robust
   }
 
   return listProducts();

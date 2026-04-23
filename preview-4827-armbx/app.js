@@ -589,6 +589,8 @@ const texts = {
     adminProductsSave: 'Produkte speichern',
     adminProductsRefresh: 'Produkte laden',
     adminAddSlot: 'Slot hinzufügen',
+    adminDeleteSlot: 'Slot löschen',
+    adminDragHint: 'Per Ziehen verschieben',
     adminProductsSaved: 'Produkte wurden gespeichert.',
     adminSlot: 'Slot',
     adminProductName: 'Produktname',
@@ -696,6 +698,9 @@ const texts = {
     adminBackOrders: 'Retour aux commandes',
     adminProductsSave: 'Enregistrer les produits',
     adminProductsRefresh: 'Charger les produits',
+    adminAddSlot: 'Ajouter un slot',
+    adminDeleteSlot: 'Supprimer le slot',
+    adminDragHint: 'Déplacer par glisser-déposer',
     adminProductsSaved: 'Les produits ont été enregistrés.',
     adminSlot: 'Slot',
     adminProductName: 'Nom du produit',
@@ -807,6 +812,32 @@ function currentProducts(){
 function adminProductsList(){
   const source = Array.isArray(state.admin.products) && state.admin.products.length ? state.admin.products : (Array.isArray(state.catalog.products) && state.catalog.products.length ? state.catalog.products : DEFAULT_PRODUCTS);
   return source.map((row, index) => normalizeCatalogProduct(row, index)).sort((a,b)=>a.slotNumber-b.slotNumber);
+}
+function reindexAdminProducts(products){
+  return products.map((product, index) => ({
+    ...product,
+    slotNumber: index + 1,
+    slot: String(index + 1).padStart(2, '0')
+  }));
+}
+function moveAdminSlot(fromIndex, toIndex){
+  const products = adminProductsList();
+  if(fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= products.length || toIndex >= products.length) return;
+  const [moved] = products.splice(fromIndex, 1);
+  products.splice(toIndex, 0, moved);
+  state.admin.products = reindexAdminProducts(products);
+  state.admin.productsMessage = '';
+  save();
+  render();
+}
+function deleteAdminSlot(index){
+  const products = adminProductsList();
+  if(index < 0 || index >= products.length) return;
+  products.splice(index, 1);
+  state.admin.products = reindexAdminProducts(products);
+  state.admin.productsMessage = '';
+  save();
+  render();
 }
 function addAdminSlot(){
   const products = adminProductsList();
@@ -1161,12 +1192,11 @@ function renderMachine(){
           ${currentProducts().map(p=>`
           <button class="slot" data-id="${p.id}">
             <div class="slot-top">
-              <div class="badge">${p.slot}</div>
               <div class="img-placeholder">SPÄTER BILD</div>
               <div class="spirals">◜◜◜</div>
             </div>
             <div class="price">${money(p.price)}</div>
-            <div class="namebar">${p.name[state.lang]}</div>
+            <div class="namebar" title="${escapeAttr(p.name[state.lang])}">${p.name[state.lang]}</div>
             <div class="select-light"><span></span></div>
           </button>`).join('')}
         </div></div>
@@ -1669,10 +1699,16 @@ function renderAdminProducts(){
       ${state.admin.productsMessage ? `<div class="note">${escapeHtml(state.admin.productsMessage)}</div>` : ''}
       <div class="admin-products-grid">
         ${products.length ? products.map((product, index) => `
-          <div class="card admin-product-card">
+          <div class="card admin-product-card" draggable="true" data-draggable-slot="${index}">
             <div class="admin-slot-head">
-              <div class="admin-product-slot">${t('adminSlot')} ${escapeHtml(product.slot)}</div>
-              <div class="field" style="margin:0"><label>Slotnummer</label><input class="admin-slot-number" data-product-field="slotNumber" data-product-index="${index}" type="number" min="1" step="1" value="${escapeAttr(String(product.slotNumber))}"></div>
+              <div>
+                <div class="admin-product-slot">${t('adminSlot')} ${escapeHtml(product.slot)}</div>
+                <div class="note">${t('adminDragHint')}</div>
+              </div>
+              <div class="admin-slot-tools">
+                <div class="field" style="margin:0"><label>Slotnummer</label><input class="admin-slot-number" data-product-field="slotNumber" data-product-index="${index}" type="number" min="1" step="1" value="${escapeAttr(String(product.slotNumber))}"></div>
+                <button class="back-btn admin-delete-slot-btn" type="button" data-delete-slot="${index}">${t('adminDeleteSlot')}</button>
+              </div>
             </div>
             <div class="field"><label>${t('adminProductName')}</label><input data-product-field="name" data-product-index="${index}" value="${escapeAttr(product.name?.de || '')}"></div>
             <div class="admin-product-row">
@@ -1753,24 +1789,55 @@ function bindAdminProducts(){
     input.oninput = input.onchange = ()=>{
       const index = Number(input.getAttribute('data-product-index'));
       const field = input.getAttribute('data-product-field');
-      const products = adminProductsList();
+      let products = adminProductsList();
       const product = products[index];
       if(!product) return;
       if(field === 'active') product.active = !!input.checked;
       else if(field === 'price') product.price = Number(input.value || 0);
       else if(field === 'slotNumber') {
-        const nextSlot = Math.max(1, Number(input.value || product.slotNumber || 1));
-        product.slotNumber = nextSlot;
-        product.slot = String(nextSlot).padStart(2,'0');
+        const desired = Math.max(1, Number(input.value || product.slotNumber || 1));
+        const currentIndex = index;
+        const targetIndex = Math.min(products.length - 1, desired - 1);
+        const [moved] = products.splice(currentIndex, 1);
+        products.splice(targetIndex, 0, moved);
+        products = reindexAdminProducts(products);
       }
       else if(field === 'name') product.name = { de: input.value, fr: input.value };
       else product[field] = input.value;
-      state.admin.products = products;
+      state.admin.products = field === 'slotNumber' ? products : products;
+      state.admin.productsMessage = '';
       save();
+      if(field === 'slotNumber') render();
     };
   });
   const addBtn = document.getElementById('adminAddSlotBtn');
   if(addBtn) addBtn.onclick = ()=>addAdminSlot();
+  document.querySelectorAll('[data-delete-slot]').forEach(btn => btn.onclick = ()=>deleteAdminSlot(Number(btn.getAttribute('data-delete-slot'))));
+  const cards = Array.from(document.querySelectorAll('[data-draggable-slot]'));
+  cards.forEach(card => {
+    card.addEventListener('dragstart', (event) => {
+      card.classList.add('dragging');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', card.getAttribute('data-draggable-slot') || '0');
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      document.querySelectorAll('.admin-product-card').forEach(el => el.classList.remove('drag-over'));
+    });
+    card.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      card.classList.add('drag-over');
+    });
+    card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+    card.addEventListener('drop', (event) => {
+      event.preventDefault();
+      const fromIndex = Number(event.dataTransfer.getData('text/plain'));
+      const toIndex = Number(card.getAttribute('data-draggable-slot'));
+      card.classList.remove('drag-over');
+      moveAdminSlot(fromIndex, toIndex);
+    });
+  });
   const saveBtn = document.getElementById('adminSaveProductsBtn');
   if(saveBtn) saveBtn.onclick = ()=>saveAdminProducts();
 }
