@@ -31,26 +31,19 @@ export async function fetchBarracks() {
 }
 
 export async function submitOrder(payload) {
-  const sb = requireSupabase()
-  const { data: customer, error: cErr } = await sb.from('customers').insert(payload.customer).select().single()
-  if (cErr) throw cErr
-  const { data: recipient, error: rErr } = await sb.from('recipients').insert(payload.recipient).select().single()
-  if (rErr) throw rErr
-  const orderInsert = { ...payload.order, customer_id: customer.id, recipient_id: recipient.id }
-  const { data: order, error: oErr } = await sb.from('orders').insert(orderInsert).select().single()
-  if (oErr) throw oErr
-  const items = payload.items.map((item) => ({
-    order_id: order.id,
-    product_id: item.product_id || null,
-    slot_number: item.slot_number,
-    product_name: item.product_name,
-    unit_price_chf: item.unit_price_chf,
-    quantity: item.quantity,
-    line_total_chf: item.line_total_chf,
-  }))
-  const { error: iErr } = await sb.from('order_items').insert(items)
-  if (iErr) throw iErr
-  return order
+  const response = await fetch('/.netlify/functions/submit-order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  const data = await response.json().catch(() => null)
+
+  if (!response.ok || !data?.success) {
+    throw new Error(data?.error || 'Bestellung konnte nicht abgeschlossen werden.')
+  }
+
+  return data
 }
 
 export async function signInAdmin(email, password) {
