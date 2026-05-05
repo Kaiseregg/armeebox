@@ -192,7 +192,7 @@ function normalizeIncomingProducts(body) {
 }
 
 
-const DEFAULT_DESIGN_SETTINGS = { machineTitle: '', machineInner: '', buttonColor: '#65a832', slotColor: '#3d5366', frameColor: '#b22b2b', bgColor: '#061527' };
+const DEFAULT_DESIGN_SETTINGS = { machineTitle: '', machineInner: '', machineTitle_de: '', machineTitle_fr: '', machineInner_de: '', machineInner_fr: '', buttonColor: '#65a832', slotColor: '#3d5366', frameColor: '#b22b2b', bgColor: '#061527' };
 async function getDesignSettings() {
   try {
     const rows = await supa('admin_settings?select=*&key=eq.design_settings&limit=1');
@@ -222,16 +222,58 @@ async function saveDesignSettings(settings) {
   }
   return clean;
 }
+async function getPagesMeta() {
+  try {
+    const rows = await supa('admin_settings?select=*&key=eq.cms_pages_meta&limit=1');
+    const row = Array.isArray(rows) ? rows[0] : null;
+    const value = row?.value || row?.settings || row?.data || null;
+    if (value && typeof value === 'object') return value;
+    if (typeof value === 'string') return JSON.parse(value);
+  } catch (_) {}
+  return {};
+}
+async function savePagesMeta(meta) {
+  const clean = meta && typeof meta === 'object' ? meta : {};
+  try {
+    const existing = await supa('admin_settings?select=*&key=eq.cms_pages_meta&limit=1');
+    if (Array.isArray(existing) && existing[0]) {
+      await supa('admin_settings?key=eq.cms_pages_meta', { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ value: clean, updated_at: new Date().toISOString() }) });
+    } else {
+      await supa('admin_settings', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ key: 'cms_pages_meta', value: clean, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }) });
+    }
+  } catch (error) { console.warn('cms_pages_meta save failed', error.message); }
+  return clean;
+}
+function withPageMeta(rows, meta) {
+  return (Array.isArray(rows) ? rows : []).map((row, index) => { const m = meta?.[row.slug] || {}; return { ...row, sort_order: Number(m.sort_order ?? index + 1), show_in_menu: m.show_in_menu !== false, is_active: m.is_active !== false }; }).sort((a,b)=>Number(a.sort_order ?? 999)-Number(b.sort_order ?? 999) || String(a.slug||'').localeCompare(String(b.slug||'')));
+}
+function cleanSlug(value) { return String(value || '').toLowerCase().trim().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/[éèê]/g,'e').replace(/[àâ]/g,'a').replace(/ç/g,'c').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || `seite-${Date.now()}`; }
 async function listSitePages() {
-  try { const rows = await supa('site_pages?select=*&order=slug.asc'); return Array.isArray(rows) ? rows : []; } catch (_) { return []; }
+  try { const rows = await supa('site_pages?select=*&order=slug.asc'); const meta = await getPagesMeta(); return withPageMeta(rows, meta); } catch (_) { return []; }
 }
 async function saveSitePages(pages) {
   if (!Array.isArray(pages)) return listSitePages();
-  for (const page of pages) {
-    if (!page?.slug) continue;
-    const payload = { title_de: String(page.title_de || ''), title_fr: String(page.title_fr || ''), content_de: String(page.content_de || ''), content_fr: String(page.content_fr || '') };
-    try { await supa(`site_pages?slug=eq.${encodeURIComponent(page.slug)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(payload) }); } catch (e) { console.warn('site_pages patch failed', e.message); }
+  const existingRows = await supa('site_pages?select=id,slug');
+  const existingBySlug = new Map((Array.isArray(existingRows) ? existingRows : []).map(r => [String(r.slug), r]));
+  const incomingSlugs = new Set();
+  const meta = {};
+  for (let i = 0; i < pages.length; i++) {
+    const page = pages[i] || {};
+    const slug = cleanSlug(page.slug);
+    if (!slug) continue;
+    incomingSlugs.add(slug);
+    const payload = { slug, title_de: String(page.title_de || ''), title_fr: String(page.title_fr || ''), content_de: String(page.content_de || ''), content_fr: String(page.content_fr || '') };
+    meta[slug] = { sort_order: Number(page.sort_order ?? i + 1), show_in_menu: page.show_in_menu !== false, is_active: page.is_active !== false };
+    if (existingBySlug.has(slug)) {
+      await supa(`site_pages?slug=eq.${encodeURIComponent(slug)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(payload) });
+    } else {
+      await supa('site_pages', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(payload) });
+    }
   }
+  for (const [slug, row] of existingBySlug.entries()) {
+    if (!incomingSlugs.has(slug) && row?.id) await supa(`site_pages?id=eq.${encodeURIComponent(row.id)}`, { method: 'DELETE' });
+  }
+  await savePagesMeta(meta);
   return listSitePages();
 }
 
