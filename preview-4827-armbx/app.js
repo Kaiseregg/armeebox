@@ -596,7 +596,10 @@ const texts = {
     adminProductName: 'Produktname',
     adminPrice: 'Preis',
     adminActive: 'Aktiv',
-    adminImageUrl: 'Bild-URL (später)',
+    adminImageUrl: 'Bild-URL',
+    adminImageUpload: 'Bild hochladen / hier ablegen',
+    adminImageUploading: 'Bild wird hochgeladen …',
+    adminImageUploaded: 'Bild wurde hochgeladen und gespeichert.',
     adminNoProducts: 'Noch keine Produkte vorhanden.',
     adminCatalogLoadError: 'Produkte konnten nicht geladen werden.',
     adminSlotType: 'Slot-Typ',
@@ -723,7 +726,10 @@ const texts = {
     adminProductName: 'Nom du produit',
     adminPrice: 'Prix',
     adminActive: 'Actif',
-    adminImageUrl: 'URL image (plus tard)',
+    adminImageUrl: 'URL image',
+    adminImageUpload: 'Téléverser / déposer image ici',
+    adminImageUploading: 'Téléversement de l’image …',
+    adminImageUploaded: 'Image téléversée et enregistrée.',
     adminNoProducts: 'Aucun produit disponible.',
     adminCatalogLoadError: 'Impossible de charger les produits.',
     adminSlotType: 'Type de slot',
@@ -1285,6 +1291,50 @@ async function loadAdminProducts(){
     render();
   }
 }
+async function uploadAdminProductImage(index, file){
+  if(!file) return;
+  const products = adminProductsList();
+  const product = products[index];
+  if(!product) return;
+  const allowed = ['image/jpeg','image/png','image/webp','image/gif'];
+  if(file.type && !allowed.includes(file.type)){
+    state.admin.loginError = 'Nur JPG, PNG, WebP oder GIF erlaubt';
+    save(); render();
+    return;
+  }
+  if(file.size && file.size > 8 * 1024 * 1024){
+    state.admin.loginError = 'Bild ist zu gross. Maximum 8 MB.';
+    save(); render();
+    return;
+  }
+  state.admin.loginError = '';
+  state.admin.productsMessage = t('adminImageUploading');
+  save(); render();
+  try{
+    const form = new FormData();
+    form.append('file', file);
+    form.append('slot', product.slot || product.slotNumber || index + 1);
+    const response = await fetch('/.netlify/functions/upload-product-image', {
+      method: 'POST',
+      body: form,
+      credentials: 'same-origin'
+    });
+    const data = await response.json().catch(()=>({}));
+    if(!response.ok || data.success === false || !data.publicUrl){
+      throw new Error(data.error || 'Upload fehlgeschlagen');
+    }
+    const fresh = adminProductsList();
+    if(fresh[index]) fresh[index].image_url = data.publicUrl;
+    state.admin.products = fresh;
+    state.admin.productsMessage = t('adminImageUploaded');
+    save();
+    await saveAdminProducts();
+  }catch(error){
+    state.admin.loginError = error.message || 'Upload fehlgeschlagen';
+    save(); render();
+  }
+}
+
 async function saveAdminProducts(){
   state.admin.productsSaving = true;
   state.admin.loginError = '';
@@ -1491,7 +1541,7 @@ function renderMachine(){
             return `
           <div class="slot ${isBundle ? 'slot-bundle' : ''}" data-id="${p.id}" role="button" tabindex="0" aria-label="${escapeAttr(displayName)}">
             <div class="slot-top">
-              <div class="img-placeholder">SPÄTER BILD</div>
+              ${p.image_url ? `<img class="slot-product-img" src="${escapeAttr(p.image_url)}" alt="${escapeAttr(displayName)}" loading="lazy">` : `<div class="img-placeholder">SPÄTER BILD</div>`}
               <div class="spirals">◜◜◜</div>
             </div>
             <div class="price">${money(displayPriceValue)}</div>
@@ -2050,8 +2100,12 @@ function renderAdminProducts(){
               <div class="field"><label>${t('adminBundleLabelFr')}</label><input data-product-field="option_label_fr" data-product-index="${index}" value="${escapeAttr(product.option_label?.fr || '')}"></div>
             </div>
             <div class="field bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}"><label>${t('adminBundleOptions')}</label><input data-product-field="quantity_options" data-product-index="${index}" value="${escapeAttr((product.quantity_options || [2,3,4]).join(','))}"></div>
-            <div class="field"><label>Produktbild URL</label><input data-product-field="image_url" data-product-index="${index}" placeholder="https://.../bild.png" value="${escapeAttr(product.image_url || '')}"></div>
-            <div class="admin-image-preview">${product.image_url ? `<img src="${escapeAttr(product.image_url)}" alt="Produktbild Slot ${escapeAttr(product.slot)}" loading="lazy">` : `<span>Kein Bild hinterlegt</span>`}</div>
+            <div class="field"><label>${t('adminImageUrl')}</label><input data-product-field="image_url" data-product-index="${index}" placeholder="https://.../bild.png" value="${escapeAttr(product.image_url || '')}"></div>
+            <div class="admin-image-upload" data-image-drop-index="${index}">
+              <input class="admin-file-input" id="productImageInput-${index}" type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-image-upload-index="${index}">
+              <label class="admin-upload-label" for="productImageInput-${index}">${t('adminImageUpload')}</label>
+              <div class="admin-image-preview">${product.image_url ? `<img src="${escapeAttr(product.image_url)}" alt="Produktbild Slot ${escapeAttr(product.slot)}" loading="lazy">` : `<span>Kein Bild hinterlegt</span>`}</div>
+            </div>
           </div>
         `).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
       </div>
@@ -2154,6 +2208,27 @@ function bindAdminProducts(){
       save();
       if(field === 'slotNumber' || field === 'slot_type') render();
     };
+  });
+  document.querySelectorAll('[data-image-upload-index]').forEach(input => {
+    input.onchange = () => {
+      const index = Number(input.getAttribute('data-image-upload-index'));
+      const file = input.files && input.files[0];
+      uploadAdminProductImage(index, file);
+    };
+  });
+  document.querySelectorAll('[data-image-drop-index]').forEach(zone => {
+    zone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      zone.classList.add('is-dragover');
+    });
+    zone.addEventListener('dragleave', () => zone.classList.remove('is-dragover'));
+    zone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      zone.classList.remove('is-dragover');
+      const index = Number(zone.getAttribute('data-image-drop-index'));
+      const file = event.dataTransfer?.files && event.dataTransfer.files[0];
+      uploadAdminProductImage(index, file);
+    });
   });
   const addBtn = document.getElementById('adminAddSlotBtn');
   if(addBtn) addBtn.onclick = ()=>addAdminSlot();
