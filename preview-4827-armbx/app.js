@@ -618,7 +618,27 @@ const texts = {
     slotAddBundle: 'Abo hinzufügen',
     slotChooseOption: 'Option wählen',
     slotInfoTitle: 'Inhalt des Fresspäckli',
-    close: 'Schliessen'
+    close: 'Schliessen',
+    menuMachine: 'Automat',
+    menuIdea: 'Grundidee',
+    menuContact: 'Kontakt',
+    menuTerms: 'AGB',
+    contactTitle: 'Kontakt',
+    contactName: 'Name',
+    contactSubject: 'Betreff',
+    contactMessage: 'Nachricht',
+    contactSend: 'Nachricht senden',
+    contactSending: 'Wird gesendet …',
+    contactSuccess: 'Nachricht wurde gesendet.',
+    adminDesign: 'Design / Texte',
+    adminDesignHint: 'Farben, Menüpunkte und Seiteninhalte verwalten',
+    adminDesignSave: 'Design speichern',
+    adminDesignSaved: 'Design wurde gespeichert.',
+    adminMainTitle: 'Automat Titel',
+    adminButtonColor: 'Button Farbe',
+    adminSlotColor: 'Slot Farbe',
+    adminFrameColor: 'Rahmen Farbe',
+    adminBgColor: 'Hintergrund Farbe'
   },
   fr: {
     langTitle: 'Choisir la langue',
@@ -748,7 +768,27 @@ const texts = {
     slotAddBundle: 'Ajouter abonnement',
     slotChooseOption: 'Choisir',
     slotInfoTitle: 'Contenu du paquet',
-    close: 'Fermer'
+    close: 'Fermer',
+    menuMachine: 'Automate',
+    menuIdea: 'Idée',
+    menuContact: 'Contact',
+    menuTerms: 'CGV',
+    contactTitle: 'Contact',
+    contactName: 'Nom',
+    contactSubject: 'Sujet',
+    contactMessage: 'Message',
+    contactSend: 'Envoyer le message',
+    contactSending: 'Envoi …',
+    contactSuccess: 'Message envoyé.',
+    adminDesign: 'Design / Textes',
+    adminDesignHint: 'Gérer couleurs, menu et contenus',
+    adminDesignSave: 'Enregistrer design',
+    adminDesignSaved: 'Design enregistré.',
+    adminMainTitle: 'Titre automate',
+    adminButtonColor: 'Couleur bouton',
+    adminSlotColor: 'Couleur slot',
+    adminFrameColor: 'Couleur cadre',
+    adminBgColor: 'Couleur fond'
   }
 };
 
@@ -776,7 +816,9 @@ const state = {
     productsSaving: false,
     productsMessage: '',
     search: '',
-    filter: 'all'
+    filter: 'all',
+    design: null,
+    pages: []
   },
   catalog: {
     loading: false,
@@ -787,6 +829,17 @@ const state = {
     slotInfoProductId: null
   },
   bundleSelections: {},
+  settings: {
+    machineTitle: '',
+    machineInner: '',
+    buttonColor: '#65a832',
+    slotColor: '#3d5366',
+    frameColor: '#b22b2b',
+    bgColor: '#061527'
+  },
+  pages: [],
+  currentPageSlug: '',
+  contact: { name:'', email:'', subject:'', message:'', sending:false, status:'', error:'' },
   form: {
     barracksIndex: 0,
     soldierFirstName: '',
@@ -821,6 +874,27 @@ function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function load(){ try{ const d=JSON.parse(localStorage.getItem(STORAGE_KEY)); if(d) Object.assign(state,d);}catch(e){} }
 load();
 function currentBarracks(){ return BARRACKS[state.form.barracksIndex] || BARRACKS[0]; }
+
+function settingValue(key, fallback=''){
+  const value = state.settings?.[key];
+  return value === undefined || value === null || value === '' ? fallback : value;
+}
+function topbar(){
+  return `<div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"><nav class="main-nav"><button data-nav="shop">${t('menuMachine')}</button><button data-nav-page="grundidee">${t('menuIdea')}</button><button data-nav-page="kontakt">${t('menuContact')}</button><button data-nav-page="agb">${t('menuTerms')}</button></nav></div>`;
+}
+function pageTitle(page){ return state.lang === 'fr' ? (page.title_fr || page.title_de || page.slug) : (page.title_de || page.title_fr || page.slug); }
+function pageContent(page){ return state.lang === 'fr' ? (page.content_fr || page.content_de || '') : (page.content_de || page.content_fr || ''); }
+async function loadSiteContent(){
+  try{
+    const response = await fetch('/.netlify/functions/catalog-api?action=site', {credentials:'same-origin'});
+    const data = await response.json().catch(()=>({}));
+    if(data?.success){
+      if(data.settings) state.settings = {...state.settings, ...data.settings};
+      if(Array.isArray(data.pages)) state.pages = data.pages;
+    }
+  }catch(_){ }
+}
+function findSitePage(slug){ return (state.pages || []).find(p => p.slug === slug) || null; }
 
 function localizedAdminValue(value, fallback=''){
   if(value && typeof value === 'object') return String(value[state.lang] || value.de || value.fr || fallback || '');
@@ -1275,6 +1349,26 @@ async function loadCatalogProducts(){
     render();
   }
 }
+
+async function loadAdminDesign(){
+  state.admin.loading = true; state.admin.loginError=''; render();
+  try{
+    const data = await adminRequest('design');
+    state.admin.design = data.settings || {...state.settings};
+    state.admin.pages = Array.isArray(data.pages) ? data.pages : (state.pages || []);
+  }catch(error){ state.admin.loginError = error.message || 'Design konnte nicht geladen werden'; }
+  finally{ state.admin.loading=false; save(); render(); }
+}
+async function saveAdminDesign(){
+  state.admin.loading = true; state.admin.loginError=''; state.admin.productsMessage=''; render();
+  try{
+    const data = await adminRequest('design', {method:'POST', body:{settings: state.admin.design || {}, pages: state.admin.pages || []}});
+    state.settings = {...state.settings, ...(data.settings || state.admin.design || {})};
+    state.pages = Array.isArray(data.pages) ? data.pages : (state.admin.pages || []);
+    state.admin.productsMessage = t('adminDesignSaved');
+  }catch(error){ state.admin.loginError = error.message || 'Design konnte nicht gespeichert werden'; }
+  finally{ state.admin.loading=false; save(); render(); }
+}
 async function loadAdminProducts(){
   state.admin.loading = true;
   state.admin.loginError = '';
@@ -1413,13 +1507,14 @@ function shippingCost(){ return state.shipping==='private' ? 9 : 0; }
 function total(){ return subtotal()+shippingCost(); }
 function setRoute(route){ state.route=route; state.submitError=''; save(); render(); }
 function updateHash(){
-  const map={language:'#language',intro:'#intro',shop:'#shop',order:'#order',review:'#review',confirmation:'#confirmation','admin-login':'#admin-login','admin-orders':'#admin-orders','admin-order':'#admin-order','admin-products':'#admin-products'};
+  const map={language:'#language',intro:'#intro',shop:'#shop',order:'#order',review:'#review',confirmation:'#confirmation','admin-login':'#admin-login','admin-orders':'#admin-orders','admin-order':'#admin-order','admin-products':'#admin-products','admin-design':'#admin-design',page:'#page'};
   if(state.route==='admin-order'){
     const id = state.admin.currentOrder?.id || new URLSearchParams(location.search).get('id') || '';
     const target = `#admin-order${id ? `?id=${encodeURIComponent(id)}` : ''}`;
     if(`${location.hash}`!==target) history.replaceState(null,'',target);
     return;
   }
+  if(state.route==='page'){ const target = `#${state.currentPageSlug || 'grundidee'}`; if(location.hash!==target) history.replaceState(null,'',target); return; }
   if(location.hash!==map[state.route]) history.replaceState(null,'',map[state.route]);
 }
 function resetOrderData(){
@@ -1526,12 +1621,12 @@ function renderSlotInfoModal(){
 function renderMachine(){
   const grouped=cartGrouped();
   return `
-  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
+  ${topbar()}
   <div class="page">
-    <div class="shell">
-      <div class="header-row"><h1>${t('machineTitle')}</h1></div>
+    <div class="shell" style="--admin-bg:${escapeAttr(settingValue('bgColor', '#061527'))};--admin-frame:${escapeAttr(settingValue('frameColor', '#b22b2b'))};--admin-slot:${escapeAttr(settingValue('slotColor', '#3d5366'))};--admin-button:${escapeAttr(settingValue('buttonColor', '#65a832'))}">
+      <div class="header-row"><h1>${escapeHtml(settingValue('machineTitle', t('machineTitle')))}</h1></div>
       <div class="machine"><div class="machine-red"><div class="machine-inner">
-        <div class="machine-banner">${t('machineInner')}</div>
+        <div class="machine-banner">${escapeHtml(settingValue('machineInner', t('machineInner')))}</div>
         <div><div class="grid">
           ${currentProducts().map(p=>{
             const isBundle = p.slot_type === 'bundle';
@@ -1590,7 +1685,7 @@ function renderForm(){
   const b=currentBarracks();
   const grouped=cartGrouped();
   return `
-  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
+  ${topbar()}
   <div class="page">
     <div class="shell">
       <div class="order-top-actions"><button class="back-btn" id="backMachineBtn">← ${t('backMachine')}</button><button class="back-btn" id="openAdminBtn">Admin</button></div>
@@ -1661,7 +1756,7 @@ function renderReview(){
   const grouped=cartGrouped();
   const b=currentBarracks();
   return `
-  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
+  ${topbar()}
   <div class="page">
     <div class="shell">
       <h1 style="margin-top:0">${t('reviewTitle')}</h1>
@@ -1696,7 +1791,7 @@ function renderReview(){
 function renderConfirm(){
   const order = state.lastOrder;
   return `
-  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
+  ${topbar()}
   <div class="page center">
     <div class="hero-card confirm-card">
       <h1 class="hero-title" style="font-size:56px">${t('confirmTitle')}</h1>
@@ -1719,7 +1814,7 @@ function renderConfirm(){
 
 function renderAdminLogin(){
   return `
-  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
+  ${topbar()}
   <div class="page center">
     <div class="hero-card admin-login-card">
       <div class="goldline">ARMEEBOX ADMIN</div>
@@ -1764,13 +1859,13 @@ function renderAdminOrders(){
       <button class="back-btn admin-open-btn" data-open-order="${escapeAttr(order.id)}">Öffnen</button>
     </div>`).join('');
   return `
-  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
+  ${topbar()}
   <div class="page">
     <div class="shell">
       <div class="admin-toolbar">
         <div><h1 style="margin:0;font-size:48px">${t('adminOrders')}</h1><div class="note">${t('adminListHint')}</div></div>
         <div class="admin-actions">
-          <button class="back-btn" id="adminProductsBtn">${t('adminProducts')}</button>
+          <button class="back-btn" id="adminProductsBtn">${t('adminProducts')}</button><button class="back-btn" id="adminDesignBtn">${t('adminDesign')}</button>
           <button class="back-btn" id="adminRefreshBtn">${t('adminRefresh')}</button>
           <button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button>
         </div>
@@ -1810,7 +1905,7 @@ function renderAdminOrder(){
   const order = state.admin.currentOrder;
   if(!order){
     return `
-    <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
+    ${topbar()}
     <div class="page"><div class="shell"><div class="note">Bestellung wird geladen …</div></div></div>`;
   }
   const meta = order.order_meta || {};
@@ -1818,7 +1913,7 @@ function renderAdminOrder(){
     <div class="summary-line"><span>${escapeHtml(item.product_name || '-')} x${escapeHtml(item.quantity || 1)}</span><strong>${money(orderItemTotal(item))}</strong></div>`).join('');
   const barracksAddr = Array.isArray(meta.barracksAddress) ? meta.barracksAddress.filter(Boolean).join('<br>') : '';
   return `
-  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
+  ${topbar()}
   <div class="page">
     <div class="shell">
       <div class="admin-toolbar">
@@ -1879,6 +1974,8 @@ function renderAdminOrder(){
 }
 function bindCommon(){
   document.querySelectorAll('[data-lang]').forEach(btn=>btn.onclick=()=>{ state.lang=btn.dataset.lang; setRoute('intro'); });
+  document.querySelectorAll('[data-nav]').forEach(btn=>btn.onclick=()=>setRoute(btn.getAttribute('data-nav')));
+  document.querySelectorAll('[data-nav-page]').forEach(btn=>btn.onclick=()=>{ state.currentPageSlug=btn.getAttribute('data-nav-page'); setRoute('page'); });
 }
 function bindMachine(){
   document.querySelectorAll('.slot').forEach(el=>el.onclick=(e)=>{
@@ -2039,6 +2136,36 @@ function bindConfirm(){
   document.getElementById('newOrderBtn').onclick=()=>setRoute('shop');
 }
 
+
+async function submitContact(){
+  if(state.contact.sending) return;
+  state.contact.error=''; state.contact.status='';
+  if(!isEmail(state.contact.email) || !String(state.contact.message || '').trim()){
+    state.contact.error = t('validationGeneric'); save(); render(); return;
+  }
+  state.contact.sending=true; save(); render();
+  try{
+    const response = await fetch('/.netlify/functions/contact-message', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({...state.contact, lang: state.lang})});
+    const data = await response.json().catch(()=>({}));
+    if(!response.ok || data.success===false) throw new Error(data.error || 'Kontakt konnte nicht gesendet werden');
+    state.contact = { name:'', email:'', subject:'', message:'', sending:false, status:t('contactSuccess'), error:'' };
+  }catch(error){ state.contact.sending=false; state.contact.error=error.message || 'Kontakt konnte nicht gesendet werden'; }
+  save(); render();
+}
+function bindContact(){
+  ['Name','Email','Subject','Message'].forEach(key=>{
+    const el=document.getElementById('contact'+key); if(!el) return;
+    el.oninput=()=>{ state.contact[key.toLowerCase()] = el.value; save(); };
+  });
+  const btn=document.getElementById('contactSendBtn'); if(btn) btn.onclick=()=>submitContact();
+}
+function bindAdminDesign(){
+  const back=document.getElementById('adminDesignBackBtn'); if(back) back.onclick=()=>{ history.replaceState(null,'','#admin-orders'); state.route='admin-orders'; loadAdminOrders(); };
+  const logout=document.getElementById('adminLogoutBtn'); if(logout) logout.onclick=()=>doAdminLogout();
+  document.querySelectorAll('[data-design-field]').forEach(el=>el.oninput=()=>{ state.admin.design = state.admin.design || {}; state.admin.design[el.getAttribute('data-design-field')] = el.value; save(); });
+  document.querySelectorAll('[data-page-field]').forEach(el=>el.oninput=()=>{ const i=Number(el.getAttribute('data-page-index')); const f=el.getAttribute('data-page-field'); state.admin.pages = state.admin.pages || []; if(state.admin.pages[i]) state.admin.pages[i][f]=el.value; save(); });
+  const saveBtn=document.getElementById('adminSaveDesignBtn'); if(saveBtn) saveBtn.onclick=()=>saveAdminDesign();
+}
 function bindAdminLogin(){
   const back = document.getElementById('adminBackToLanguage');
   if(back) back.onclick = ()=>setRoute('language');
@@ -2051,10 +2178,60 @@ function bindAdminLogin(){
   };
 }
 
+
+function renderContentPage(){
+  const page = findSitePage(state.currentPageSlug);
+  if(state.currentPageSlug === 'kontakt') return renderContactPage();
+  return `
+  ${topbar()}
+  <div class="page"><div class="shell content-shell">
+    <h1>${escapeHtml(page ? pageTitle(page) : t('menuIdea'))}</h1>
+    <div class="content-card">${escapeHtml(page ? pageContent(page) : '').replace(/\n/g,'<br>')}</div>
+  </div></div>`;
+}
+function renderContactPage(){
+  const page = findSitePage('kontakt');
+  return `
+  ${topbar()}
+  <div class="page"><div class="shell content-shell">
+    <h1>${escapeHtml(page ? pageTitle(page) : t('contactTitle'))}</h1>
+    ${page ? `<div class="content-card">${escapeHtml(pageContent(page)).replace(/\n/g,'<br>')}</div>` : ''}
+    <div class="card contact-card">
+      ${state.contact.error ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.contact.error)}</li></ul></div>` : ''}
+      ${state.contact.status ? `<div class="note">${escapeHtml(state.contact.status)}</div>` : ''}
+      <div class="two-col"><div class="field"><label>${t('contactName')}</label><input id="contactName" value="${escapeAttr(state.contact.name)}"></div><div class="field"><label>${t('email')}</label><input id="contactEmail" type="email" value="${escapeAttr(state.contact.email)}"></div></div>
+      <div class="field"><label>${t('contactSubject')}</label><input id="contactSubject" value="${escapeAttr(state.contact.subject)}"></div>
+      <div class="field"><label>${t('contactMessage')}</label><textarea id="contactMessage">${escapeHtml(state.contact.message)}</textarea></div>
+      <button class="cta primary" id="contactSendBtn" ${state.contact.sending ? 'disabled' : ''}>${state.contact.sending ? t('contactSending') : t('contactSend')}</button>
+    </div>
+  </div></div>`;
+}
+function renderAdminDesign(){
+  const d = state.admin.design || state.settings || {};
+  const pages = state.admin.pages || state.pages || [];
+  return `
+  ${topbar()}
+  <div class="page"><div class="shell admin-shell">
+    <div class="admin-head"><div><h1>${t('adminDesign')}</h1><div class="note">${t('adminDesignHint')}</div></div><div class="admin-actions"><button class="back-btn" id="adminDesignBackBtn">${t('adminBackOrders')}</button><button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button></div></div>
+    ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
+    ${state.admin.productsMessage ? `<div class="note">${escapeHtml(state.admin.productsMessage)}</div>` : ''}
+    <div class="card"><h3>Design</h3><div class="admin-product-row admin-product-row-equal">
+      <div class="field"><label>${t('adminMainTitle')}</label><input data-design-field="machineTitle" value="${escapeAttr(d.machineTitle || '')}" placeholder="${escapeAttr(t('machineTitle'))}"></div>
+      <div class="field"><label>${t('machineInner')}</label><input data-design-field="machineInner" value="${escapeAttr(d.machineInner || '')}" placeholder="${escapeAttr(t('machineInner'))}"></div>
+    </div><div class="admin-product-row admin-product-row-equal">
+      <div class="field"><label>${t('adminButtonColor')}</label><input data-design-field="buttonColor" type="color" value="${escapeAttr(d.buttonColor || '#65a832')}"></div>
+      <div class="field"><label>${t('adminSlotColor')}</label><input data-design-field="slotColor" type="color" value="${escapeAttr(d.slotColor || '#3d5366')}"></div>
+      <div class="field"><label>${t('adminFrameColor')}</label><input data-design-field="frameColor" type="color" value="${escapeAttr(d.frameColor || '#b22b2b')}"></div>
+      <div class="field"><label>${t('adminBgColor')}</label><input data-design-field="bgColor" type="color" value="${escapeAttr(d.bgColor || '#061527')}"></div>
+    </div></div>
+    <div class="admin-products-grid">${pages.map((p,i)=>`<div class="card admin-product-card"><div class="admin-slot-head"><strong>${escapeHtml(p.slug)}</strong></div><div class="admin-product-row admin-product-row-equal"><div class="field"><label>Titel DE</label><input data-page-field="title_de" data-page-index="${i}" value="${escapeAttr(p.title_de || '')}"></div><div class="field"><label>Titel FR</label><input data-page-field="title_fr" data-page-index="${i}" value="${escapeAttr(p.title_fr || '')}"></div></div><div class="admin-product-row admin-product-row-equal"><div class="field"><label>Inhalt DE</label><textarea data-page-field="content_de" data-page-index="${i}">${escapeHtml(p.content_de || '')}</textarea></div><div class="field"><label>Inhalt FR</label><textarea data-page-field="content_fr" data-page-index="${i}">${escapeHtml(p.content_fr || '')}</textarea></div></div></div>`).join('')}</div>
+    <div class="admin-primary-row"><button class="cta primary" id="adminSaveDesignBtn">${t('adminDesignSave')}</button></div>
+  </div></div>`;
+}
 function renderAdminProducts(){
   const products = adminProductsList();
   return `
-  <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
+  ${topbar()}
   <div class="page">
     <div class="shell admin-shell">
       <div class="admin-head">
@@ -2123,6 +2300,8 @@ function bindAdminOrders(){
   if(refresh) refresh.onclick = ()=>loadAdminOrders();
   const productsBtn = document.getElementById('adminProductsBtn');
   if(productsBtn) productsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-products'); state.route='admin-products'; loadAdminProducts(); };
+  const designBtn = document.getElementById('adminDesignBtn');
+  if(designBtn) designBtn.onclick = ()=>{ history.replaceState(null,'','#admin-design'); state.route='admin-design'; loadAdminDesign(); };
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
   const search = document.getElementById('adminSearchInput');
@@ -2164,6 +2343,8 @@ function bindAdminOrder(){
   if(logout) logout.onclick = ()=>doAdminLogout();
   const productsBtn = document.getElementById('adminGoProductsBtn');
   if(productsBtn) productsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-products'); state.route='admin-products'; loadAdminProducts(); };
+  const designBtn = document.getElementById('adminDesignBtn');
+  if(designBtn) designBtn.onclick = ()=>{ history.replaceState(null,'','#admin-design'); state.route='admin-design'; loadAdminDesign(); };
   const printBtn = document.getElementById('adminPrintDeliveryNoteBtn');
   if(printBtn) printBtn.onclick = ()=>printDeliveryNote();
   const saveBtn = document.getElementById('adminSaveStatusBtn');
@@ -2264,7 +2445,7 @@ function bindAdminProducts(){
   if(saveBtn) saveBtn.onclick = ()=>saveAdminProducts();
 }
 function render(){
-  if((state.route==='admin-orders' || state.route==='admin-order' || state.route==='admin-products') && !state.admin.loggedIn){
+  if((state.route==='admin-orders' || state.route==='admin-order' || state.route==='admin-products' || state.route==='admin-design') && !state.admin.loggedIn){
     state.route = 'admin-login';
   }
   updateHash();
@@ -2279,6 +2460,8 @@ function render(){
   if(state.route==='admin-orders') html=renderAdminOrders();
   if(state.route==='admin-order') html=renderAdminOrder();
   if(state.route==='admin-products') html=renderAdminProducts();
+  if(state.route==='admin-design') html=renderAdminDesign();
+  if(state.route==='page') html=renderContentPage();
   app.innerHTML=html;
   bindCommon();
   if(state.route==='intro') document.getElementById('toShopBtn').onclick=()=>setRoute('shop');
@@ -2290,14 +2473,19 @@ function render(){
   if(state.route==='admin-orders') bindAdminOrders();
   if(state.route==='admin-order') bindAdminOrder();
   if(state.route==='admin-products') bindAdminProducts();
+  if(state.route==='admin-design') bindAdminDesign();
+  if(state.route==='page' && state.currentPageSlug==='kontakt') bindContact();
 }
 const initialHash = location.hash.replace('#','').split('?')[0];
-if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products'].includes(initialHash)) {
+if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products','admin-design','page'].includes(initialHash)) {
   state.route=initialHash;
+} else if(['grundidee','kontakt','agb'].includes(initialHash)) {
+  state.currentPageSlug=initialHash; state.route='page';
 } else if(!initialHash) {
   state.route='language';
 }
 (async()=>{
+  await loadSiteContent();
   await loadCatalogProducts();
   if(state.route.startsWith('admin-')){
     await refreshAdminSession();
@@ -2308,6 +2496,9 @@ if(['language','intro','shop','order','review','confirmation','admin-login','adm
       return;
     } else if(state.route==='admin-products') {
       await loadAdminProducts();
+      return;
+    } else if(state.route==='admin-design') {
+      await loadAdminDesign();
       return;
     } else if(state.route==='admin-order') {
       const id = new URLSearchParams(location.search).get('id');

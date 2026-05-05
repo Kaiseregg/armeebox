@@ -283,3 +283,19 @@ hr{border:none;border-top:1px solid rgba(255,255,255,.08);margin:16px 0}
 @media (max-width:520px){
   .slot-image-frame{height:92px;max-height:calc(100% - 36px);padding:2px 4px;}
 }
+
+/* STEP 10 Design System / Menu / Content */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding-right:24px;}
+.main-nav{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.main-nav button{background:rgba(8,25,48,.72);border:1px solid rgba(165,205,255,.35);color:#fff;border-radius:999px;padding:9px 14px;font-weight:800;cursor:pointer;}
+.main-nav button:hover{border-color:#c9ff60;color:#dfff8b;}
+.shell{background:linear-gradient(180deg,var(--admin-bg, rgba(9,33,67,.95)),rgba(5,20,40,.96));}
+.machine-red{border-color:var(--admin-frame,#b22b2b)!important;}
+.slot{background:var(--admin-slot,#3d5366)!important;}
+.order-btn,.cta.primary{background:var(--admin-button,#65a832)!important;}
+.content-shell{max-width:980px;}
+.content-card{border:1px solid rgba(124,166,217,.32);border-radius:18px;background:rgba(6,20,41,.72);padding:22px;line-height:1.65;font-size:18px;white-space:normal;}
+.contact-card{margin-top:18px;}
+.contact-card textarea{min-height:150px;}
+input[type="color"]{height:44px;padding:4px;cursor:pointer;}
+@media(max-width:760px){.topbar{align-items:flex-start;flex-direction:column;padding-bottom:10px}.main-nav{padding-left:8px}.main-nav button{font-size:12px;padding:8px 10px}}
