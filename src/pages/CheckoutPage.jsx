@@ -8,6 +8,22 @@ import { money, ranks } from '../lib/utils'
 
 const initialCustomer = { first_name:'', last_name:'', email:'', phone:'', street:'', house_number:'', postal_code:'', city:'', country:'Schweiz' }
 const initialRecipient = { delivery_type:'barracks', military_rank:'', first_name:'', last_name:'', company_text:'', platoon_text:'', unit_text:'', barracks_id:'', address_line1:'', address_line2:'', postal_code:'', city:'', country:'Schweiz', personal_message:'', sender_visible:true }
+const PRIVATE_SHIPPING_CHF = 9
+
+function clean(value) {
+  return String(value || '').trim()
+}
+
+function getBarracksAddressLines(barracks) {
+  if (!barracks) return []
+  return [
+    barracks.label,
+    barracks.line1,
+    barracks.line2,
+    `${barracks.postal_code || ''} ${barracks.city || ''}`.trim(),
+    barracks.country,
+  ].filter(Boolean)
+}
 
 export default function CheckoutPage() {
   const nav = useNavigate()
@@ -22,30 +38,103 @@ export default function CheckoutPage() {
   useEffect(() => { fetchBarracks().then(setBarracks).catch((err) => setError(err.message)) }, [])
   useEffect(() => {
     if (!buyerIsRecipient) return
-    setRecipient((prev) => ({ ...prev, delivery_type:'private', first_name: customer.first_name, last_name: customer.last_name, address_line1: `${customer.street} ${customer.house_number}`.trim(), postal_code: customer.postal_code, city: customer.city }))
+    setRecipient((prev) => ({
+      ...prev,
+      delivery_type:'private',
+      first_name: customer.first_name,
+      last_name: customer.last_name,
+      address_line1: `${customer.street} ${customer.house_number}`.trim(),
+      postal_code: customer.postal_code,
+      city: customer.city,
+      country: customer.country || 'Schweiz',
+    }))
   }, [buyerIsRecipient, customer])
 
-  const selectedBarracks = useMemo(() => barracks.find((b) => b.id === recipient.barracks_id), [barracks, recipient.barracks_id])
+  const selectedBarracks = useMemo(() => barracks.find((b) => String(b.id) === String(recipient.barracks_id)), [barracks, recipient.barracks_id])
+  const shippingCost = recipient.delivery_type === 'private' ? PRIVATE_SHIPPING_CHF : 0
+  const finalTotal = cartTotal + shippingCost
 
   async function onSubmit(e) {
     e.preventDefault()
-    setLoading(true); setError('')
+    if (loading) return
+    setLoading(true)
+    setError('')
+
     try {
-      const recipientPayload = recipient.delivery_type === 'barracks' ? {
-        ...recipient,
-        address_line1: selectedBarracks?.line1 || '',
-        address_line2: selectedBarracks?.line2 || '',
-        postal_code: selectedBarracks?.postal_code || '',
-        city: selectedBarracks?.city || '',
-      } : recipient
-      const order = await submitOrder({
-        customer,
-        recipient: recipientPayload,
-        order: { language:'de', subtotal_chf: cartTotal, shipping_chf: 0, total_chf: cartTotal, payment_method:'pending', payment_status:'pending', order_status:'new', buyer_is_recipient: buyerIsRecipient },
-        items: cart.map((item) => ({ ...item, line_total_chf: item.unit_price_chf * item.quantity })),
-      })
+      if (!cart.length) throw new Error('Dein Warenkorb ist leer.')
+      if (!clean(customer.email)) throw new Error('Bitte E-Mail-Adresse eingeben.')
+      if (recipient.delivery_type === 'barracks' && !selectedBarracks) throw new Error('Bitte Kaserne auswählen.')
+
+      const barracksAddress = getBarracksAddressLines(selectedBarracks)
+      const recipientName = `${clean(recipient.first_name)} ${clean(recipient.last_name)}`.trim()
+      const customerName = `${clean(customer.first_name)} ${clean(customer.last_name)}`.trim()
+      const customerStreet = `${clean(customer.street)} ${clean(customer.house_number)}`.trim()
+
+      const orderMeta = recipient.delivery_type === 'private'
+        ? {
+            privateName: recipientName,
+            privateStreet: clean(recipient.address_line1),
+            privateZip: clean(recipient.postal_code),
+            privateCity: clean(recipient.city),
+            privateEmail: clean(customer.email),
+            privatePhone: clean(customer.phone),
+          }
+        : {
+            soldierRank: clean(recipient.military_rank),
+            soldierFirstName: clean(recipient.first_name),
+            soldierLastName: clean(recipient.last_name),
+            soldierKp: clean(recipient.company_text),
+            soldierZug: clean(recipient.platoon_text),
+            soldierUnit: clean(recipient.unit_text),
+            barracksId: recipient.barracks_id,
+            barracksLabel: selectedBarracks?.label || '',
+            barracksAddress,
+            senderName: customerName,
+            senderStreet: customerStreet,
+            senderZip: `${clean(customer.postal_code)} ${clean(customer.city)}`.trim(),
+            senderEmail: clean(customer.email),
+            senderPhone: clean(customer.phone),
+            message: clean(recipient.personal_message),
+          }
+
+      const payload = {
+        lang: 'de',
+        customer_email: clean(customer.email),
+        shipping_method: recipient.delivery_type === 'private' ? 'private' : 'barracks',
+        shipping_cost: shippingCost,
+        subtotal: cartTotal,
+        total: finalTotal,
+        item_count: cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+        barracks_label: selectedBarracks?.label || null,
+        recipient_name: recipientName || customerName,
+        order_meta: orderMeta,
+        items: cart.map((item) => {
+          const unitPrice = Number(item.unit_price_chf ?? item.unit_price ?? item.price ?? 0)
+          const quantity = Number(item.quantity || 1)
+          const totalPrice = unitPrice * quantity
+          return {
+            product_id: item.product_id || null,
+            slot_code: item.slot_code || (item.slot_number ? String(item.slot_number).padStart(2, '0') : null),
+            slot_number: item.slot_number,
+            product_name: item.product_name || item.name || 'Produkt',
+            quantity,
+            unit_price: unitPrice,
+            total_price: totalPrice,
+            unit_price_chf: unitPrice,
+            total_price_chf: totalPrice,
+            line_total_chf: totalPrice,
+          }
+        }),
+      }
+
+      const result = await submitOrder(payload)
+      const orderNumber = result?.order?.order_number || result?.order?.id || 'ok'
+
       clearCart()
-      nav(`/done/${order.id}`)
+      setCustomer(initialCustomer)
+      setRecipient(initialRecipient)
+      setBuyerIsRecipient(false)
+      nav(`/done/${encodeURIComponent(orderNumber)}`, { replace: true, state: { orderNumber } })
     } catch (err) {
       setError(err.message || 'Bestellung konnte nicht gespeichert werden.')
     } finally {
@@ -60,8 +149,8 @@ export default function CheckoutPage() {
       <Seo title='ARMEEBOX – Checkout' description='Checkout mit Besteller, Empfänger, Kaserne oder Privat.' />
       <form className='checkoutGrid' onSubmit={onSubmit}>
         <section className='panel stack'>
-          <h2>Besteller / Rechnungsadresse</h2>
-          <div className='formGrid two'>{['first_name','last_name','email','phone','street','house_number','postal_code','city'].map((field) => <label key={field}><span>{field}</span><input required={['first_name','last_name','email','street','postal_code','city'].includes(field)} value={customer[field]} onChange={(e) => setCustomer({ ...customer, [field]: e.target.value })}/></label>)}</div>
+          <h2>Besteller / Absender</h2>
+          <div className='formGrid two'>{['first_name','last_name','email','phone','street','house_number','postal_code','city'].map((field) => <label key={field}><span>{field}</span><input type={field === 'email' ? 'email' : 'text'} required={['first_name','last_name','email','street','postal_code','city'].includes(field)} value={customer[field]} onChange={(e) => setCustomer({ ...customer, [field]: e.target.value })}/></label>)}</div>
           <label className='checkLine'><input type='checkbox' checked={buyerIsRecipient} onChange={(e)=>setBuyerIsRecipient(e.target.checked)} />Ich bin selbst der Empfänger</label>
         </section>
         <section className='panel stack'>
@@ -82,7 +171,7 @@ export default function CheckoutPage() {
               <label><span>Zug</span><input value={recipient.platoon_text} onChange={(e)=>setRecipient({ ...recipient, platoon_text:e.target.value })}/></label>
             </div>
             <label><span>Persönlicher Text</span><textarea rows='4' value={recipient.personal_message} onChange={(e)=>setRecipient({ ...recipient, personal_message:e.target.value })} /></label>
-            {selectedBarracks && <div className='addressPreview'><strong>Adressvorschau</strong><pre>{`${recipient.military_rank || ''}\n${recipient.first_name} ${recipient.last_name}\nKp: ${recipient.company_text || ''}   Zug: ${recipient.platoon_text || ''}\n${selectedBarracks.line1}\n${selectedBarracks.postal_code || ''} ${selectedBarracks.city || ''}`}</pre></div>}
+            {selectedBarracks && <div className='addressPreview'><strong>Adressvorschau</strong><pre>{`${recipient.military_rank || ''}\n${recipient.first_name} ${recipient.last_name}\nKp: ${recipient.company_text || ''}   Zug: ${recipient.platoon_text || ''}\n${selectedBarracks.line1 || ''}\n${selectedBarracks.postal_code || ''} ${selectedBarracks.city || ''}`}</pre></div>}
           </> : <>
             <div className='formGrid two'>
               <label><span>Vorname</span><input required value={recipient.first_name} onChange={(e)=>setRecipient({ ...recipient, first_name:e.target.value })}/></label>
@@ -95,9 +184,11 @@ export default function CheckoutPage() {
             </div>
           </>}
           <div className='machineInfoCard'><span>Zahlung vorbereitet</span><strong>TWINT · Debit · Kredit</strong></div>
-          <div className='listRow'><strong>Total</strong><strong>{money(cartTotal)}</strong></div>
+          <div className='listRow'><span>Zwischentotal</span><strong>{money(cartTotal)}</strong></div>
+          <div className='listRow'><span>Versand</span><strong>{shippingCost ? money(shippingCost) : 'Gratis'}</strong></div>
+          <div className='listRow'><strong>Total</strong><strong>{money(finalTotal)}</strong></div>
           {error && <div className='errorText'>{error}</div>}
-          <button className='btn block' disabled={loading}>{loading ? 'Speichert…' : 'Bestellung abschliessen'}</button>
+          <button className='btn block' disabled={loading}>{loading ? 'Bestellung wird gesendet…' : 'Bestellung abschliessen'}</button>
         </section>
       </form>
     </Layout>
