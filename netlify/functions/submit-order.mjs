@@ -88,6 +88,7 @@ async function insertOrder(orderRow, items) {
 
     // Legacy-Spalten für deine bestehende DB
     unit_price_chf: unitPrice,
+    line_total_chf: totalPrice,
     total_price_chf: totalPrice
   };
 });
