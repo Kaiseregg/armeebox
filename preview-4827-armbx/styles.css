@@ -188,3 +188,8 @@ hr{border:none;border-top:1px solid rgba(255,255,255,.08);margin:16px 0}
 .shell.admin-shell{width:min(1600px, calc(100vw - 32px));}
 
 @media (max-width:520px){.slot-bundle-select{height:28px;font-size:12px;padding:0 28px 0 10px;background-position:calc(100% - 14px) 10px, calc(100% - 8px) 10px;background-size:5px 5px,5px 5px}.slot-info-btn{min-width:30px;width:30px;height:28px}.slot-info-icon{width:16px;height:16px;font-size:11px}.namebar-bundle{grid-template-columns:30px minmax(0,1fr);gap:8px;padding:6px 8px}.namebar-bundle .namebar-text{text-align:left;justify-self:start}}
+
+/* STEP 8 PRO – Admin Produktbilder + Lieferschein */
+.admin-image-preview{min-height:86px;border:1px dashed rgba(162,190,236,.35);border-radius:14px;background:rgba(255,255,255,.035);display:flex;align-items:center;justify-content:center;overflow:hidden;color:#9fb3d1;font-size:13px;margin-top:-4px}
+.admin-image-preview img{max-width:100%;max-height:120px;object-fit:contain;display:block;padding:8px}
+@media print{.topbar,.admin-actions,.review-actions,.back-btn,.cta{display:none!important}.page{padding:0!important}.shell,.card{box-shadow:none!important;border:0!important;background:#fff!important;color:#111!important}.admin-detail-grid{display:block!important}.summary-line{color:#111!important}}

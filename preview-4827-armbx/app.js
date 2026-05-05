@@ -1050,6 +1050,74 @@ function adminStatusText(value){
 function shippingMethodText(value){
   return value === 'private' ? t('adminShippingPrivate') : t('adminShippingBarracks');
 }
+
+function orderItemTotal(item){
+  const total = Number(item?.total_price ?? item?.total_price_chf ?? item?.line_total_chf);
+  if(Number.isFinite(total) && total > 0) return total;
+  const unit = Number(item?.unit_price ?? item?.unit_price_chf ?? 0);
+  const qty = Number(item?.quantity ?? 1);
+  return unit * qty;
+}
+function cleanLines(lines){
+  return (Array.isArray(lines) ? lines : []).map(line => String(line || '').trim()).filter(Boolean);
+}
+function deliveryNoteHtml(order){
+  const meta = order?.order_meta || {};
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const barracksLines = cleanLines(meta.barracksAddress);
+  const isPrivate = order?.shipping_method === 'private';
+  const date = formatDate(order?.created_at);
+  const itemRows = items.map(item => `
+    <tr>
+      <td>${escapeHtml(item.product_name || '-')}</td>
+      <td>${escapeHtml(item.quantity || 1)}</td>
+      <td>${money(orderItemTotal(item))}</td>
+    </tr>`).join('');
+  const deliveryBlock = isPrivate ? `
+    <p><strong>Lieferadresse Privat</strong><br>
+    ${escapeHtml(meta.privateName || '')}<br>
+    ${escapeHtml(meta.privateStreet || '')}<br>
+    ${escapeHtml(meta.privateZip || '')}${meta.privateCity ? ' ' + escapeHtml(meta.privateCity) : ''}<br>
+    ${escapeHtml(meta.privateEmail || '')}<br>
+    ${escapeHtml(meta.privatePhone || '')}</p>` : `
+    <p><strong>Lieferadresse Soldat</strong><br>
+    ${escapeHtml(meta.soldierFirstName || '')} ${escapeHtml(meta.soldierLastName || '')}<br>
+    ${escapeHtml(meta.soldierKp ? `Kp: ${meta.soldierKp}` : '')}${meta.soldierKp && meta.soldierZug ? ' / ' : ''}${escapeHtml(meta.soldierZug ? `Zug: ${meta.soldierZug}` : '')}<br>
+    ${barracksLines.map(escapeHtml).join('<br>')}</p>`;
+  const senderBlock = isPrivate ? `
+    <p><strong>Kontakt</strong><br>${escapeHtml(order?.customer_email || '')}</p>` : `
+    <p><strong>Absender</strong><br>
+    ${escapeHtml(meta.senderName || '')}<br>
+    ${escapeHtml(meta.senderStreet || '')}<br>
+    ${escapeHtml(meta.senderZip || '')}<br>
+    ${escapeHtml(meta.senderEmail || '')}</p>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Lieferschein ${escapeHtml(order?.order_number || '')}</title>
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:34px;line-height:1.35}
+      .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #111;padding-bottom:16px;margin-bottom:22px}
+      h1{font-size:30px;margin:0 0 6px}.muted{color:#555}.grid{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin:18px 0}
+      table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ccc;text-align:left;padding:9px 6px}th{border-bottom:2px solid #111}
+      .total{margin-top:16px;text-align:right;font-size:18px}.msg{border:1px solid #ccc;padding:14px;margin-top:18px;min-height:60px;white-space:pre-wrap}
+      @media print{button{display:none}body{margin:20mm}}
+    </style></head><body>
+    <button onclick="window.print()" style="float:right;padding:10px 14px">Drucken</button>
+    <div class="head"><div><h1>ARMEEBOX Lieferschein</h1><div class="muted">Bestellnummer: ${escapeHtml(order?.order_number || '-')}</div></div><div><strong>Bestellt am</strong><br>${escapeHtml(date)}</div></div>
+    <div class="grid"><div>${deliveryBlock}</div><div>${senderBlock}</div></div>
+    <h2>Artikel</h2><table><thead><tr><th>Produkt</th><th>Menge</th><th>Betrag</th></tr></thead><tbody>${itemRows}</tbody></table>
+    <div class="total"><strong>Total: ${money(order?.total ?? order?.total_chf ?? 0)}</strong></div>
+    <h2>Nachricht an den Soldaten</h2><div class="msg">${escapeHtml(meta.message || '-')}</div>
+    </body></html>`;
+}
+function printDeliveryNote(){
+  const order = state.admin.currentOrder;
+  if(!order) return;
+  const win = window.open('', '_blank', 'width=900,height=900');
+  if(!win) return alert('Popup wurde blockiert. Bitte Popups für ARMEEBOX erlauben.');
+  win.document.open();
+  win.document.write(deliveryNoteHtml(order));
+  win.document.close();
+  win.focus();
+}
 function filteredAdminOrders(){
   const search = String(state.admin.search || '').trim().toLowerCase();
   const filter = state.admin.filter || 'all';
@@ -1695,7 +1763,7 @@ function renderAdminOrder(){
   }
   const meta = order.order_meta || {};
   const itemsHtml = (order.items || []).map(item => `
-    <div class="summary-line"><span>${escapeHtml(item.product_name || '-')} x${escapeHtml(item.quantity || 1)}</span><strong>${money(item.total_price ?? item.line_total_chf ?? item.unit_price ?? item.unit_price_chf ?? 0)}</strong></div>`).join('');
+    <div class="summary-line"><span>${escapeHtml(item.product_name || '-')} x${escapeHtml(item.quantity || 1)}</span><strong>${money(orderItemTotal(item))}</strong></div>`).join('');
   const barracksAddr = Array.isArray(meta.barracksAddress) ? meta.barracksAddress.filter(Boolean).join('<br>') : '';
   return `
   <div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"></div>
@@ -1705,6 +1773,7 @@ function renderAdminOrder(){
         <div><h1 style="margin:0;font-size:44px">${t('adminDetails')}</h1><div class="note">${escapeHtml(order.order_number || '-')}</div></div>
         <div class="admin-actions">
           <button class="back-btn" id="adminBackToOrders">${t('adminBackList')}</button>
+          <button class="back-btn" id="adminPrintDeliveryNoteBtn">Lieferschein drucken</button>
           <button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button>
         </div>
       </div>
@@ -1981,7 +2050,8 @@ function renderAdminProducts(){
               <div class="field"><label>${t('adminBundleLabelFr')}</label><input data-product-field="option_label_fr" data-product-index="${index}" value="${escapeAttr(product.option_label?.fr || '')}"></div>
             </div>
             <div class="field bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}"><label>${t('adminBundleOptions')}</label><input data-product-field="quantity_options" data-product-index="${index}" value="${escapeAttr((product.quantity_options || [2,3,4]).join(','))}"></div>
-            <div class="field"><label>${t('adminImageUrl')}</label><input data-product-field="image_url" data-product-index="${index}" value="${escapeAttr(product.image_url || '')}"></div>
+            <div class="field"><label>Produktbild URL</label><input data-product-field="image_url" data-product-index="${index}" placeholder="https://.../bild.png" value="${escapeAttr(product.image_url || '')}"></div>
+            <div class="admin-image-preview">${product.image_url ? `<img src="${escapeAttr(product.image_url)}" alt="Produktbild Slot ${escapeAttr(product.slot)}" loading="lazy">` : `<span>Kein Bild hinterlegt</span>`}</div>
           </div>
         `).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
       </div>
@@ -2038,6 +2108,8 @@ function bindAdminOrder(){
   if(logout) logout.onclick = ()=>doAdminLogout();
   const productsBtn = document.getElementById('adminGoProductsBtn');
   if(productsBtn) productsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-products'); state.route='admin-products'; loadAdminProducts(); };
+  const printBtn = document.getElementById('adminPrintDeliveryNoteBtn');
+  if(printBtn) printBtn.onclick = ()=>printDeliveryNote();
   const saveBtn = document.getElementById('adminSaveStatusBtn');
   if(saveBtn) saveBtn.onclick = ()=>{
     const status = document.getElementById('adminStatusSelect')?.value || 'new';
