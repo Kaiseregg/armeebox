@@ -25,9 +25,9 @@ function authHeaders() {
   };
 }
 
-async function supa(path) {
+async function supa(path, options = {}) {
   const base = requireEnv('SUPABASE_URL');
-  const response = await fetch(`${base}/rest/v1/${path}`, { headers: authHeaders() });
+  const response = await fetch(`${base}/rest/v1/${path}`, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } });
   const data = await response.json().catch(() => null);
   if (!response.ok) throw new Error(data?.message || data?.error || `Supabase request failed: ${response.status}`);
   return data;
@@ -111,10 +111,41 @@ function normalizeProductRow(row) {
   };
 }
 
+
+async function getDesignSettings() {
+  const defaults = { machineTitle: '', machineInner: '', buttonColor: '#65a832', slotColor: '#3d5366', frameColor: '#b22b2b', bgColor: '#061527' };
+  try {
+    const rows = await supa("admin_settings?select=*&key=eq.design_settings&limit=1");
+    const row = Array.isArray(rows) ? rows[0] : null;
+    const value = row?.value || row?.settings || row?.data || null;
+    if (value && typeof value === 'object') return { ...defaults, ...value };
+    if (typeof value === 'string') return { ...defaults, ...JSON.parse(value) };
+  } catch (_) {}
+  try {
+    const rows = await supa('site_settings?select=*&limit=1');
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (row) return { ...defaults, ...(row.design_settings || row.settings || {}), machineTitle: row.machine_title || row.machineTitle || defaults.machineTitle, machineInner: row.machine_inner || row.machineInner || defaults.machineInner };
+  } catch (_) {}
+  return defaults;
+}
+async function getSitePages() {
+  try {
+    const rows = await supa('site_pages?select=*&order=slug.asc');
+    return Array.isArray(rows) ? rows : [];
+  } catch (_) {
+    return [];
+  }
+}
+
 export default async (request) => {
   try {
     const url = new URL(request.url);
     const action = url.searchParams.get('action') || 'products';
+    if (action === 'site' && request.method === 'GET') {
+      const [settings, pages] = await Promise.all([getDesignSettings(), getSitePages()]);
+      return json(200, { success: true, settings, pages });
+    }
+
     if (action === 'products' && request.method === 'GET') {
       const rows = await supa('products?select=id,slot,name,name_de,name_fr,description_de,description_fr,price,price_chf,active,is_active,image_url,sort_order&or=(is_active.eq.true,active.eq.true)&order=slot.asc');
       return json(200, { success: true, products: Array.isArray(rows) ? rows.map(normalizeProductRow) : [] });

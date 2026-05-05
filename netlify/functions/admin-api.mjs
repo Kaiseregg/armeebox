@@ -191,6 +191,50 @@ function normalizeIncomingProducts(body) {
     .filter(Boolean);
 }
 
+
+const DEFAULT_DESIGN_SETTINGS = { machineTitle: '', machineInner: '', buttonColor: '#65a832', slotColor: '#3d5366', frameColor: '#b22b2b', bgColor: '#061527' };
+async function getDesignSettings() {
+  try {
+    const rows = await supa('admin_settings?select=*&key=eq.design_settings&limit=1');
+    const row = Array.isArray(rows) ? rows[0] : null;
+    const value = row?.value || row?.settings || row?.data || null;
+    if (value && typeof value === 'object') return { ...DEFAULT_DESIGN_SETTINGS, ...value };
+    if (typeof value === 'string') return { ...DEFAULT_DESIGN_SETTINGS, ...JSON.parse(value) };
+  } catch (_) {}
+  try {
+    const rows = await supa('site_settings?select=*&limit=1');
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (row) return { ...DEFAULT_DESIGN_SETTINGS, ...(row.design_settings || row.settings || {}), machineTitle: row.machine_title || row.machineTitle || DEFAULT_DESIGN_SETTINGS.machineTitle, machineInner: row.machine_inner || row.machineInner || DEFAULT_DESIGN_SETTINGS.machineInner };
+  } catch (_) {}
+  return DEFAULT_DESIGN_SETTINGS;
+}
+async function saveDesignSettings(settings) {
+  const clean = { ...DEFAULT_DESIGN_SETTINGS, ...(settings || {}) };
+  try {
+    const existing = await supa('admin_settings?select=*&key=eq.design_settings&limit=1');
+    if (Array.isArray(existing) && existing[0]) {
+      await supa('admin_settings?key=eq.design_settings', { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ value: clean, updated_at: new Date().toISOString() }) });
+    } else {
+      await supa('admin_settings', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ key: 'design_settings', value: clean, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }) });
+    }
+  } catch (error) {
+    console.warn('admin_settings save failed, settings will still be returned for this session', error.message);
+  }
+  return clean;
+}
+async function listSitePages() {
+  try { const rows = await supa('site_pages?select=*&order=slug.asc'); return Array.isArray(rows) ? rows : []; } catch (_) { return []; }
+}
+async function saveSitePages(pages) {
+  if (!Array.isArray(pages)) return listSitePages();
+  for (const page of pages) {
+    if (!page?.slug) continue;
+    const payload = { title_de: String(page.title_de || ''), title_fr: String(page.title_fr || ''), content_de: String(page.content_de || ''), content_fr: String(page.content_fr || '') };
+    try { await supa(`site_pages?slug=eq.${encodeURIComponent(page.slug)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(payload) }); } catch (e) { console.warn('site_pages patch failed', e.message); }
+  }
+  return listSitePages();
+}
+
 async function listProducts() {
   const rows = await supa('products?select=*&order=slot.asc');
   return (Array.isArray(rows) ? rows : []).map(normalizeProductRow).sort((a, b) => a.slot - b.slot);
@@ -350,6 +394,18 @@ export default async (request) => {
       });
       const order = Array.isArray(rows) ? rows[0] : null;
       return json(200, { success: true, order: normalizeOrder(order || {}) });
+    }
+
+    if (action === 'design' && request.method === 'GET') {
+      const [settings, pages] = await Promise.all([getDesignSettings(), listSitePages()]);
+      return json(200, { success: true, settings, pages });
+    }
+
+    if (action === 'design' && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const settings = await saveDesignSettings(body.settings || {});
+      const pages = await saveSitePages(body.pages || []);
+      return json(200, { success: true, settings, pages });
     }
 
     if (action === 'products' && request.method === 'GET') {
