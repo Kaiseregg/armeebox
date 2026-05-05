@@ -1541,7 +1541,9 @@ function renderMachine(){
             return `
           <div class="slot ${isBundle ? 'slot-bundle' : ''}" data-id="${p.id}" role="button" tabindex="0" aria-label="${escapeAttr(displayName)}">
             <div class="slot-top">
-              ${p.image_url ? `<img class="slot-product-img" src="${escapeAttr(p.image_url)}" alt="${escapeAttr(displayName)}" loading="lazy">` : `<div class="img-placeholder">SPÄTER BILD</div>`}
+              <div class="slot-image-frame">
+                ${p.image_url ? `<img class="slot-product-img" src="${escapeAttr(p.image_url)}" alt="${escapeAttr(displayName)}" loading="lazy">` : `<div class="img-placeholder">SPÄTER BILD</div>`}
+              </div>
               <div class="spirals">◜◜◜</div>
             </div>
             <div class="price">${money(displayPriceValue)}</div>
