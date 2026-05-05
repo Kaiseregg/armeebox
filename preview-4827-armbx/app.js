@@ -638,7 +638,23 @@ const texts = {
     adminButtonColor: 'Button Farbe',
     adminSlotColor: 'Slot Farbe',
     adminFrameColor: 'Rahmen Farbe',
-    adminBgColor: 'Hintergrund Farbe'
+    adminBgColor: 'Hintergrund Farbe',
+    adminCmsPro: 'CMS Pro',
+    adminTitleDe: 'Titel DE',
+    adminTitleFr: 'Titel FR',
+    adminSloganDe: 'Slogan DE',
+    adminSloganFr: 'Slogan FR',
+    adminPagesTitle: 'Seiten / Menü',
+    adminAddPage: 'Neue Seite erstellen',
+    adminDeletePage: 'Seite löschen',
+    adminShowMenu: 'Im Menü anzeigen',
+    adminPageSlug: 'URL / Slug',
+    adminPageSort: 'Reihenfolge',
+    adminPageActive: 'Aktiv',
+    adminMoveUp: 'Hoch',
+    adminMoveDown: 'Runter',
+    adminBigEditor: 'Grosser Inhaltseditor',
+    adminPageHint: 'Hier erstellst du komplette Inhaltsseiten für Menü und Website.'
   },
   fr: {
     langTitle: 'Choisir la langue',
@@ -788,7 +804,23 @@ const texts = {
     adminButtonColor: 'Couleur bouton',
     adminSlotColor: 'Couleur slot',
     adminFrameColor: 'Couleur cadre',
-    adminBgColor: 'Couleur fond'
+    adminBgColor: 'Couleur fond',
+    adminCmsPro: 'CMS Pro',
+    adminTitleDe: 'Titre DE',
+    adminTitleFr: 'Titre FR',
+    adminSloganDe: 'Slogan DE',
+    adminSloganFr: 'Slogan FR',
+    adminPagesTitle: 'Pages / Menu',
+    adminAddPage: 'Créer nouvelle page',
+    adminDeletePage: 'Supprimer page',
+    adminShowMenu: 'Afficher dans le menu',
+    adminPageSlug: 'URL / Slug',
+    adminPageSort: 'Ordre',
+    adminPageActive: 'Actif',
+    adminMoveUp: 'Haut',
+    adminMoveDown: 'Bas',
+    adminBigEditor: 'Grand éditeur',
+    adminPageHint: 'Ici tu crées des pages complètes pour le menu et le site.'
   }
 };
 
@@ -832,6 +864,10 @@ const state = {
   settings: {
     machineTitle: '',
     machineInner: '',
+    machineTitle_de: '',
+    machineTitle_fr: '',
+    machineInner_de: '',
+    machineInner_fr: '',
     buttonColor: '#65a832',
     slotColor: '#3d5366',
     frameColor: '#b22b2b',
@@ -879,8 +915,17 @@ function settingValue(key, fallback=''){
   const value = state.settings?.[key];
   return value === undefined || value === null || value === '' ? fallback : value;
 }
+function localizedSetting(baseKey, fallback=''){
+  const direct = state.settings?.[`${baseKey}_${state.lang}`];
+  const legacy = state.settings?.[baseKey];
+  return direct === undefined || direct === null || direct === '' ? (legacy === undefined || legacy === null || legacy === '' ? fallback : legacy) : direct;
+}
+function pageIsActive(page){ return page?.is_active !== false && page?.active !== false; }
+function pageInMenu(page){ return pageIsActive(page) && page?.show_in_menu !== false; }
+function sortedPages(){ return [...(state.pages || [])].sort((a,b)=>Number(a.sort_order ?? 999)-Number(b.sort_order ?? 999) || String(a.slug||'').localeCompare(String(b.slug||''))); }
 function topbar(){
-  return `<div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"><nav class="main-nav"><button data-nav="shop">${t('menuMachine')}</button><button data-nav-page="grundidee">${t('menuIdea')}</button><button data-nav-page="kontakt">${t('menuContact')}</button><button data-nav-page="agb">${t('menuTerms')}</button></nav></div>`;
+  const pageButtons = sortedPages().filter(pageInMenu).map(p=>`<button data-nav-page="${escapeAttr(p.slug)}">${escapeHtml(pageTitle(p))}</button>`).join('');
+  return `<div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"><nav class="main-nav"><button data-nav="shop">${t('menuMachine')}</button>${pageButtons}</nav></div>`;
 }
 function pageTitle(page){ return state.lang === 'fr' ? (page.title_fr || page.title_de || page.slug) : (page.title_de || page.title_fr || page.slug); }
 function pageContent(page){ return state.lang === 'fr' ? (page.content_fr || page.content_de || '') : (page.content_de || page.content_fr || ''); }
@@ -1542,7 +1587,7 @@ function resetOrderData(){
 }
 window.addEventListener('hashchange',()=>{
   const h=location.hash.replace('#','').split('?')[0];
-  if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products'].includes(h)){
+  if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products','admin-design','page'].includes(h)){
     state.route=h;
     if(h==='admin-order'){
       const id = new URLSearchParams(location.search).get('id');
@@ -1624,9 +1669,9 @@ function renderMachine(){
   ${topbar()}
   <div class="page">
     <div class="shell" style="--admin-bg:${escapeAttr(settingValue('bgColor', '#061527'))};--admin-frame:${escapeAttr(settingValue('frameColor', '#b22b2b'))};--admin-slot:${escapeAttr(settingValue('slotColor', '#3d5366'))};--admin-button:${escapeAttr(settingValue('buttonColor', '#65a832'))}">
-      <div class="header-row"><h1>${escapeHtml(settingValue('machineTitle', t('machineTitle')))}</h1></div>
+      <div class="header-row"><h1>${escapeHtml(localizedSetting('machineTitle', t('machineTitle')))}</h1></div>
       <div class="machine"><div class="machine-red"><div class="machine-inner">
-        <div class="machine-banner">${escapeHtml(settingValue('machineInner', t('machineInner')))}</div>
+        <div class="machine-banner">${escapeHtml(localizedSetting('machineInner', t('machineInner')))}</div>
         <div><div class="grid">
           ${currentProducts().map(p=>{
             const isBundle = p.slot_type === 'bundle';
@@ -2162,10 +2207,22 @@ function bindContact(){
 function bindAdminDesign(){
   const back=document.getElementById('adminDesignBackBtn'); if(back) back.onclick=()=>{ history.replaceState(null,'','#admin-orders'); state.route='admin-orders'; loadAdminOrders(); };
   const logout=document.getElementById('adminLogoutBtn'); if(logout) logout.onclick=()=>doAdminLogout();
-  document.querySelectorAll('[data-design-field]').forEach(el=>el.oninput=()=>{ state.admin.design = state.admin.design || {}; state.admin.design[el.getAttribute('data-design-field')] = el.value; save(); });
-  document.querySelectorAll('[data-page-field]').forEach(el=>el.oninput=()=>{ const i=Number(el.getAttribute('data-page-index')); const f=el.getAttribute('data-page-field'); state.admin.pages = state.admin.pages || []; if(state.admin.pages[i]) state.admin.pages[i][f]=el.value; save(); });
+  document.querySelectorAll('[data-design-field]').forEach(el=>el.oninput=()=>{ state.admin.design = state.admin.design || {}; state.admin.design[el.getAttribute('data-design-field')] = el.value; save(); renderDesignPreviewOnly(); });
+  document.querySelectorAll('[data-page-field]').forEach(el=>el.oninput=()=>{ const i=Number(el.getAttribute('data-page-index')); const f=el.getAttribute('data-page-field'); state.admin.pages = state.admin.pages || []; if(state.admin.pages[i]){ let v = el.type === 'checkbox' ? el.checked : el.value; if(f==='sort_order') v=Number(v||0); state.admin.pages[i][f]=v; save(); } });
+  document.querySelectorAll('[data-page-delete]').forEach(btn=>btn.onclick=()=>{ const i=Number(btn.getAttribute('data-page-delete')); const p=state.admin.pages?.[i]; if(!p) return; if(confirm(`Seite wirklich löschen: ${p.slug}?`)){ state.admin.pages.splice(i,1); save(); render(); } });
+  document.querySelectorAll('[data-page-up]').forEach(btn=>btn.onclick=()=>moveAdminPage(Number(btn.getAttribute('data-page-up')),-1));
+  document.querySelectorAll('[data-page-down]').forEach(btn=>btn.onclick=()=>moveAdminPage(Number(btn.getAttribute('data-page-down')),1));
+  const add=document.getElementById('adminAddPageBtn'); if(add) add.onclick=()=>addAdminPage();
   const saveBtn=document.getElementById('adminSaveDesignBtn'); if(saveBtn) saveBtn.onclick=()=>saveAdminDesign();
 }
+function renderDesignPreviewOnly(){
+  const p=document.getElementById('designLivePreview'); if(!p) return;
+  const d=state.admin.design || {};
+  p.style.setProperty('--button-color', d.buttonColor || '#65a832'); p.style.setProperty('--slot-color', d.slotColor || '#3d5366'); p.style.setProperty('--frame-color', d.frameColor || '#b22b2b'); p.style.setProperty('--bg-color', d.bgColor || '#061527');
+}
+function slugifyPage(value){ return String(value||'').toLowerCase().trim().replace(/[ä]/g,'ae').replace(/[ö]/g,'oe').replace(/[ü]/g,'ue').replace(/[éèê]/g,'e').replace(/[àâ]/g,'a').replace(/[ç]/g,'c').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || `seite-${Date.now()}`; }
+function addAdminPage(){ state.admin.pages = state.admin.pages || []; const base='neue-seite'; let slug=base; let n=2; const used=new Set(state.admin.pages.map(p=>p.slug)); while(used.has(slug)){ slug=`${base}-${n++}`; } state.admin.pages.push({ slug, title_de:'Neue Seite', title_fr:'Nouvelle page', content_de:'', content_fr:'', show_in_menu:true, is_active:true, sort_order: state.admin.pages.length+1 }); save(); render(); }
+function moveAdminPage(index, delta){ const arr=state.admin.pages || []; const j=index+delta; if(index<0||j<0||index>=arr.length||j>=arr.length) return; [arr[index],arr[j]]=[arr[j],arr[index]]; arr.forEach((p,i)=>p.sort_order=i+1); save(); render(); }
 function bindAdminLogin(){
   const back = document.getElementById('adminBackToLanguage');
   if(back) back.onclick = ()=>setRoute('language');
@@ -2208,24 +2265,31 @@ function renderContactPage(){
 }
 function renderAdminDesign(){
   const d = state.admin.design || state.settings || {};
-  const pages = state.admin.pages || state.pages || [];
+  const pages = [...(state.admin.pages || state.pages || [])].sort((a,b)=>Number(a.sort_order ?? 999)-Number(b.sort_order ?? 999) || String(a.slug||'').localeCompare(String(b.slug||'')));
+  state.admin.pages = pages;
+  const previewStyle = `--button-color:${escapeAttr(d.buttonColor || '#65a832')};--slot-color:${escapeAttr(d.slotColor || '#3d5366')};--frame-color:${escapeAttr(d.frameColor || '#b22b2b')};--bg-color:${escapeAttr(d.bgColor || '#061527')}`;
   return `
   ${topbar()}
-  <div class="page"><div class="shell admin-shell">
-    <div class="admin-head"><div><h1>${t('adminDesign')}</h1><div class="note">${t('adminDesignHint')}</div></div><div class="admin-actions"><button class="back-btn" id="adminDesignBackBtn">${t('adminBackOrders')}</button><button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button></div></div>
+  <div class="page"><div class="shell admin-shell cms-pro-shell">
+    <div class="admin-head"><div><h1>${t('adminCmsPro')}</h1><div class="note">${t('adminDesignHint')} – ${t('adminPageHint')}</div></div><div class="admin-actions"><button class="back-btn" id="adminDesignBackBtn">${t('adminBackOrders')}</button><button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button></div></div>
     ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
     ${state.admin.productsMessage ? `<div class="note">${escapeHtml(state.admin.productsMessage)}</div>` : ''}
-    <div class="card"><h3>Design</h3><div class="admin-product-row admin-product-row-equal">
-      <div class="field"><label>${t('adminMainTitle')}</label><input data-design-field="machineTitle" value="${escapeAttr(d.machineTitle || '')}" placeholder="${escapeAttr(t('machineTitle'))}"></div>
-      <div class="field"><label>${t('machineInner')}</label><input data-design-field="machineInner" value="${escapeAttr(d.machineInner || '')}" placeholder="${escapeAttr(t('machineInner'))}"></div>
-    </div><div class="admin-product-row admin-product-row-equal">
-      <div class="field"><label>${t('adminButtonColor')}</label><input data-design-field="buttonColor" type="color" value="${escapeAttr(d.buttonColor || '#65a832')}"></div>
-      <div class="field"><label>${t('adminSlotColor')}</label><input data-design-field="slotColor" type="color" value="${escapeAttr(d.slotColor || '#3d5366')}"></div>
-      <div class="field"><label>${t('adminFrameColor')}</label><input data-design-field="frameColor" type="color" value="${escapeAttr(d.frameColor || '#b22b2b')}"></div>
-      <div class="field"><label>${t('adminBgColor')}</label><input data-design-field="bgColor" type="color" value="${escapeAttr(d.bgColor || '#061527')}"></div>
-    </div></div>
-    <div class="admin-products-grid">${pages.map((p,i)=>`<div class="card admin-product-card"><div class="admin-slot-head"><strong>${escapeHtml(p.slug)}</strong></div><div class="admin-product-row admin-product-row-equal"><div class="field"><label>Titel DE</label><input data-page-field="title_de" data-page-index="${i}" value="${escapeAttr(p.title_de || '')}"></div><div class="field"><label>Titel FR</label><input data-page-field="title_fr" data-page-index="${i}" value="${escapeAttr(p.title_fr || '')}"></div></div><div class="admin-product-row admin-product-row-equal"><div class="field"><label>Inhalt DE</label><textarea data-page-field="content_de" data-page-index="${i}">${escapeHtml(p.content_de || '')}</textarea></div><div class="field"><label>Inhalt FR</label><textarea data-page-field="content_fr" data-page-index="${i}">${escapeHtml(p.content_fr || '')}</textarea></div></div></div>`).join('')}</div>
-    <div class="admin-primary-row"><button class="cta primary" id="adminSaveDesignBtn">${t('adminDesignSave')}</button></div>
+    <div class="cms-layout">
+      <div class="card cms-card"><h3>Design</h3>
+        <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminTitleDe')}</label><input data-design-field="machineTitle_de" value="${escapeAttr(d.machineTitle_de || d.machineTitle || '')}" placeholder="Automat ARMEEBOX"></div><div class="field"><label>${t('adminTitleFr')}</label><input data-design-field="machineTitle_fr" value="${escapeAttr(d.machineTitle_fr || '')}" placeholder="Automate ARMEEBOX"></div></div>
+        <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminSloganDe')}</label><input data-design-field="machineInner_de" value="${escapeAttr(d.machineInner_de || d.machineInner || '')}" placeholder="Achtung, fertig, Fresspäckli"></div><div class="field"><label>${t('adminSloganFr')}</label><input data-design-field="machineInner_fr" value="${escapeAttr(d.machineInner_fr || '')}" placeholder="À vos marques, prêts, paquet du soldat"></div></div>
+        <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminButtonColor')}</label><input data-design-field="buttonColor" type="color" value="${escapeAttr(d.buttonColor || '#65a832')}"></div><div class="field"><label>${t('adminSlotColor')}</label><input data-design-field="slotColor" type="color" value="${escapeAttr(d.slotColor || '#3d5366')}"></div><div class="field"><label>${t('adminFrameColor')}</label><input data-design-field="frameColor" type="color" value="${escapeAttr(d.frameColor || '#b22b2b')}"></div><div class="field"><label>${t('adminBgColor')}</label><input data-design-field="bgColor" type="color" value="${escapeAttr(d.bgColor || '#061527')}"></div></div>
+      </div>
+      <div class="card cms-preview" id="designLivePreview" style="${previewStyle}"><h3>Live Preview</h3><div class="mini-machine"><div class="mini-frame"><div class="mini-title">${escapeHtml(d.machineTitle_de || d.machineTitle || t('machineTitle'))}</div><div class="mini-inner">${escapeHtml(d.machineInner_de || d.machineInner || t('machineInner'))}</div><div class="mini-slot">Slot</div><button>Button</button></div></div></div>
+    </div>
+    <div class="admin-head cms-subhead"><div><h2>${t('adminPagesTitle')}</h2><div class="note">${t('adminBigEditor')}</div></div><button class="cta primary" id="adminAddPageBtn">+ ${t('adminAddPage')}</button></div>
+    <div class="cms-pages-list">${pages.map((p,i)=>`<div class="card cms-page-card ${p.is_active===false ? 'is-inactive' : ''}">
+      <div class="cms-page-head"><div><strong>${escapeHtml(p.title_de || p.slug)}</strong><span>#${escapeHtml(p.slug || '')}</span></div><div class="cms-page-actions"><button class="back-btn" type="button" data-page-up="${i}">${t('adminMoveUp')}</button><button class="back-btn" type="button" data-page-down="${i}">${t('adminMoveDown')}</button><button class="back-btn danger" type="button" data-page-delete="${i}">${t('adminDeletePage')}</button></div></div>
+      <div class="admin-product-row admin-product-row-equal cms-meta-row"><div class="field"><label>${t('adminPageSlug')}</label><input data-page-field="slug" data-page-index="${i}" value="${escapeAttr(p.slug || '')}" onblur="this.value=slugifyPage(this.value)"></div><div class="field"><label>${t('adminPageSort')}</label><input data-page-field="sort_order" data-page-index="${i}" type="number" value="${escapeAttr(String(p.sort_order ?? i+1))}"></div><label class="admin-toggle cms-check"><input data-page-field="show_in_menu" data-page-index="${i}" type="checkbox" ${p.show_in_menu !== false ? 'checked' : ''}><span>${t('adminShowMenu')}</span></label><label class="admin-toggle cms-check"><input data-page-field="is_active" data-page-index="${i}" type="checkbox" ${p.is_active !== false ? 'checked' : ''}><span>${t('adminPageActive')}</span></label></div>
+      <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminTitleDe')}</label><input data-page-field="title_de" data-page-index="${i}" value="${escapeAttr(p.title_de || '')}"></div><div class="field"><label>${t('adminTitleFr')}</label><input data-page-field="title_fr" data-page-index="${i}" value="${escapeAttr(p.title_fr || '')}"></div></div>
+      <div class="admin-product-row admin-product-row-equal"><div class="field"><label>Inhalt DE</label><textarea class="cms-editor" data-page-field="content_de" data-page-index="${i}">${escapeHtml(p.content_de || '')}</textarea></div><div class="field"><label>Inhalt FR</label><textarea class="cms-editor" data-page-field="content_fr" data-page-index="${i}">${escapeHtml(p.content_fr || '')}</textarea></div></div>
+    </div>`).join('')}</div>
+    <div class="admin-primary-row sticky-save"><button class="cta primary" id="adminSaveDesignBtn">${t('adminDesignSave')}</button></div>
   </div></div>`;
 }
 function renderAdminProducts(){
