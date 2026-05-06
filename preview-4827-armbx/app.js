@@ -925,7 +925,8 @@ function pageInMenu(page){ return pageIsActive(page) && page?.show_in_menu !== f
 function sortedPages(){ return [...(state.pages || [])].sort((a,b)=>Number(a.sort_order ?? 999)-Number(b.sort_order ?? 999) || String(a.slug||'').localeCompare(String(b.slug||''))); }
 function topbar(){
   const pageButtons = sortedPages().filter(pageInMenu).map(p=>`<button data-nav-page="${escapeAttr(p.slug)}">${escapeHtml(pageTitle(p))}</button>`).join('');
-  return `<div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"><nav class="main-nav"><button data-nav="shop">${t('menuMachine')}</button>${pageButtons}</nav></div>`;
+  const menuLabel = state.lang === 'fr' ? 'Menu' : 'Menü';
+  return `<div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"><div class="nav-dropdown"><button class="menu-toggle" id="mainMenuToggle" type="button">${menuLabel}</button><nav class="main-nav" id="mainNav"><button data-nav="shop">${t('menuMachine')}</button>${pageButtons}</nav></div></div>`;
 }
 function pageTitle(page){ return state.lang === 'fr' ? (page.title_fr || page.title_de || page.slug) : (page.title_de || page.title_fr || page.slug); }
 function pageContent(page){ return state.lang === 'fr' ? (page.content_fr || page.content_de || '') : (page.content_de || page.content_fr || ''); }
@@ -2019,6 +2020,12 @@ function renderAdminOrder(){
 }
 function bindCommon(){
   document.querySelectorAll('[data-lang]').forEach(btn=>btn.onclick=()=>{ state.lang=btn.dataset.lang; setRoute('intro'); });
+  const menuToggle=document.getElementById('mainMenuToggle');
+  const mainNav=document.getElementById('mainNav');
+  if(menuToggle && mainNav){
+    menuToggle.onclick=(e)=>{ e.stopPropagation(); mainNav.classList.toggle('is-open'); };
+    document.addEventListener('click', (e)=>{ if(!e.target.closest('.nav-dropdown')) mainNav.classList.remove('is-open'); }, {once:true});
+  }
   document.querySelectorAll('[data-nav]').forEach(btn=>btn.onclick=()=>setRoute(btn.getAttribute('data-nav')));
   document.querySelectorAll('[data-nav-page]').forEach(btn=>btn.onclick=()=>{ state.currentPageSlug=btn.getAttribute('data-nav-page'); setRoute('page'); });
 }
