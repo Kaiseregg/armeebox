@@ -730,7 +730,7 @@ export default async (request) => {
       const body = await request.json().catch(() => ({}));
       const id = body.id;
       const status = body.status;
-      if (!id || !['new', 'in_progress', 'done'].includes(status)) {
+      if (!id || !['new', 'in_progress', 'shipped', 'done', 'archived'].includes(status)) {
         return json(400, { success: false, error: 'Ungültige Statusdaten' });
       }
       const rows = await supa(`orders?id=eq.${encodeURIComponent(id)}`, {
