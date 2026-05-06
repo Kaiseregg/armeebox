@@ -1583,6 +1583,43 @@ async function saveAdminStatus(orderId, status){
     render();
   }
 }
+
+async function archiveAdminOrder(orderId){
+  if(!orderId) return;
+  state.admin.loginError = '';
+  await saveAdminStatus(orderId, 'archived');
+}
+async function deleteAdminOrder(orderId){
+  if(!orderId) return;
+  const order = (state.admin.orders || []).find(o => o.id === orderId) || state.admin.currentOrder || {};
+  const label = order.order_number || order.customer_email || orderId;
+  const ok = window.confirm(`Bestellung wirklich löschen?
+
+${label}
+
+Diese Aktion entfernt die Bestellung und die Positionen aus der Datenbank.`);
+  if(!ok) return;
+  state.admin.statusSaving = true;
+  state.admin.loginError = '';
+  render();
+  try{
+    await adminRequest('delete-order', {method:'POST', body:{id: orderId}});
+    state.admin.orders = (state.admin.orders || []).filter(o => o.id !== orderId);
+    if(state.admin.currentOrder?.id === orderId){
+      state.admin.currentOrder = null;
+      history.replaceState(null,'','#admin-orders');
+      state.route = 'admin-orders';
+      await loadAdminOrders();
+      return;
+    }
+  }catch(error){
+    state.admin.loginError = error.message || 'Bestellung konnte nicht gelöscht werden';
+  }finally{
+    state.admin.statusSaving = false;
+    save();
+    render();
+  }
+}
 async function loadCatalogProducts(){
   state.catalog.loading = true;
   state.catalog.error = '';
@@ -2151,7 +2188,13 @@ function renderAdminOrders(){
       <td>${escapeHtml(shippingMethodText(order.shipping_method || '-'))}</td>
       <td>${money(order.total ?? order.total_chf ?? 0)}</td>
       <td><span class="admin-chip ${escapeAttr(adminStatusLabel(order.order_status || order.status))}">${escapeHtml(adminStatusText(order.order_status || order.status || 'new'))}</span></td>
-      <td><button class="back-btn" data-open-order="${escapeAttr(order.id)}">Öffnen</button></td>
+      <td>
+        <div class="admin-row-actions">
+          <button class="back-btn mini" data-open-order="${escapeAttr(order.id)}">Öffnen</button>
+          <button class="back-btn mini" data-archive-order="${escapeAttr(order.id)}" ${adminStatusLabel(order.order_status || order.status)==='archived'?'disabled':''}>Archivieren</button>
+          <button class="back-btn mini danger" data-delete-order="${escapeAttr(order.id)}">Löschen</button>
+        </div>
+      </td>
     </tr>`).join('');
   const cards = filtered.map(order => `
     <div class="admin-order-card">
@@ -2165,7 +2208,11 @@ function renderAdminOrders(){
       <div class="admin-order-meta"><strong>E-Mail:</strong> ${escapeHtml(order.customer_email || '-')}</div>
       <div class="admin-order-meta"><strong>Versand:</strong> ${escapeHtml(shippingMethodText(order.shipping_method || '-'))}</div>
       <div class="admin-order-meta"><strong>Total:</strong> ${money(order.total ?? order.total_chf ?? 0)}</div>
-      <button class="back-btn admin-open-btn" data-open-order="${escapeAttr(order.id)}">Öffnen</button>
+      <div class="admin-row-actions card-actions">
+        <button class="back-btn admin-open-btn" data-open-order="${escapeAttr(order.id)}">Öffnen</button>
+        <button class="back-btn admin-open-btn" data-archive-order="${escapeAttr(order.id)}" ${adminStatusLabel(order.order_status || order.status)==='archived'?'disabled':''}>Archivieren</button>
+        <button class="back-btn admin-open-btn danger" data-delete-order="${escapeAttr(order.id)}">Löschen</button>
+      </div>
     </div>`).join('');
   return `
   ${topbar()}
@@ -3026,6 +3073,14 @@ function bindAdminOrders(){
     history.replaceState(null,'',`#admin-order?id=${encodeURIComponent(id)}`);
     state.route = 'admin-order';
     loadAdminOrder(id);
+  });
+  document.querySelectorAll('[data-archive-order]').forEach(btn => btn.onclick = ()=>{
+    const id = btn.getAttribute('data-archive-order');
+    archiveAdminOrder(id);
+  });
+  document.querySelectorAll('[data-delete-order]').forEach(btn => btn.onclick = ()=>{
+    const id = btn.getAttribute('data-delete-order');
+    deleteAdminOrder(id);
   });
 }
 
