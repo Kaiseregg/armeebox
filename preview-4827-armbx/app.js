@@ -884,6 +884,9 @@ const state = {
     customerFilter: 'all',
     newsletterSubject: '',
     newsletterBody: '',
+    newsletterImageUrl: '',
+    newsletterSending: false,
+    newsletterResult: '',
     stockAdjustments: {},
     search: '',
     filter: 'all',
@@ -1450,6 +1453,62 @@ function copyCustomerEmails(){
   navigator.clipboard?.writeText(emails);
   state.admin.productsMessage = `${filteredAdminCustomers().length} E-Mail-Adressen kopiert.`;
   save(); render();
+}
+
+async function uploadNewsletterImage(file){
+  if(!file) return;
+  const allowed = ['image/jpeg','image/png','image/webp','image/gif'];
+  if(file.type && !allowed.includes(file.type)){
+    state.admin.loginError = 'Nur JPG, PNG, WebP oder GIF erlaubt'; save(); render(); return;
+  }
+  if(file.size && file.size > 8 * 1024 * 1024){
+    state.admin.loginError = 'Bild ist zu gross. Maximum 8 MB.'; save(); render(); return;
+  }
+  state.admin.productsMessage = 'Newsletter Bild wird hochgeladen …'; state.admin.loginError=''; save(); render();
+  try{
+    const form = new FormData();
+    form.append('file', file);
+    form.append('slot', 'newsletter');
+    const response = await fetch('/.netlify/functions/upload-product-image', { method:'POST', body: form, credentials:'same-origin' });
+    const data = await response.json().catch(()=>({}));
+    if(!response.ok || data.success === false || !data.publicUrl) throw new Error(data.error || 'Upload fehlgeschlagen');
+    state.admin.newsletterImageUrl = data.publicUrl;
+    state.admin.productsMessage = 'Newsletter Bild hochgeladen.';
+    save(); render();
+  }catch(error){ state.admin.loginError = error.message || 'Upload fehlgeschlagen'; save(); render(); }
+}
+async function sendNewsletter(testOnly=false){
+  if(state.admin.newsletterSending) return;
+  const recipients = filteredAdminCustomers().map(c=>c.email).filter(Boolean);
+  if(!state.admin.newsletterSubject || !state.admin.newsletterBody){
+    state.admin.loginError = 'Bitte Betreff und Nachricht ausfüllen.'; save(); render(); return;
+  }
+  if(!testOnly && recipients.length === 0){
+    state.admin.loginError = 'Keine Empfänger im aktuellen Filter.'; save(); render(); return;
+  }
+  const ok = testOnly || confirm(`Newsletter wirklich an ${recipients.length} Empfänger senden?`);
+  if(!ok) return;
+  state.admin.newsletterSending = true; state.admin.loginError=''; state.admin.productsMessage='Newsletter wird gesendet …'; save(); render();
+  try{
+    const response = await fetch('/.netlify/functions/newsletter-send', {
+      method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        subject: state.admin.newsletterSubject,
+        message: state.admin.newsletterBody,
+        imageUrl: state.admin.newsletterImageUrl,
+        recipients,
+        testOnly
+      })
+    });
+    const data = await response.json().catch(()=>({}));
+    if(!response.ok || data.success === false) throw new Error(data.error || 'Newsletter Versand fehlgeschlagen');
+    state.admin.newsletterResult = testOnly ? 'Test-Mail wurde gesendet.' : `Newsletter gesendet an ${data.sent || recipients.length} Empfänger.`;
+    state.admin.productsMessage = state.admin.newsletterResult;
+  }catch(error){
+    state.admin.loginError = error.message || 'Newsletter Versand fehlgeschlagen';
+  }finally{
+    state.admin.newsletterSending = false; save(); render();
+  }
 }
 
 async function loadAdminOrder(id){
@@ -2672,10 +2731,20 @@ function renderAdminCustomers(){
         <button class="back-btn" id="adminExportCustomersBtn">CSV Export</button>
       </div>
       <div class="card crm-newsletter-box">
-        <h3>Newsletter Vorbereitung</h3>
-        <div class="note">Noch kein Massenversand: hier bereitest du Betreff/Text vor und exportierst Empfänger sauber als CSV oder kopierst die Liste.</div>
+        <h3>Newsletter Versand</h3>
+        <div class="note">Empfänger kommen aus dem aktuellen Filter. Du kannst Bild/Logo einfügen, eine Test-Mail senden oder direkt an die aktuelle Empfängerliste versenden.</div>
+        ${state.admin.newsletterResult ? `<div class="note">${escapeHtml(state.admin.newsletterResult)}</div>` : ''}
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>Betreff</label><input id="newsletterSubjectInput" value="${escapeAttr(state.admin.newsletterSubject || '')}" placeholder="z. B. Neue Fresspäckli Aktion"></div><div class="field"><label>Empfänger aktuell</label><input readonly value="${customers.length} Empfänger"></div></div>
         <div class="field"><label>Nachricht</label><textarea id="newsletterBodyInput" class="cms-editor" placeholder="Newsletter Text hier vorbereiten …">${escapeHtml(state.admin.newsletterBody || '')}</textarea></div>
+        <div class="newsletter-media-grid">
+          <div class="field"><label>Bild / Logo URL</label><input id="newsletterImageUrlInput" value="${escapeAttr(state.admin.newsletterImageUrl || '')}" placeholder="https://.../bild.png"></div>
+          <div class="field"><label>Bild hochladen</label><input id="newsletterImageFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></div>
+        </div>
+        ${state.admin.newsletterImageUrl ? `<div class="newsletter-preview"><img src="${escapeAttr(state.admin.newsletterImageUrl)}" alt="Newsletter Bild"></div>` : ''}
+        <div class="newsletter-actions">
+          <button class="back-btn" id="newsletterTestBtn" ${state.admin.newsletterSending ? 'disabled' : ''}>Test an Admin senden</button>
+          <button class="cta primary" id="newsletterSendBtn" ${state.admin.newsletterSending ? 'disabled' : ''}>${state.admin.newsletterSending ? 'Wird gesendet …' : 'Newsletter senden'}</button>
+        </div>
       </div>
       <div class="card table-wrap">
         ${customers.length ? `<div class="admin-table-desktop"><table class="admin-table"><thead><tr><th>Kunde</th><th>Bestellungen</th><th>Umsatz</th><th>Letzte Bestellung</th><th>Kontakt</th><th>Quelle</th></tr></thead><tbody>${rows}</tbody></table></div><div class="admin-mobile-list">${cards}</div>` : `<div class="note">Keine Kunden gefunden.</div>`}
@@ -2702,6 +2771,14 @@ function bindAdminCustomers(){
   if(subj) subj.oninput = ()=>{ state.admin.newsletterSubject=subj.value; save(); };
   const body = document.getElementById('newsletterBodyInput');
   if(body) body.oninput = ()=>{ state.admin.newsletterBody=body.value; save(); };
+  const img = document.getElementById('newsletterImageUrlInput');
+  if(img) img.oninput = ()=>{ state.admin.newsletterImageUrl=img.value; save(); };
+  const file = document.getElementById('newsletterImageFileInput');
+  if(file) file.onchange = ()=>uploadNewsletterImage(file.files?.[0]);
+  const testBtn = document.getElementById('newsletterTestBtn');
+  if(testBtn) testBtn.onclick = ()=>sendNewsletter(true);
+  const sendBtn = document.getElementById('newsletterSendBtn');
+  if(sendBtn) sendBtn.onclick = ()=>sendNewsletter(false);
 }
 
 function renderAdminAnalytics(){
