@@ -633,7 +633,7 @@ const texts = {
     adminBundleLabelDe: 'Text zur Auswahl DE',
     adminBundleLabelFr: 'Text zur Auswahl FR',
     slotInfo: 'Inhalt',
-    slotWeeklyChoice: 'Info Inhalt',
+    slotWeeklyChoice: 'Pro Woche',
     slotAddBundle: 'Abo hinzufügen',
     slotChooseOption: 'Option wählen',
     slotInfoTitle: 'Inhalt des Fresspäckli',
@@ -818,7 +818,7 @@ const texts = {
     adminBundleLabelDe: 'Texte du choix DE',
     adminBundleLabelFr: 'Texte du choix FR',
     slotInfo: 'Contenu',
-    slotWeeklyChoice: 'Info contenu',
+    slotWeeklyChoice: 'Par semaine',
     slotAddBundle: 'Ajouter abonnement',
     slotChooseOption: 'Choisir',
     slotInfoTitle: 'Contenu du paquet',
@@ -1335,7 +1335,6 @@ function filteredAdminOrders(){
   const filter = state.admin.filter || 'all';
   return (state.admin.orders || []).filter(order => {
     const status = adminStatusLabel(order.order_status || order.status);
-    if(filter === 'all' && status === 'archived') return false;
     if(filter !== 'all' && status !== filter) return false;
     if(!search) return true;
     const meta = order.order_meta || {};
@@ -1852,22 +1851,8 @@ function subtotal(){ return cartItemsDetailed().reduce((a,p)=>a+Number(p.price |
 function shippingCost(){ return state.shipping==='private' ? 9 : 0; }
 function total(){ return subtotal()+shippingCost(); }
 function setRoute(route){ state.route=route; state.submitError=''; save(); render(); }
-
-async function goAdminRoute(route){
-  state.admin.loginError = '';
-  state.route = route;
-  history.replaceState(null,'',`#${route}`);
-  save();
-  render();
-  if(route==='admin-products') return loadAdminProducts();
-  if(route==='admin-design') return loadAdminDesign();
-  if(route==='admin-analytics') return loadAdminAnalytics();
-  if(route==='admin-customers') return loadAdminCustomers();
-  if(route==='admin-orders') return loadAdminOrders();
-}
-window.ARMEBOX_GO_ADMIN = goAdminRoute;
 function updateHash(){
-  const map={language:'#language',intro:'#intro',shop:'#shop',order:'#order',review:'#review',confirmation:'#confirmation','admin-login':'#admin-login','admin-orders':'#admin-orders','admin-order':'#admin-order','admin-products':'#admin-products','admin-design':'#admin-design','admin-analytics':'#admin-analytics','admin-customers':'#admin-customers',page:'#page'};
+  const map={language:'#language',intro:'#intro',shop:'#shop',order:'#order',review:'#review',confirmation:'#confirmation','admin-login':'#admin-login','admin-orders':'#admin-orders','admin-order':'#admin-order','admin-products':'#admin-products','admin-design':'#admin-design','admin-analytics':'#admin-analytics',page:'#page'};
   if(state.route==='admin-order'){
     const id = state.admin.currentOrder?.id || new URLSearchParams(location.search).get('id') || '';
     const target = `#admin-order${id ? `?id=${encodeURIComponent(id)}` : ''}`;
@@ -1905,14 +1890,9 @@ window.addEventListener('hashchange',()=>{
   if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products','admin-design','admin-analytics','admin-customers','page'].includes(h)){
     state.route=h;
     if(h==='admin-order'){
-      const id = new URLSearchParams(location.hash.split('?')[1] || location.search).get('id');
-      if(id) { loadAdminOrder(id); return; }
+      const id = new URLSearchParams(location.search).get('id');
+      if(id) loadAdminOrder(id);
     }
-    if(h==='admin-products') { loadAdminProducts(); return; }
-    if(h==='admin-design') { loadAdminDesign(); return; }
-    if(h==='admin-analytics') { loadAdminAnalytics(); return; }
-    if(h==='admin-customers') { loadAdminCustomers(); return; }
-    if(h==='admin-orders') { loadAdminOrders(); return; }
     render();
   }
 });
@@ -2009,9 +1989,11 @@ function renderMachine(){
             </div>
             <div class="price">${money(displayPriceValue)}</div>
             <div class="namebar ${isBundle ? 'namebar-bundle' : ''}" title="${escapeAttr(displayName)}">
-              <span class="namebar-text">${escapeHtml(displayName)}</span>
+              ${isBundle ? `<button class="slot-mini-btn slot-info-btn" type="button" data-slot-info="${p.id}" aria-label="${t('slotInfo')}">
+                <span class="slot-info-icon">i</span>
+              </button>` : ''}
+              <span class="namebar-text">${displayName}</span>
             </div>
-            ${isBundle ? `<button class="slot-info-strip" type="button" data-slot-info="${p.id}">${escapeHtml(localizedBundleLabel(p) || 'Info Inhalt')}</button>` : ''}
             <div class="select-light ${isBundle ? 'select-light-bundle' : ''}">
               ${isBundle ? `<select class="slot-bundle-select" data-slot-option-select="${p.id}" aria-label="${t('slotChooseOption')}">
                 ${(Array.isArray(p.quantity_options)&&p.quantity_options.length?p.quantity_options:[2,3,4]).map((opt)=>`<option value="${opt}" ${Number(opt)===Number(currentMultiplier)?'selected':''}>${opt}x</option>`).join('')}
@@ -2239,8 +2221,8 @@ function renderAdminOrders(){
       <div class="admin-toolbar">
         <div><h1 style="margin:0;font-size:48px">${t('adminOrders')}</h1><div class="note">${t('adminListHint')}</div></div>
         <div class="admin-actions">
-          <button class="back-btn" type="button" id="adminProductsBtn" data-admin-go="admin-products" onclick="window.ARMEBOX_GO_ADMIN && window.ARMEBOX_GO_ADMIN('admin-products')">${t('adminProducts')}</button><button class="back-btn" type="button" id="adminAnalyticsBtn" data-admin-go="admin-analytics" onclick="window.ARMEBOX_GO_ADMIN && window.ARMEBOX_GO_ADMIN('admin-analytics')">Statistik</button><button class="back-btn" type="button" id="adminCustomersBtn" data-admin-go="admin-customers" onclick="window.ARMEBOX_GO_ADMIN && window.ARMEBOX_GO_ADMIN('admin-customers')">Kunden</button><button class="back-btn" type="button" id="adminDesignBtn" data-admin-go="admin-design" onclick="window.ARMEBOX_GO_ADMIN && window.ARMEBOX_GO_ADMIN('admin-design')">${t('adminDesign')}</button>
-          <button class="back-btn" type="button" id="adminArchiveTabBtn" data-admin-archive-tab="1">Archiv</button><button class="back-btn" id="adminRefreshBtn">${t('adminRefresh')}</button>
+          <button class="back-btn" id="adminProductsBtn">${t('adminProducts')}</button><button class="back-btn" id="adminAnalyticsBtn">Statistik</button><button class="back-btn" id="adminCustomersBtn">Kunden</button><button class="back-btn" id="adminDesignBtn">${t('adminDesign')}</button>
+          <button class="back-btn" id="adminRefreshBtn">${t('adminRefresh')}</button>
           <button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button>
         </div>
       </div>
@@ -2358,19 +2340,6 @@ function bindCommon(){
   }
   document.querySelectorAll('[data-nav]').forEach(btn=>btn.onclick=()=>setRoute(btn.getAttribute('data-nav')));
   document.querySelectorAll('[data-nav-page]').forEach(btn=>btn.onclick=()=>{ state.currentPageSlug=btn.getAttribute('data-nav-page'); setRoute('page'); });
-  document.querySelectorAll('[data-admin-go]').forEach(btn=>btn.onclick=(e)=>{
-    e.preventDefault();
-    const route = btn.getAttribute('data-admin-go');
-    if(route) goAdminRoute(route);
-  });
-  document.querySelectorAll('[data-admin-archive-tab]').forEach(btn=>btn.onclick=(e)=>{
-    e.preventDefault();
-    state.admin.filter='archived';
-    history.replaceState(null,'','#admin-orders');
-    state.route='admin-orders';
-    save();
-    render();
-  });
 }
 function bindMachine(){
   document.querySelectorAll('.slot').forEach(el=>el.onclick=(e)=>{
@@ -2849,8 +2818,6 @@ function bindAdminCustomers(){
   if(back) back.onclick = ()=>{ history.replaceState(null,'','#admin-orders'); state.route='admin-orders'; loadAdminOrders(); };
   const refresh = document.getElementById('adminCustomersRefreshBtn');
   if(refresh) refresh.onclick = ()=>loadAdminCustomers();
-  const archiveTab = document.getElementById('adminArchiveTabBtn');
-  if(archiveTab) archiveTab.onclick = ()=>{ state.admin.filter='archived'; save(); render(); };
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
   const search = document.getElementById('adminCustomerSearchInput');
@@ -2964,49 +2931,6 @@ function renderAdminDesign(){
     <div class="admin-primary-row sticky-save"><button class="cta primary" id="adminSaveDesignBtn">${t('adminDesignSave')}</button></div>
   </div></div>`;
 }
-
-function renderInventoryOverview(products){
-  const list = Array.isArray(products) ? [...products] : [];
-  const rows = list
-    .sort((a,b)=>Number(a.slotNumber || a.slot || 0)-Number(b.slotNumber || b.slot || 0))
-    .map(product => {
-      const stock = productStock(product);
-      const name = product?.name?.de || product?.name_de || product?.name || `Slot ${product?.slotNumber || product?.slot || ''}`;
-      const slot = product?.slotNumber || product?.slot || '-';
-      const price = Number(product?.price || product?.price_chf || 0);
-      const value = stock.current * price;
-      return `
-        <tr>
-          <td><strong>${escapeHtml(String(slot).padStart(2,'0'))}</strong></td>
-          <td>${escapeHtml(name)}</td>
-          <td>${money(price)}</td>
-          <td>${stock.total}</td>
-          <td><strong>${stock.current}</strong></td>
-          <td>${stock.min}</td>
-          <td><span class="inventory-pill ${stockStatusClass(product)}">${stockStatusText(product)}</span></td>
-          <td>${money(value)}</td>
-        </tr>`;
-    }).join('');
-  const totalCurrent = list.reduce((sum,p)=>sum + productStock(p).current,0);
-  const totalValue = list.reduce((sum,p)=>sum + productStock(p).current * Number(p.price || p.price_chf || 0),0);
-  return `
-    <div class="inventory-overview card">
-      <div class="section-title-row">
-        <div>
-          <h3>Gesamtübersicht Ware</h3>
-          <div class="note">Interne Lagerübersicht: effektiver Bestand, Mindestbestand und Lagerwert.</div>
-        </div>
-        <div class="inventory-mini-summary"><strong>${totalCurrent}</strong> Stück · <strong>${money(totalValue)}</strong></div>
-      </div>
-      <div class="inventory-overview-table">
-        <table class="admin-table">
-          <thead><tr><th>Slot</th><th>Produkt</th><th>Preis</th><th>Gesamt</th><th>Ist</th><th>Min.</th><th>Status</th><th>Wert</th></tr></thead>
-          <tbody>${rows || `<tr><td colspan="8">Keine Produkte vorhanden.</td></tr>`}</tbody>
-        </table>
-      </div>
-    </div>`;
-}
-
 function renderAdminProducts(){
   const products = adminProductsList();
   return `
@@ -3052,7 +2976,7 @@ function renderAdminProducts(){
               <div class="field"><label>${t('adminNameFr')}</label><input data-product-field="name_fr" data-product-index="${index}" value="${escapeAttr(product.name?.fr || product.name?.de || '')}"></div>
             </div>
             <div class="admin-product-row">
-              <div class="field"><label>${product.slot_type === 'bundle' ? 'Basispreis pro Auswahl/Einheit' : t('adminPrice')}</label><input data-product-field="price" data-product-index="${index}" type="number" min="0" step="0.05" value="${escapeAttr(String(product.price ?? 0))}"></div>
+              <div class="field"><label>${t('adminPrice')}</label><input data-product-field="price" data-product-index="${index}" type="number" min="0" step="0.05" value="${escapeAttr(String(product.price ?? 0))}"></div>
               <div class="field admin-active-field"><label>${t('adminActive')}</label><label class="admin-toggle"><input data-product-field="active" data-product-index="${index}" type="checkbox" ${product.active !== false ? 'checked' : ''}><span>${product.active !== false ? 'On' : 'Off'}</span></label></div>
             </div>
             <div class="admin-product-row admin-product-row-equal inventory-row">
@@ -3072,8 +2996,8 @@ function renderAdminProducts(){
               <div class="field"><label>${t('adminBundleContentFr')}</label><textarea data-product-field="bundle_content_fr" data-product-index="${index}">${escapeHtml(product.bundle_content?.fr || '')}</textarea></div>
             </div>
             <div class="admin-product-row admin-product-row-equal bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}">
-              <div class="field"><label>Text auf Info-Button DE</label><input data-product-field="option_label_de" data-product-index="${index}" value="${escapeAttr(product.option_label?.de || '')}"></div>
-              <div class="field"><label>Text auf Info-Button FR</label><input data-product-field="option_label_fr" data-product-index="${index}" value="${escapeAttr(product.option_label?.fr || '')}"></div>
+              <div class="field"><label>${t('adminBundleLabelDe')}</label><input data-product-field="option_label_de" data-product-index="${index}" value="${escapeAttr(product.option_label?.de || '')}"></div>
+              <div class="field"><label>${t('adminBundleLabelFr')}</label><input data-product-field="option_label_fr" data-product-index="${index}" value="${escapeAttr(product.option_label?.fr || '')}"></div>
             </div>
             <div class="field bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}"><label>${t('adminBundleOptions')}</label><input data-product-field="quantity_options" data-product-index="${index}" value="${escapeAttr((product.quantity_options || [2,3,4]).join(','))}"></div>
             <div class="field"><label>${t('adminImageUrl')}</label><input data-product-field="image_url" data-product-index="${index}" placeholder="https://.../bild.png" value="${escapeAttr(product.image_url || '')}"></div>
@@ -3085,7 +3009,21 @@ function renderAdminProducts(){
           </div>
         `).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
       </div>
-      ${typeof renderInventoryOverview === 'function' ? renderInventoryOverview(products) : ''}
+      <div class="inventory-history card-soft">
+        <h3>${t('adminStockHistory')}</h3>
+        ${(state.admin.inventoryMovements || []).length ? `
+          <div class="inventory-history-table">
+            ${(state.admin.inventoryMovements || []).slice(0, 20).map(m => `
+              <div class="inventory-history-row">
+                <span>${escapeHtml(new Date(m.created_at || Date.now()).toLocaleString('de-CH'))}</span>
+                <strong>${escapeHtml(m.product_name || '-')}</strong>
+                <span>${escapeHtml(movementLabel(m.movement_type))}</span>
+                <span class="${Number(m.quantity || 0) < 0 ? 'stock-out-text' : 'stock-ok-text'}">${Number(m.quantity || 0) > 0 ? '+' : ''}${escapeHtml(String(m.quantity || 0))}</span>
+                <span>${escapeHtml(String(m.stock_before ?? ''))} → ${escapeHtml(String(m.stock_after ?? ''))}</span>
+              </div>
+            `).join('')}
+          </div>` : `<div class="note">Noch keine Lagerbewegungen vorhanden.</div>`}
+      </div>
       <div class="admin-primary-row">
         <button class="cta primary" id="adminSaveProductsBtn" ${state.admin.productsSaving ? 'disabled' : ''}>${state.admin.productsSaving ? t('adminProductsSaving') : t('adminProductsSave')}</button>
       </div>
@@ -3097,15 +3035,13 @@ function bindAdminOrders(){
   const refresh = document.getElementById('adminRefreshBtn');
   if(refresh) refresh.onclick = ()=>loadAdminOrders();
   const productsBtn = document.getElementById('adminProductsBtn');
-  if(productsBtn) productsBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-products'); };
+  if(productsBtn) productsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-products'); state.route='admin-products'; loadAdminProducts(); };
   const designBtn = document.getElementById('adminDesignBtn');
-  if(designBtn) designBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-design'); };
+  if(designBtn) designBtn.onclick = ()=>{ history.replaceState(null,'','#admin-design'); state.route='admin-design'; loadAdminDesign(); };
   const analyticsBtn = document.getElementById('adminAnalyticsBtn');
-  if(analyticsBtn) analyticsBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-analytics'); };
+  if(analyticsBtn) analyticsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-analytics'); state.route='admin-analytics'; loadAdminAnalytics(); };
   const customersBtn = document.getElementById('adminCustomersBtn');
-  if(customersBtn) customersBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-customers'); };
-  const archiveTab = document.getElementById('adminArchiveTabBtn');
-  if(archiveTab) archiveTab.onclick = ()=>{ state.admin.filter='archived'; save(); render(); };
+  if(customersBtn) customersBtn.onclick = ()=>{ history.replaceState(null,'','#admin-customers'); state.route='admin-customers'; loadAdminCustomers(); };
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
   const search = document.getElementById('adminSearchInput');
@@ -3154,13 +3090,13 @@ function bindAdminOrder(){
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
   const productsBtn = document.getElementById('adminGoProductsBtn');
-  if(productsBtn) productsBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-products'); };
+  if(productsBtn) productsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-products'); state.route='admin-products'; loadAdminProducts(); };
   const designBtn = document.getElementById('adminDesignBtn');
-  if(designBtn) designBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-design'); };
+  if(designBtn) designBtn.onclick = ()=>{ history.replaceState(null,'','#admin-design'); state.route='admin-design'; loadAdminDesign(); };
   const analyticsBtn = document.getElementById('adminAnalyticsBtn');
-  if(analyticsBtn) analyticsBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-analytics'); };
+  if(analyticsBtn) analyticsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-analytics'); state.route='admin-analytics'; loadAdminAnalytics(); };
   const customersBtn = document.getElementById('adminCustomersBtn');
-  if(customersBtn) customersBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-customers'); };
+  if(customersBtn) customersBtn.onclick = ()=>{ history.replaceState(null,'','#admin-customers'); state.route='admin-customers'; loadAdminCustomers(); };
   const printBtn = document.getElementById('adminPrintDeliveryNoteBtn');
   if(printBtn) printBtn.onclick = ()=>printDeliveryNote();
   const saveBtn = document.getElementById('adminSaveStatusBtn');
