@@ -1804,7 +1804,6 @@ function renderMachine(){
               <div class="spirals">◜◜◜</div>
             </div>
             <div class="price">${money(displayPriceValue)}</div>
-            <div class="stock-mini ${stockStatusClass(p)}">${stockStatusText(p)} · ${productStock(p).current}</div>
             <div class="namebar ${isBundle ? 'namebar-bundle' : ''}" title="${escapeAttr(displayName)}">
               ${isBundle ? `<button class="slot-mini-btn slot-info-btn" type="button" data-slot-info="${p.id}" aria-label="${t('slotInfo')}">
                 <span class="slot-info-icon">i</span>
