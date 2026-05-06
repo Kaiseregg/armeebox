@@ -602,3 +602,65 @@ input[type="color"]{height:44px;padding:4px;cursor:pointer;}
   .admin-row-actions{flex-wrap:wrap;justify-content:flex-start;}
   .namebar{font-size:12px;}
 }
+
+
+/* STEP 11.6.2 hotfix: reliable admin nav + readable slot labels */
+.admin-actions .back-btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;}
+.namebar{
+  display:flex!important;
+  align-items:center;
+  justify-content:center;
+  min-height:58px;
+  max-height:none!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  -webkit-line-clamp:unset!important;
+  -webkit-box-orient:unset!important;
+}
+.namebar .namebar-text,.namebar-bundle .namebar-text{
+  display:block!important;
+  width:100%;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  -webkit-line-clamp:unset!important;
+  -webkit-box-orient:unset!important;
+  overflow-wrap:anywhere;
+}
+.slot-bundle .namebar{min-height:58px;}
+.slot-info-strip{font-size:13px;min-height:30px;}
+@media(max-width:900px){.namebar{min-height:54px}.slot-info-strip{font-size:12px}}
+
+/* STEP 11.6.4 definitive nav + slot text fix */
+.admin-actions .back-btn{position:relative;z-index:5;pointer-events:auto;cursor:pointer;}
+.admin-actions button.back-btn{appearance:none;-webkit-appearance:none;}
+.namebar{
+  min-height:48px;
+  max-height:none;
+  height:auto;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:7px 8px;
+  white-space:normal !important;
+  overflow:visible !important;
+  text-overflow:clip !important;
+}
+.namebar .namebar-text,
+.namebar-bundle .namebar-text{
+  display:block;
+  width:100%;
+  white-space:normal !important;
+  overflow:visible !important;
+  text-overflow:clip !important;
+  word-break:normal;
+  overflow-wrap:anywhere;
+  line-height:1.12;
+  text-align:center;
+}
+.slot-bundle .namebar{min-height:52px;}
+@media(max-width:760px){
+  .namebar{min-height:44px;font-size:12px;}
+  .slot-bundle .namebar{min-height:46px;}
+}

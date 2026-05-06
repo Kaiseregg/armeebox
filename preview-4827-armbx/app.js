@@ -1852,8 +1852,22 @@ function subtotal(){ return cartItemsDetailed().reduce((a,p)=>a+Number(p.price |
 function shippingCost(){ return state.shipping==='private' ? 9 : 0; }
 function total(){ return subtotal()+shippingCost(); }
 function setRoute(route){ state.route=route; state.submitError=''; save(); render(); }
+
+async function goAdminRoute(route){
+  state.admin.loginError = '';
+  state.route = route;
+  history.replaceState(null,'',`#${route}`);
+  save();
+  render();
+  if(route==='admin-products') return loadAdminProducts();
+  if(route==='admin-design') return loadAdminDesign();
+  if(route==='admin-analytics') return loadAdminAnalytics();
+  if(route==='admin-customers') return loadAdminCustomers();
+  if(route==='admin-orders') return loadAdminOrders();
+}
+window.ARMEBOX_GO_ADMIN = goAdminRoute;
 function updateHash(){
-  const map={language:'#language',intro:'#intro',shop:'#shop',order:'#order',review:'#review',confirmation:'#confirmation','admin-login':'#admin-login','admin-orders':'#admin-orders','admin-order':'#admin-order','admin-products':'#admin-products','admin-design':'#admin-design','admin-analytics':'#admin-analytics',page:'#page'};
+  const map={language:'#language',intro:'#intro',shop:'#shop',order:'#order',review:'#review',confirmation:'#confirmation','admin-login':'#admin-login','admin-orders':'#admin-orders','admin-order':'#admin-order','admin-products':'#admin-products','admin-design':'#admin-design','admin-analytics':'#admin-analytics','admin-customers':'#admin-customers',page:'#page'};
   if(state.route==='admin-order'){
     const id = state.admin.currentOrder?.id || new URLSearchParams(location.search).get('id') || '';
     const target = `#admin-order${id ? `?id=${encodeURIComponent(id)}` : ''}`;
@@ -1891,9 +1905,14 @@ window.addEventListener('hashchange',()=>{
   if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products','admin-design','admin-analytics','admin-customers','page'].includes(h)){
     state.route=h;
     if(h==='admin-order'){
-      const id = new URLSearchParams(location.search).get('id');
-      if(id) loadAdminOrder(id);
+      const id = new URLSearchParams(location.hash.split('?')[1] || location.search).get('id');
+      if(id) { loadAdminOrder(id); return; }
     }
+    if(h==='admin-products') { loadAdminProducts(); return; }
+    if(h==='admin-design') { loadAdminDesign(); return; }
+    if(h==='admin-analytics') { loadAdminAnalytics(); return; }
+    if(h==='admin-customers') { loadAdminCustomers(); return; }
+    if(h==='admin-orders') { loadAdminOrders(); return; }
     render();
   }
 });
@@ -1990,7 +2009,7 @@ function renderMachine(){
             </div>
             <div class="price">${money(displayPriceValue)}</div>
             <div class="namebar ${isBundle ? 'namebar-bundle' : ''}" title="${escapeAttr(displayName)}">
-              <span class="namebar-text">${displayName}</span>
+              <span class="namebar-text">${escapeHtml(displayName)}</span>
             </div>
             ${isBundle ? `<button class="slot-info-strip" type="button" data-slot-info="${p.id}">${escapeHtml(localizedBundleLabel(p) || 'Info Inhalt')}</button>` : ''}
             <div class="select-light ${isBundle ? 'select-light-bundle' : ''}">
@@ -2220,8 +2239,8 @@ function renderAdminOrders(){
       <div class="admin-toolbar">
         <div><h1 style="margin:0;font-size:48px">${t('adminOrders')}</h1><div class="note">${t('adminListHint')}</div></div>
         <div class="admin-actions">
-          <button class="back-btn" id="adminProductsBtn">${t('adminProducts')}</button><button class="back-btn" id="adminAnalyticsBtn">Statistik</button><button class="back-btn" id="adminCustomersBtn">Kunden</button><button class="back-btn" id="adminDesignBtn">${t('adminDesign')}</button>
-          <button class="back-btn" id="adminArchiveTabBtn">Archiv</button><button class="back-btn" id="adminRefreshBtn">${t('adminRefresh')}</button>
+          <button class="back-btn" type="button" id="adminProductsBtn" data-admin-go="admin-products" onclick="window.ARMEBOX_GO_ADMIN && window.ARMEBOX_GO_ADMIN('admin-products')">${t('adminProducts')}</button><button class="back-btn" type="button" id="adminAnalyticsBtn" data-admin-go="admin-analytics" onclick="window.ARMEBOX_GO_ADMIN && window.ARMEBOX_GO_ADMIN('admin-analytics')">Statistik</button><button class="back-btn" type="button" id="adminCustomersBtn" data-admin-go="admin-customers" onclick="window.ARMEBOX_GO_ADMIN && window.ARMEBOX_GO_ADMIN('admin-customers')">Kunden</button><button class="back-btn" type="button" id="adminDesignBtn" data-admin-go="admin-design" onclick="window.ARMEBOX_GO_ADMIN && window.ARMEBOX_GO_ADMIN('admin-design')">${t('adminDesign')}</button>
+          <button class="back-btn" type="button" id="adminArchiveTabBtn" data-admin-archive-tab="1">Archiv</button><button class="back-btn" id="adminRefreshBtn">${t('adminRefresh')}</button>
           <button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button>
         </div>
       </div>
@@ -2339,6 +2358,19 @@ function bindCommon(){
   }
   document.querySelectorAll('[data-nav]').forEach(btn=>btn.onclick=()=>setRoute(btn.getAttribute('data-nav')));
   document.querySelectorAll('[data-nav-page]').forEach(btn=>btn.onclick=()=>{ state.currentPageSlug=btn.getAttribute('data-nav-page'); setRoute('page'); });
+  document.querySelectorAll('[data-admin-go]').forEach(btn=>btn.onclick=(e)=>{
+    e.preventDefault();
+    const route = btn.getAttribute('data-admin-go');
+    if(route) goAdminRoute(route);
+  });
+  document.querySelectorAll('[data-admin-archive-tab]').forEach(btn=>btn.onclick=(e)=>{
+    e.preventDefault();
+    state.admin.filter='archived';
+    history.replaceState(null,'','#admin-orders');
+    state.route='admin-orders';
+    save();
+    render();
+  });
 }
 function bindMachine(){
   document.querySelectorAll('.slot').forEach(el=>el.onclick=(e)=>{
@@ -2932,6 +2964,49 @@ function renderAdminDesign(){
     <div class="admin-primary-row sticky-save"><button class="cta primary" id="adminSaveDesignBtn">${t('adminDesignSave')}</button></div>
   </div></div>`;
 }
+
+function renderInventoryOverview(products){
+  const list = Array.isArray(products) ? [...products] : [];
+  const rows = list
+    .sort((a,b)=>Number(a.slotNumber || a.slot || 0)-Number(b.slotNumber || b.slot || 0))
+    .map(product => {
+      const stock = productStock(product);
+      const name = product?.name?.de || product?.name_de || product?.name || `Slot ${product?.slotNumber || product?.slot || ''}`;
+      const slot = product?.slotNumber || product?.slot || '-';
+      const price = Number(product?.price || product?.price_chf || 0);
+      const value = stock.current * price;
+      return `
+        <tr>
+          <td><strong>${escapeHtml(String(slot).padStart(2,'0'))}</strong></td>
+          <td>${escapeHtml(name)}</td>
+          <td>${money(price)}</td>
+          <td>${stock.total}</td>
+          <td><strong>${stock.current}</strong></td>
+          <td>${stock.min}</td>
+          <td><span class="inventory-pill ${stockStatusClass(product)}">${stockStatusText(product)}</span></td>
+          <td>${money(value)}</td>
+        </tr>`;
+    }).join('');
+  const totalCurrent = list.reduce((sum,p)=>sum + productStock(p).current,0);
+  const totalValue = list.reduce((sum,p)=>sum + productStock(p).current * Number(p.price || p.price_chf || 0),0);
+  return `
+    <div class="inventory-overview card">
+      <div class="section-title-row">
+        <div>
+          <h3>Gesamtübersicht Ware</h3>
+          <div class="note">Interne Lagerübersicht: effektiver Bestand, Mindestbestand und Lagerwert.</div>
+        </div>
+        <div class="inventory-mini-summary"><strong>${totalCurrent}</strong> Stück · <strong>${money(totalValue)}</strong></div>
+      </div>
+      <div class="inventory-overview-table">
+        <table class="admin-table">
+          <thead><tr><th>Slot</th><th>Produkt</th><th>Preis</th><th>Gesamt</th><th>Ist</th><th>Min.</th><th>Status</th><th>Wert</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="8">Keine Produkte vorhanden.</td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
 function renderAdminProducts(){
   const products = adminProductsList();
   return `
@@ -3010,7 +3085,7 @@ function renderAdminProducts(){
           </div>
         `).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
       </div>
-      ${renderInventoryOverview(products)}
+      ${typeof renderInventoryOverview === 'function' ? renderInventoryOverview(products) : ''}
       <div class="admin-primary-row">
         <button class="cta primary" id="adminSaveProductsBtn" ${state.admin.productsSaving ? 'disabled' : ''}>${state.admin.productsSaving ? t('adminProductsSaving') : t('adminProductsSave')}</button>
       </div>
@@ -3022,13 +3097,13 @@ function bindAdminOrders(){
   const refresh = document.getElementById('adminRefreshBtn');
   if(refresh) refresh.onclick = ()=>loadAdminOrders();
   const productsBtn = document.getElementById('adminProductsBtn');
-  if(productsBtn) productsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-products'); state.route='admin-products'; loadAdminProducts(); };
+  if(productsBtn) productsBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-products'); };
   const designBtn = document.getElementById('adminDesignBtn');
-  if(designBtn) designBtn.onclick = ()=>{ history.replaceState(null,'','#admin-design'); state.route='admin-design'; loadAdminDesign(); };
+  if(designBtn) designBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-design'); };
   const analyticsBtn = document.getElementById('adminAnalyticsBtn');
-  if(analyticsBtn) analyticsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-analytics'); state.route='admin-analytics'; loadAdminAnalytics(); };
+  if(analyticsBtn) analyticsBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-analytics'); };
   const customersBtn = document.getElementById('adminCustomersBtn');
-  if(customersBtn) customersBtn.onclick = ()=>{ history.replaceState(null,'','#admin-customers'); state.route='admin-customers'; loadAdminCustomers(); };
+  if(customersBtn) customersBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-customers'); };
   const archiveTab = document.getElementById('adminArchiveTabBtn');
   if(archiveTab) archiveTab.onclick = ()=>{ state.admin.filter='archived'; save(); render(); };
   const logout = document.getElementById('adminLogoutBtn');
@@ -3079,13 +3154,13 @@ function bindAdminOrder(){
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
   const productsBtn = document.getElementById('adminGoProductsBtn');
-  if(productsBtn) productsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-products'); state.route='admin-products'; loadAdminProducts(); };
+  if(productsBtn) productsBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-products'); };
   const designBtn = document.getElementById('adminDesignBtn');
-  if(designBtn) designBtn.onclick = ()=>{ history.replaceState(null,'','#admin-design'); state.route='admin-design'; loadAdminDesign(); };
+  if(designBtn) designBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-design'); };
   const analyticsBtn = document.getElementById('adminAnalyticsBtn');
-  if(analyticsBtn) analyticsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-analytics'); state.route='admin-analytics'; loadAdminAnalytics(); };
+  if(analyticsBtn) analyticsBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-analytics'); };
   const customersBtn = document.getElementById('adminCustomersBtn');
-  if(customersBtn) customersBtn.onclick = ()=>{ history.replaceState(null,'','#admin-customers'); state.route='admin-customers'; loadAdminCustomers(); };
+  if(customersBtn) customersBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-customers'); };
   const printBtn = document.getElementById('adminPrintDeliveryNoteBtn');
   if(printBtn) printBtn.onclick = ()=>printDeliveryNote();
   const saveBtn = document.getElementById('adminSaveStatusBtn');
