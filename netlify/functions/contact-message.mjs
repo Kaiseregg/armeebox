@@ -34,7 +34,7 @@ export default async (request) => {
     try{
       await supa('contact_messages', {method:'POST', headers:{Prefer:'return=minimal'}, body:JSON.stringify(payload)});
       stored=true;
-    }catch(e){ console.warn('contact_messages insert skipped/failed', e.message); }
+    }catch(e){ console.warn('contact_messages insert failed', e.message); }
     const mailed = await sendMail(payload);
     return json(200, {success:true, stored, mailed});
   }catch(error){
