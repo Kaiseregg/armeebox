@@ -664,3 +664,50 @@ input[type="color"]{height:44px;padding:4px;cursor:pointer;}
   .namebar{min-height:44px;font-size:12px;}
   .slot-bundle .namebar{min-height:46px;}
 }
+
+
+/* STEP 11.6.5 definitive info-label persistence + readable slot names */
+.namebar,
+.slot-bundle .namebar{
+  min-height:58px !important;
+  height:auto !important;
+  max-height:none !important;
+  padding:8px 8px !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  text-align:center !important;
+  white-space:normal !important;
+  overflow:visible !important;
+  text-overflow:clip !important;
+  -webkit-line-clamp:unset !important;
+  -webkit-box-orient:unset !important;
+}
+.namebar .namebar-text,
+.namebar-bundle .namebar-text{
+  display:block !important;
+  width:100% !important;
+  max-width:100% !important;
+  white-space:normal !important;
+  overflow:visible !important;
+  text-overflow:clip !important;
+  -webkit-line-clamp:unset !important;
+  -webkit-box-orient:unset !important;
+  overflow-wrap:break-word !important;
+  word-break:normal !important;
+  line-height:1.18 !important;
+  font-size:13px !important;
+}
+.slot-info-strip{
+  min-height:28px !important;
+  height:auto !important;
+  white-space:normal !important;
+  overflow:visible !important;
+  text-overflow:clip !important;
+  line-height:1.15 !important;
+  font-size:12px !important;
+}
+@media(max-width:900px){
+  .namebar,.slot-bundle .namebar{min-height:54px !important;}
+  .namebar .namebar-text,.namebar-bundle .namebar-text{font-size:12px !important;}
+}
