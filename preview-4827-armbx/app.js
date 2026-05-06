@@ -2343,10 +2343,43 @@ function renderPageBlock(block){
   if(type === 'columns') return `<section class="pb-block pb-columns" style="${style}"><div>${escapeHtml(blockText(block,'left')).replace(/\n/g,'<br>')}</div><div>${escapeHtml(blockText(block,'right')).replace(/\n/g,'<br>')}</div></section>`;
   return `<section class="pb-block pb-text align-${align}" style="${style}">${escapeHtml(blockText(block,'text') || blockText(block,'title')).replace(/\n/g,'<br>')}</section>`;
 }
+function richTextHtml(value){
+  const lines = String(value || '').split(/\r?\n/);
+  const htmlLines = lines.map(line => {
+    let v = escapeHtml(line);
+    // light CMS formatting without dangerous HTML: **bold**, __underline__, *italic*
+    v = v.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    v = v.replace(/__([^_]+)__/g, '<u>$1</u>');
+    v = v.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    if(/^###\s+/.test(v)) return `<h3>${v.replace(/^###\s+/, '')}</h3>`;
+    if(/^##\s+/.test(v)) return `<h2>${v.replace(/^##\s+/, '')}</h2>`;
+    if(/^#\s+/.test(v)) return `<h1>${v.replace(/^#\s+/, '')}</h1>`;
+    if(/^[-•]\s+/.test(v)) return `<div class="cms-bullet">${v.replace(/^[-•]\s+/, '')}</div>`;
+    return v;
+  });
+  return htmlLines.join('<br>');
+}
+
 function renderPageContent(page){
   const blocks = pageBlocks(page).filter(Boolean);
-  if(blocks.length) return `<div class="page-builder-content">${blocks.map(renderPageBlock).join('')}</div>`;
-  return `<div class="content-card">${escapeHtml(page ? pageContent(page) : '').replace(/\n/g,'<br>')}</div>`;
+  const fallback = page ? pageContent(page).trim() : '';
+  const parts = [];
+
+  // Important: the normal page content must remain visible even when Page Builder modules exist.
+  // This is the base/fallback text field in the CMS. It is shown before the modules.
+  if(fallback){
+    parts.push(`<div class="content-card page-fallback-content">${richTextHtml(fallback)}</div>`);
+  }
+
+  if(blocks.length){
+    parts.push(`<div class="page-builder-content">${blocks.map(renderPageBlock).join('')}</div>`);
+  }
+
+  if(!parts.length){
+    parts.push(`<div class="content-card empty-page">${state.lang === 'fr' ? 'Contenu à venir.' : 'Inhalt folgt.'}</div>`);
+  }
+
+  return parts.join('');
 }
 function newPageBlock(type='text'){
   const base = { id: `blk_${Date.now()}_${Math.random().toString(16).slice(2)}`, type, align:'left', bgColor:'', textColor:'' };
