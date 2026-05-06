@@ -742,6 +742,17 @@ export default async (request) => {
       return json(200, { success: true, order: normalizeOrder(order || {}) });
     }
 
+    if (action === 'delete-order' && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const id = body.id;
+      if (!id) return json(400, { success: false, error: 'Missing order id' });
+
+      await supa(`order_items?order_id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await supa(`orders?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+
+      return json(200, { success: true, id });
+    }
+
     if (action === 'design' && request.method === 'GET') {
       const [settings, pages] = await Promise.all([getDesignSettings(), listSitePages()]);
       return json(200, { success: true, settings, pages });
