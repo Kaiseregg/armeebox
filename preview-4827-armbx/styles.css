@@ -515,3 +515,19 @@ input[type="color"]{height:44px;padding:4px;cursor:pointer;}
 .status-overview div{border:1px solid rgba(130,170,220,.25);border-radius:14px;padding:14px;background:rgba(255,255,255,.04)}
 .status-overview span{display:block;color:#c9d9ef;margin-bottom:6px}.status-overview strong{font-size:26px}
 @media (max-width:900px){.stats-grid,.analytics-grid,.status-overview{grid-template-columns:1fr}.bar-row{grid-template-columns:48px 1fr 76px}.top-product-row{grid-template-columns:28px 1fr}.top-product-row em,.top-product-row b{text-align:left}}
+
+/* STEP 11.3 CRM */
+.crm-stats { margin: 18px 0; }
+.crm-toolbar { display:grid; grid-template-columns: 1.4fr .7fr auto auto; gap:14px; align-items:end; }
+.crm-newsletter-box { margin: 16px 0; }
+.crm-newsletter-box h3 { margin:0 0 8px; font-size:22px; }
+.crm-card { border:1px solid rgba(140,178,230,.28); background:rgba(8,28,55,.72); border-radius:18px; padding:16px; display:grid; gap:12px; }
+.crm-card strong { display:block; font-size:16px; }
+.crm-card span { display:block; color:#b9cdeb; font-size:13px; margin-top:4px; }
+.crm-card-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; }
+.crm-card-grid em { font-style:normal; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px; font-size:12px; color:#b9cdeb; }
+.crm-card-grid b { color:#fff; font-size:15px; }
+@media (max-width: 900px){
+  .crm-toolbar { grid-template-columns: 1fr; }
+  .crm-card-grid { grid-template-columns: 1fr; }
+}

@@ -879,6 +879,11 @@ const state = {
     productsMessage: '',
     inventoryMovements: [],
     analytics: null,
+    customers: [],
+    customerSearch: '',
+    customerFilter: 'all',
+    newsletterSubject: '',
+    newsletterBody: '',
     stockAdjustments: {},
     search: '',
     filter: 'all',
@@ -1393,6 +1398,60 @@ async function loadAdminAnalytics(){
     render();
   }
 }
+
+async function loadAdminCustomers(){
+  state.admin.loading = true;
+  state.admin.loginError = '';
+  render();
+  try{
+    const data = await adminRequest('customers');
+    state.admin.customers = Array.isArray(data.customers) ? data.customers : [];
+  }catch(error){
+    state.admin.loginError = error.message || 'Kunden konnten nicht geladen werden';
+  }finally{
+    state.admin.loading = false;
+    save();
+    render();
+  }
+}
+function filteredAdminCustomers(){
+  const q = String(state.admin.customerSearch || '').trim().toLowerCase();
+  const filter = state.admin.customerFilter || 'all';
+  return (state.admin.customers || []).filter(c => {
+    const hasOrders = Number(c.order_count || 0) > 0;
+    const hasContact = Number(c.contact_count || 0) > 0;
+    if(filter === 'orders' && !hasOrders) return false;
+    if(filter === 'contacts' && !hasContact) return false;
+    if(!q) return true;
+    return [c.email, c.name, c.last_order_number, c.source].filter(Boolean).join(' ').toLowerCase().includes(q);
+  });
+}
+function customerCsv(customers){
+  const rows = [['Email','Name','Bestellungen','Umsatz CHF','Letzte Bestellung','Kontaktanfragen','Quelle']];
+  for(const c of customers || []) rows.push([
+    c.email || '', c.name || '', c.order_count || 0, Number(c.total_spent || 0).toFixed(2), c.last_order_at || '', c.contact_count || 0, c.source || ''
+  ]);
+  return rows.map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
+}
+function downloadCustomersCsv(){
+  const csv = customerCsv(filteredAdminCustomers());
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `armeebox-kunden-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+function copyCustomerEmails(){
+  const emails = filteredAdminCustomers().map(c=>c.email).filter(Boolean).join(', ');
+  navigator.clipboard?.writeText(emails);
+  state.admin.productsMessage = `${filteredAdminCustomers().length} E-Mail-Adressen kopiert.`;
+  save(); render();
+}
+
 async function loadAdminOrder(id){
   state.admin.loading = true;
   state.admin.loginError = '';
@@ -1720,7 +1779,7 @@ function resetOrderData(){
 }
 window.addEventListener('hashchange',()=>{
   const h=location.hash.replace('#','').split('?')[0];
-  if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products','admin-design','admin-analytics','page'].includes(h)){
+  if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products','admin-design','admin-analytics','admin-customers','page'].includes(h)){
     state.route=h;
     if(h==='admin-order'){
       const id = new URLSearchParams(location.search).get('id');
@@ -2044,7 +2103,7 @@ function renderAdminOrders(){
       <div class="admin-toolbar">
         <div><h1 style="margin:0;font-size:48px">${t('adminOrders')}</h1><div class="note">${t('adminListHint')}</div></div>
         <div class="admin-actions">
-          <button class="back-btn" id="adminProductsBtn">${t('adminProducts')}</button><button class="back-btn" id="adminAnalyticsBtn">Statistik</button><button class="back-btn" id="adminDesignBtn">${t('adminDesign')}</button>
+          <button class="back-btn" id="adminProductsBtn">${t('adminProducts')}</button><button class="back-btn" id="adminAnalyticsBtn">Statistik</button><button class="back-btn" id="adminCustomersBtn">Kunden</button><button class="back-btn" id="adminDesignBtn">${t('adminDesign')}</button>
           <button class="back-btn" id="adminRefreshBtn">${t('adminRefresh')}</button>
           <button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button>
         </div>
@@ -2568,6 +2627,83 @@ function renderContactPage(){
   </div></div>`;
 }
 
+
+function renderAdminCustomers(){
+  const customers = filteredAdminCustomers();
+  const all = state.admin.customers || [];
+  const totalRevenue = all.reduce((sum,c)=>sum + Number(c.total_spent || 0), 0);
+  const withOrders = all.filter(c=>Number(c.order_count || 0)>0).length;
+  const withContacts = all.filter(c=>Number(c.contact_count || 0)>0).length;
+  const rows = customers.map(c=>`
+    <tr>
+      <td><strong>${escapeHtml(c.email || '-')}</strong><div class="note">${escapeHtml(c.name || '')}</div></td>
+      <td>${Number(c.order_count || 0)}</td>
+      <td>${money(c.total_spent || 0)}</td>
+      <td>${escapeHtml(c.last_order_at ? formatDate(c.last_order_at) : '-')}<div class="note">${escapeHtml(c.last_order_number || '')}</div></td>
+      <td>${Number(c.contact_count || 0)}</td>
+      <td><span class="admin-chip ${Number(c.order_count||0)>0?'done':'new'}">${escapeHtml(c.source || 'Kunde')}</span></td>
+    </tr>`).join('');
+  const cards = customers.map(c=>`
+    <div class="crm-card">
+      <div><strong>${escapeHtml(c.email || '-')}</strong><span>${escapeHtml(c.name || '')}</span></div>
+      <div class="crm-card-grid"><em>Bestellungen<br><b>${Number(c.order_count||0)}</b></em><em>Umsatz<br><b>${money(c.total_spent||0)}</b></em><em>Kontakt<br><b>${Number(c.contact_count||0)}</b></em></div>
+      <div class="note">Letzte Bestellung: ${escapeHtml(c.last_order_at ? formatDate(c.last_order_at) : '-')}</div>
+    </div>`).join('');
+  return `
+  ${topbar()}
+  <div class="page"><div class="shell admin-shell">
+    <div class="admin-toolbar">
+      <div><h1 style="margin:0;font-size:44px">Kunden / CRM</h1><div class="note">E-Mail-Datenbank, Kundenwert und Newsletter-Vorbereitung</div></div>
+      <div class="admin-actions"><button class="back-btn" id="adminCustomersBackBtn">${t('adminBackOrders')}</button><button class="back-btn" id="adminCustomersRefreshBtn">Aktualisieren</button><button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button></div>
+    </div>
+    ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
+    ${state.admin.productsMessage ? `<div class="note">${escapeHtml(state.admin.productsMessage)}</div>` : ''}
+    ${state.admin.loading ? `<div class="note">Kunden werden geladen …</div>` : `
+      <div class="stats-grid crm-stats">
+        <div class="stat-card"><span>Kunden gesamt</span><strong>${Number(all.length || 0)}</strong><small>eindeutige E-Mails</small></div>
+        <div class="stat-card"><span>Mit Bestellung</span><strong>${Number(withOrders)}</strong><small>Käufer</small></div>
+        <div class="stat-card"><span>Kontaktanfragen</span><strong>${Number(withContacts)}</strong><small>aus Formular</small></div>
+        <div class="stat-card"><span>Kundenumsatz</span><strong>${money(totalRevenue)}</strong><small>gesamt</small></div>
+      </div>
+      <div class="card admin-filters crm-toolbar">
+        <div class="field" style="margin:0"><label>Suche</label><input id="adminCustomerSearchInput" type="search" placeholder="E-Mail, Name, Bestellung" value="${escapeAttr(state.admin.customerSearch || '')}"></div>
+        <div class="field" style="margin:0"><label>Filter</label><select id="adminCustomerFilterSelect" class="form-select"><option value="all" ${state.admin.customerFilter==='all'?'selected':''}>Alle</option><option value="orders" ${state.admin.customerFilter==='orders'?'selected':''}>Nur Käufer</option><option value="contacts" ${state.admin.customerFilter==='contacts'?'selected':''}>Nur Kontaktformular</option></select></div>
+        <button class="back-btn" id="adminCopyEmailsBtn">E-Mails kopieren</button>
+        <button class="back-btn" id="adminExportCustomersBtn">CSV Export</button>
+      </div>
+      <div class="card crm-newsletter-box">
+        <h3>Newsletter Vorbereitung</h3>
+        <div class="note">Noch kein Massenversand: hier bereitest du Betreff/Text vor und exportierst Empfänger sauber als CSV oder kopierst die Liste.</div>
+        <div class="admin-product-row admin-product-row-equal"><div class="field"><label>Betreff</label><input id="newsletterSubjectInput" value="${escapeAttr(state.admin.newsletterSubject || '')}" placeholder="z. B. Neue Fresspäckli Aktion"></div><div class="field"><label>Empfänger aktuell</label><input readonly value="${customers.length} Empfänger"></div></div>
+        <div class="field"><label>Nachricht</label><textarea id="newsletterBodyInput" class="cms-editor" placeholder="Newsletter Text hier vorbereiten …">${escapeHtml(state.admin.newsletterBody || '')}</textarea></div>
+      </div>
+      <div class="card table-wrap">
+        ${customers.length ? `<div class="admin-table-desktop"><table class="admin-table"><thead><tr><th>Kunde</th><th>Bestellungen</th><th>Umsatz</th><th>Letzte Bestellung</th><th>Kontakt</th><th>Quelle</th></tr></thead><tbody>${rows}</tbody></table></div><div class="admin-mobile-list">${cards}</div>` : `<div class="note">Keine Kunden gefunden.</div>`}
+      </div>
+    `}
+  </div></div>`;
+}
+function bindAdminCustomers(){
+  const back = document.getElementById('adminCustomersBackBtn');
+  if(back) back.onclick = ()=>{ history.replaceState(null,'','#admin-orders'); state.route='admin-orders'; loadAdminOrders(); };
+  const refresh = document.getElementById('adminCustomersRefreshBtn');
+  if(refresh) refresh.onclick = ()=>loadAdminCustomers();
+  const logout = document.getElementById('adminLogoutBtn');
+  if(logout) logout.onclick = ()=>doAdminLogout();
+  const search = document.getElementById('adminCustomerSearchInput');
+  if(search) search.oninput = ()=>{ const value=search.value; state.admin.customerSearch=value; save(); render(); requestAnimationFrame(()=>{ const n=document.getElementById('adminCustomerSearchInput'); if(n){ n.focus(); try{n.setSelectionRange(value.length,value.length)}catch(_){}} }); };
+  const filter = document.getElementById('adminCustomerFilterSelect');
+  if(filter) filter.onchange = ()=>{ state.admin.customerFilter=filter.value; save(); render(); };
+  const copy = document.getElementById('adminCopyEmailsBtn');
+  if(copy) copy.onclick = ()=>copyCustomerEmails();
+  const exp = document.getElementById('adminExportCustomersBtn');
+  if(exp) exp.onclick = ()=>downloadCustomersCsv();
+  const subj = document.getElementById('newsletterSubjectInput');
+  if(subj) subj.oninput = ()=>{ state.admin.newsletterSubject=subj.value; save(); };
+  const body = document.getElementById('newsletterBodyInput');
+  if(body) body.oninput = ()=>{ state.admin.newsletterBody=body.value; save(); };
+}
+
 function renderAdminAnalytics(){
   const a = state.admin.analytics || {};
   const s = a.summary || {};
@@ -2766,6 +2902,8 @@ function bindAdminOrders(){
   if(designBtn) designBtn.onclick = ()=>{ history.replaceState(null,'','#admin-design'); state.route='admin-design'; loadAdminDesign(); };
   const analyticsBtn = document.getElementById('adminAnalyticsBtn');
   if(analyticsBtn) analyticsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-analytics'); state.route='admin-analytics'; loadAdminAnalytics(); };
+  const customersBtn = document.getElementById('adminCustomersBtn');
+  if(customersBtn) customersBtn.onclick = ()=>{ history.replaceState(null,'','#admin-customers'); state.route='admin-customers'; loadAdminCustomers(); };
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
   const search = document.getElementById('adminSearchInput');
@@ -2811,6 +2949,8 @@ function bindAdminOrder(){
   if(designBtn) designBtn.onclick = ()=>{ history.replaceState(null,'','#admin-design'); state.route='admin-design'; loadAdminDesign(); };
   const analyticsBtn = document.getElementById('adminAnalyticsBtn');
   if(analyticsBtn) analyticsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-analytics'); state.route='admin-analytics'; loadAdminAnalytics(); };
+  const customersBtn = document.getElementById('adminCustomersBtn');
+  if(customersBtn) customersBtn.onclick = ()=>{ history.replaceState(null,'','#admin-customers'); state.route='admin-customers'; loadAdminCustomers(); };
   const printBtn = document.getElementById('adminPrintDeliveryNoteBtn');
   if(printBtn) printBtn.onclick = ()=>printDeliveryNote();
   const saveBtn = document.getElementById('adminSaveStatusBtn');
@@ -2935,7 +3075,7 @@ function bindAdminProducts(){
   if(saveBtn) saveBtn.onclick = ()=>saveAdminProducts();
 }
 function render(){
-  if((state.route==='admin-orders' || state.route==='admin-order' || state.route==='admin-products' || state.route==='admin-design' || state.route==='admin-analytics') && !state.admin.loggedIn){
+  if((state.route==='admin-orders' || state.route==='admin-order' || state.route==='admin-products' || state.route==='admin-design' || state.route==='admin-analytics' || state.route==='admin-customers') && !state.admin.loggedIn){
     state.route = 'admin-login';
   }
   updateHash();
@@ -2952,6 +3092,7 @@ function render(){
   if(state.route==='admin-products') html=renderAdminProducts();
   if(state.route==='admin-design') html=renderAdminDesign();
   if(state.route==='admin-analytics') html=renderAdminAnalytics();
+  if(state.route==='admin-customers') html=renderAdminCustomers();
   if(state.route==='page') html=renderContentPage();
   app.innerHTML=html;
   bindCommon();
@@ -2966,10 +3107,11 @@ function render(){
   if(state.route==='admin-products') bindAdminProducts();
   if(state.route==='admin-design') bindAdminDesign();
   if(state.route==='admin-analytics') bindAdminAnalytics();
+  if(state.route==='admin-customers') bindAdminCustomers();
   if(state.route==='page' && state.currentPageSlug==='kontakt') bindContact();
 }
 const initialHash = location.hash.replace('#','').split('?')[0];
-if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products','admin-design','admin-analytics','page'].includes(initialHash)) {
+if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products','admin-design','admin-analytics','admin-customers','page'].includes(initialHash)) {
   state.route=initialHash;
 } else if(['grundidee','kontakt','agb'].includes(initialHash)) {
   state.currentPageSlug=initialHash; state.route='page';
@@ -2991,6 +3133,12 @@ if(['language','intro','shop','order','review','confirmation','admin-login','adm
       return;
     } else if(state.route==='admin-design') {
       await loadAdminDesign();
+      return;
+    } else if(state.route==='admin-analytics') {
+      await loadAdminAnalytics();
+      return;
+    } else if(state.route==='admin-customers') {
+      await loadAdminCustomers();
       return;
     } else if(state.route==='admin-order') {
       const id = new URLSearchParams(location.search).get('id');
