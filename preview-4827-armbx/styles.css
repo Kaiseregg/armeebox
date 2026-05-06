@@ -429,3 +429,26 @@ input[type="color"]{height:44px;padding:4px;cursor:pointer;}
   .inventory-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
   .inventory-row{grid-template-columns:1fr!important}
 }
+
+/* STEP 11.1 inventory movement UI */
+.stock-booking-row{
+  display:grid;
+  grid-template-columns: minmax(110px, .7fr) minmax(160px, 1fr) auto auto;
+  gap:10px;
+  align-items:end;
+  margin:10px 0 12px;
+  padding:10px;
+  border:1px solid rgba(130,170,220,.28);
+  border-radius:14px;
+  background:rgba(3,16,34,.35);
+}
+.cta.tiny{padding:10px 12px;min-height:42px;font-size:12px;white-space:nowrap}
+.inventory-history{margin-top:18px;padding:16px;border:1px solid rgba(130,170,220,.24);border-radius:18px;background:rgba(6,20,44,.45)}
+.inventory-history h3{margin:0 0 12px;font-size:18px}
+.inventory-history-table{display:grid;gap:6px}
+.inventory-history-row{display:grid;grid-template-columns: 150px 1.2fr .8fr 70px 90px;gap:10px;align-items:center;padding:9px 10px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.035);font-size:12px}
+.stock-ok-text{color:#8cffad;font-weight:800}.stock-out-text{color:#ff8b8b;font-weight:800}
+@media(max-width:760px){
+  .stock-booking-row{grid-template-columns:1fr;}
+  .inventory-history-row{grid-template-columns:1fr;gap:4px}
+}

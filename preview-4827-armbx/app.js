@@ -603,6 +603,14 @@ const texts = {
     stockOk: 'OK',
     stockLow: 'Knapp',
     stockOut: 'Ausverkauft',
+    adminStockAdd: 'Nachfüllen',
+    adminStockSet: 'Bestand setzen',
+    adminStockAmount: 'Menge',
+    adminStockHistory: 'Lagerbewegungen',
+    adminStockSale: 'Verkauf',
+    adminStockRestock: 'Nachfüllung',
+    adminStockCorrection: 'Korrektur',
+    adminStockRemove: 'Entnahme',
     adminImageUrl: 'Bild-URL',
     adminImageUpload: 'Bild hochladen / hier ablegen',
     adminImageUploading: 'Bild wird hochgeladen …',
@@ -776,6 +784,14 @@ const texts = {
     stockOk: 'OK',
     stockLow: 'Faible',
     stockOut: 'Épuisé',
+    adminStockAdd: 'Réassort',
+    adminStockSet: 'Définir stock',
+    adminStockAmount: 'Quantité',
+    adminStockHistory: 'Mouvements stock',
+    adminStockSale: 'Vente',
+    adminStockRestock: 'Réassort',
+    adminStockCorrection: 'Correction',
+    adminStockRemove: 'Sortie',
     adminImageUrl: 'URL image',
     adminImageUpload: 'Téléverser / déposer image ici',
     adminImageUploading: 'Téléversement de l’image …',
@@ -861,6 +877,8 @@ const state = {
     statusSaving: false,
     productsSaving: false,
     productsMessage: '',
+    inventoryMovements: [],
+    stockAdjustments: {},
     search: '',
     filter: 'all',
     design: null,
@@ -1470,6 +1488,7 @@ async function loadAdminProducts(){
   try{
     const data = await adminRequest('products');
     state.admin.products = Array.isArray(data.products) && data.products.length ? data.products : currentProducts();
+    state.admin.inventoryMovements = Array.isArray(data.movements) ? data.movements : [];
   }catch(error){
     state.admin.loginError = error.message || t('adminCatalogLoadError');
   }finally{
@@ -1562,6 +1581,7 @@ async function saveAdminProducts(){
     const products = Array.isArray(data.products) ? data.products : rows;
     state.admin.products = products;
     state.catalog.products = products;
+    state.admin.inventoryMovements = Array.isArray(data.movements) ? data.movements : state.admin.inventoryMovements;
     state.admin.productsMessage = t('adminProductsSaved');
   }catch(error){
     state.admin.loginError = error.message || t('adminCatalogLoadError');
@@ -1571,6 +1591,51 @@ async function saveAdminProducts(){
     render();
   }
 }
+
+async function adjustAdminStock(index, mode){
+  const products = adminProductsList();
+  const product = products[index];
+  if(!product || !product.id){
+    state.admin.loginError = 'Produkt nicht gefunden';
+    save(); render();
+    return;
+  }
+  const key = String(product.id);
+  const adjustment = state.admin.stockAdjustments?.[key] || {};
+  const value = Number(adjustment.value || 0);
+  if(!Number.isFinite(value) || value < 0){
+    state.admin.loginError = 'Bitte eine gültige Menge eingeben';
+    save(); render();
+    return;
+  }
+  state.admin.productsSaving = true;
+  state.admin.loginError = '';
+  state.admin.productsMessage = '';
+  save(); render();
+  try{
+    const data = await adminRequest('adjust-stock', { method:'POST', body:{ product_id: product.id, mode, value, reason: adjustment.reason || '' } });
+    if(Array.isArray(data.products)){
+      state.admin.products = data.products;
+      state.catalog.products = data.products;
+    }
+    state.admin.inventoryMovements = Array.isArray(data.movements) ? data.movements : state.admin.inventoryMovements;
+    state.admin.stockAdjustments = { ...(state.admin.stockAdjustments || {}), [key]: { value:'', reason:'' } };
+    state.admin.productsMessage = 'Lager wurde aktualisiert.';
+  }catch(error){
+    state.admin.loginError = error.message || 'Lager konnte nicht aktualisiert werden';
+  }finally{
+    state.admin.productsSaving = false;
+    save(); render();
+  }
+}
+function movementLabel(type){
+  if(type === 'sale') return t('adminStockSale');
+  if(type === 'restock') return t('adminStockRestock');
+  if(type === 'correction') return t('adminStockCorrection');
+  if(type === 'manual_remove') return t('adminStockRemove');
+  return String(type || '-');
+}
+
 function cartItemsDetailed(){
   const products = currentProducts();
   return state.cart.map((entry)=>{
@@ -2581,6 +2646,12 @@ function renderAdminProducts(){
               <div class="field"><label>${t('adminStockMin')}</label><input data-product-field="stock_min" data-product-index="${index}" type="number" min="0" step="1" value="${escapeAttr(String(productStock(product).min))}"></div>
               <div class="inventory-status ${stockStatusClass(product)}"><strong>${t('adminStockStatus')}</strong><span>${stockStatusText(product)}</span></div>
             </div>
+            <div class="stock-booking-row">
+              <div class="field"><label>${t('adminStockAmount')}</label><input data-stock-adjust-value="${index}" type="number" min="0" step="1" value="${escapeAttr(String(state.admin.stockAdjustments?.[String(product.id)]?.value || ''))}" placeholder="0"></div>
+              <div class="field"><label>Grund / Notiz</label><input data-stock-adjust-reason="${index}" value="${escapeAttr(String(state.admin.stockAdjustments?.[String(product.id)]?.reason || ''))}" placeholder="Nachfüllung, Korrektur..."></div>
+              <button class="cta tiny" data-stock-add="${index}" type="button">+ ${t('adminStockAdd')}</button>
+              <button class="cta tiny" data-stock-set="${index}" type="button">${t('adminStockSet')}</button>
+            </div>
             <div class="admin-product-row admin-product-row-equal bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}">
               <div class="field"><label>${t('adminBundleContentDe')}</label><textarea data-product-field="bundle_content_de" data-product-index="${index}">${escapeHtml(product.bundle_content?.de || '')}</textarea></div>
               <div class="field"><label>${t('adminBundleContentFr')}</label><textarea data-product-field="bundle_content_fr" data-product-index="${index}">${escapeHtml(product.bundle_content?.fr || '')}</textarea></div>
@@ -2598,6 +2669,21 @@ function renderAdminProducts(){
             </div>
           </div>
         `).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
+      </div>
+      <div class="inventory-history card-soft">
+        <h3>${t('adminStockHistory')}</h3>
+        ${(state.admin.inventoryMovements || []).length ? `
+          <div class="inventory-history-table">
+            ${(state.admin.inventoryMovements || []).slice(0, 20).map(m => `
+              <div class="inventory-history-row">
+                <span>${escapeHtml(new Date(m.created_at || Date.now()).toLocaleString('de-CH'))}</span>
+                <strong>${escapeHtml(m.product_name || '-')}</strong>
+                <span>${escapeHtml(movementLabel(m.movement_type))}</span>
+                <span class="${Number(m.quantity || 0) < 0 ? 'stock-out-text' : 'stock-ok-text'}">${Number(m.quantity || 0) > 0 ? '+' : ''}${escapeHtml(String(m.quantity || 0))}</span>
+                <span>${escapeHtml(String(m.stock_before ?? ''))} → ${escapeHtml(String(m.stock_after ?? ''))}</span>
+              </div>
+            `).join('')}
+          </div>` : `<div class="note">Noch keine Lagerbewegungen vorhanden.</div>`}
       </div>
       <div class="admin-primary-row">
         <button class="cta primary" id="adminSaveProductsBtn" ${state.admin.productsSaving ? 'disabled' : ''}>${state.admin.productsSaving ? t('adminProductsSaving') : t('adminProductsSave')}</button>
@@ -2752,6 +2838,30 @@ function bindAdminProducts(){
       moveAdminSlot(fromIndex, toIndex);
     });
   });
+
+  document.querySelectorAll('[data-stock-adjust-value]').forEach(input => {
+    input.oninput = () => {
+      const index = Number(input.getAttribute('data-stock-adjust-value'));
+      const product = adminProductsList()[index];
+      if(!product) return;
+      const key = String(product.id);
+      state.admin.stockAdjustments = { ...(state.admin.stockAdjustments || {}), [key]: { ...(state.admin.stockAdjustments?.[key] || {}), value: input.value } };
+      save();
+    };
+  });
+  document.querySelectorAll('[data-stock-adjust-reason]').forEach(input => {
+    input.oninput = () => {
+      const index = Number(input.getAttribute('data-stock-adjust-reason'));
+      const product = adminProductsList()[index];
+      if(!product) return;
+      const key = String(product.id);
+      state.admin.stockAdjustments = { ...(state.admin.stockAdjustments || {}), [key]: { ...(state.admin.stockAdjustments?.[key] || {}), reason: input.value } };
+      save();
+    };
+  });
+  document.querySelectorAll('[data-stock-add]').forEach(btn => btn.onclick = () => adjustAdminStock(Number(btn.getAttribute('data-stock-add')), 'add'));
+  document.querySelectorAll('[data-stock-set]').forEach(btn => btn.onclick = () => adjustAdminStock(Number(btn.getAttribute('data-stock-set')), 'set'));
+
   const saveBtn = document.getElementById('adminSaveProductsBtn');
   if(saveBtn) saveBtn.onclick = ()=>saveAdminProducts();
 }
