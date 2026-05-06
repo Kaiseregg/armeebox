@@ -544,3 +544,38 @@ input[type="color"]{height:44px;padding:4px;cursor:pointer;}
 
 
 .admin-row-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}.admin-row-actions .back-btn.mini{padding:8px 12px;font-size:13px;min-width:0}.back-btn.danger{border-color:#ff5b6b;color:#fff;background:rgba(120,20,35,.22)}.back-btn.danger:hover{background:rgba(180,35,55,.34)}.back-btn:disabled{opacity:.45;cursor:not-allowed}.card-actions{justify-content:flex-start;margin-top:12px}.admin-table th:last-child,.admin-table td:last-child{text-align:right;min-width:270px}@media(max-width:760px){.admin-row-actions{justify-content:stretch}.admin-row-actions .back-btn{flex:1 1 100%;text-align:center;justify-content:center}.admin-table th:last-child,.admin-table td:last-child{text-align:left;min-width:0}}
+
+/* STEP 11.6 feedback fixes */
+.slot-info-strip{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  min-height:26px;
+  margin:5px 0 0;
+  padding:5px 8px;
+  border-radius:10px;
+  border:1px solid rgba(210,255,110,.38);
+  background:rgba(6,18,32,.72);
+  color:#efff9c;
+  font-size:12px;
+  font-weight:800;
+  line-height:1.15;
+  cursor:pointer;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.slot-info-strip:hover{background:rgba(98,160,44,.28);border-color:rgba(210,255,110,.72)}
+.slot-bundle .namebar{margin-top:6px}
+.inventory-overview{margin-top:18px;padding:16px;border:1px solid rgba(130,170,220,.24);border-radius:18px;background:rgba(6,20,44,.45)}
+.section-title-row{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:12px;flex-wrap:wrap}
+.section-title-row h3{margin:0;font-size:20px}
+.inventory-overview-table{overflow:auto}
+.inventory-pill{display:inline-flex;align-items:center;justify-content:center;min-width:72px;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:900;border:1px solid rgba(255,255,255,.15)}
+.inventory-pill.stock-ok{background:rgba(31,151,82,.25);color:#78ffad;border-color:rgba(120,255,173,.35)}
+.inventory-pill.stock-low{background:rgba(201,142,32,.25);color:#ffd36d;border-color:rgba(255,211,109,.35)}
+.inventory-pill.stock-out{background:rgba(170,45,60,.25);color:#ff8e9a;border-color:rgba(255,142,154,.35)}
+.admin-products-grid{align-items:start}
+.stock-booking-row{align-items:end}
+@media(max-width:720px){.slot-info-strip{font-size:11px;min-height:24px}.section-title-row{align-items:flex-start}.inventory-overview .admin-table{min-width:620px}}

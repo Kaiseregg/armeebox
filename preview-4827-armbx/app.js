@@ -1989,11 +1989,9 @@ function renderMachine(){
             </div>
             <div class="price">${money(displayPriceValue)}</div>
             <div class="namebar ${isBundle ? 'namebar-bundle' : ''}" title="${escapeAttr(displayName)}">
-              ${isBundle ? `<button class="slot-mini-btn slot-info-btn" type="button" data-slot-info="${p.id}" aria-label="${t('slotInfo')}">
-                <span class="slot-info-icon">i</span>
-              </button>` : ''}
               <span class="namebar-text">${displayName}</span>
             </div>
+            ${isBundle ? `<button class="slot-info-strip" type="button" data-slot-info="${p.id}">${escapeHtml(localizedBundleLabel(p) || 'Info Inhalt')}</button>` : ''}
             <div class="select-light ${isBundle ? 'select-light-bundle' : ''}">
               ${isBundle ? `<select class="slot-bundle-select" data-slot-option-select="${p.id}" aria-label="${t('slotChooseOption')}">
                 ${(Array.isArray(p.quantity_options)&&p.quantity_options.length?p.quantity_options:[2,3,4]).map((opt)=>`<option value="${opt}" ${Number(opt)===Number(currentMultiplier)?'selected':''}>${opt}x</option>`).join('')}
@@ -2222,7 +2220,7 @@ function renderAdminOrders(){
         <div><h1 style="margin:0;font-size:48px">${t('adminOrders')}</h1><div class="note">${t('adminListHint')}</div></div>
         <div class="admin-actions">
           <button class="back-btn" id="adminProductsBtn">${t('adminProducts')}</button><button class="back-btn" id="adminAnalyticsBtn">Statistik</button><button class="back-btn" id="adminCustomersBtn">Kunden</button><button class="back-btn" id="adminDesignBtn">${t('adminDesign')}</button>
-          <button class="back-btn" id="adminRefreshBtn">${t('adminRefresh')}</button>
+          <button class="back-btn" id="adminArchiveTabBtn">Archiv</button><button class="back-btn" id="adminRefreshBtn">${t('adminRefresh')}</button>
           <button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button>
         </div>
       </div>
@@ -2818,6 +2816,8 @@ function bindAdminCustomers(){
   if(back) back.onclick = ()=>{ history.replaceState(null,'','#admin-orders'); state.route='admin-orders'; loadAdminOrders(); };
   const refresh = document.getElementById('adminCustomersRefreshBtn');
   if(refresh) refresh.onclick = ()=>loadAdminCustomers();
+  const archiveTab = document.getElementById('adminArchiveTabBtn');
+  if(archiveTab) archiveTab.onclick = ()=>{ state.admin.filter='archived'; save(); render(); };
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
   const search = document.getElementById('adminCustomerSearchInput');
@@ -2976,7 +2976,7 @@ function renderAdminProducts(){
               <div class="field"><label>${t('adminNameFr')}</label><input data-product-field="name_fr" data-product-index="${index}" value="${escapeAttr(product.name?.fr || product.name?.de || '')}"></div>
             </div>
             <div class="admin-product-row">
-              <div class="field"><label>${t('adminPrice')}</label><input data-product-field="price" data-product-index="${index}" type="number" min="0" step="0.05" value="${escapeAttr(String(product.price ?? 0))}"></div>
+              <div class="field"><label>${product.slot_type === 'bundle' ? 'Basispreis pro Auswahl/Einheit' : t('adminPrice')}</label><input data-product-field="price" data-product-index="${index}" type="number" min="0" step="0.05" value="${escapeAttr(String(product.price ?? 0))}"></div>
               <div class="field admin-active-field"><label>${t('adminActive')}</label><label class="admin-toggle"><input data-product-field="active" data-product-index="${index}" type="checkbox" ${product.active !== false ? 'checked' : ''}><span>${product.active !== false ? 'On' : 'Off'}</span></label></div>
             </div>
             <div class="admin-product-row admin-product-row-equal inventory-row">
@@ -3009,21 +3009,7 @@ function renderAdminProducts(){
           </div>
         `).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
       </div>
-      <div class="inventory-history card-soft">
-        <h3>${t('adminStockHistory')}</h3>
-        ${(state.admin.inventoryMovements || []).length ? `
-          <div class="inventory-history-table">
-            ${(state.admin.inventoryMovements || []).slice(0, 20).map(m => `
-              <div class="inventory-history-row">
-                <span>${escapeHtml(new Date(m.created_at || Date.now()).toLocaleString('de-CH'))}</span>
-                <strong>${escapeHtml(m.product_name || '-')}</strong>
-                <span>${escapeHtml(movementLabel(m.movement_type))}</span>
-                <span class="${Number(m.quantity || 0) < 0 ? 'stock-out-text' : 'stock-ok-text'}">${Number(m.quantity || 0) > 0 ? '+' : ''}${escapeHtml(String(m.quantity || 0))}</span>
-                <span>${escapeHtml(String(m.stock_before ?? ''))} → ${escapeHtml(String(m.stock_after ?? ''))}</span>
-              </div>
-            `).join('')}
-          </div>` : `<div class="note">Noch keine Lagerbewegungen vorhanden.</div>`}
-      </div>
+      ${renderInventoryOverview(products)}
       <div class="admin-primary-row">
         <button class="cta primary" id="adminSaveProductsBtn" ${state.admin.productsSaving ? 'disabled' : ''}>${state.admin.productsSaving ? t('adminProductsSaving') : t('adminProductsSave')}</button>
       </div>
