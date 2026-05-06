@@ -354,3 +354,78 @@ input[type="color"]{height:44px;padding:4px;cursor:pointer;}
 .pb-block{overflow-wrap:anywhere;}
 .pb-image img{display:block;margin-left:auto;margin-right:auto;}
 @media(max-width:720px){.page-fallback-content{font-size:16px;padding:16px}.pb-heading h2{font-size:26px}.pb-text{font-size:16px}.pb-quote blockquote{font-size:18px}.pb-columns{grid-template-columns:1fr}.pb-image img{max-height:280px}}
+
+/* STEP 11 – Inventory / Lagerverwaltung */
+.inventory-summary{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+  margin:14px 0 18px;
+}
+.inventory-summary>div{
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.07);
+  border-radius:16px;
+  padding:14px;
+  min-height:76px;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.inventory-summary strong{font-size:20px;line-height:1.1;color:#fff}
+.inventory-summary span{font-size:12px;color:rgba(255,255,255,.72)}
+.inventory-row{align-items:end}
+.inventory-status{
+  border-radius:14px;
+  padding:12px 14px;
+  min-height:58px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:4px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.06);
+}
+.inventory-status strong{font-size:12px;color:rgba(255,255,255,.72);font-weight:700}
+.inventory-status span{font-size:15px;font-weight:800}
+.stock-ok{color:#8ff0a4}
+.stock-low{color:#ffd166}
+.stock-out{color:#ff7b7b}
+.stock-mini{
+  margin:3px auto 4px;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  background:rgba(0,0,0,.28);
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:999px;
+  padding:3px 7px;
+  width:max-content;
+  max-width:90%;
+}
+.slot.is-sold-out{
+  opacity:.62;
+  filter:saturate(.55);
+  cursor:not-allowed;
+}
+.slot.is-sold-out .slot-product-img,
+.slot.is-sold-out .img-placeholder{filter:grayscale(.7)}
+.soldout-ribbon{
+  position:absolute;
+  z-index:5;
+  top:10px;
+  right:8px;
+  border-radius:999px;
+  padding:5px 9px;
+  font-size:10px;
+  font-weight:900;
+  color:#fff;
+  background:rgba(150,25,25,.92);
+  box-shadow:0 8px 18px rgba(0,0,0,.28);
+}
+.slot{position:relative}
+@media (max-width:760px){
+  .inventory-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .inventory-row{grid-template-columns:1fr!important}
+}

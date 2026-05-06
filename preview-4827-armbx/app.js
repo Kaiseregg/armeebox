@@ -596,6 +596,13 @@ const texts = {
     adminProductName: 'Produktname',
     adminPrice: 'Preis',
     adminActive: 'Aktiv',
+    adminStockTotal: 'Gesamtbestand',
+    adminStockCurrent: 'Aktueller Bestand',
+    adminStockMin: 'Mindestbestand',
+    adminStockStatus: 'Lagerstatus',
+    stockOk: 'OK',
+    stockLow: 'Knapp',
+    stockOut: 'Ausverkauft',
     adminImageUrl: 'Bild-URL',
     adminImageUpload: 'Bild hochladen / hier ablegen',
     adminImageUploading: 'Bild wird hochgeladen …',
@@ -762,6 +769,13 @@ const texts = {
     adminProductName: 'Nom du produit',
     adminPrice: 'Prix',
     adminActive: 'Actif',
+    adminStockTotal: 'Stock total',
+    adminStockCurrent: 'Stock actuel',
+    adminStockMin: 'Stock minimum',
+    adminStockStatus: 'Statut stock',
+    stockOk: 'OK',
+    stockLow: 'Faible',
+    stockOut: 'Épuisé',
     adminImageUrl: 'URL image',
     adminImageUpload: 'Téléverser / déposer image ici',
     adminImageUploading: 'Téléversement de l’image …',
@@ -1026,6 +1040,36 @@ function displayPrice(product){
   if(product?.slot_type === 'bundle') return base * selectedBundleMultiplier(product);
   return base;
 }
+
+function stockValue(value, fallback = 0){
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : fallback;
+}
+function productStock(product){
+  return {
+    total: stockValue(product?.stock_total, 0),
+    current: stockValue(product?.stock_current ?? product?.stock_total, 0),
+    min: stockValue(product?.stock_min, 0)
+  };
+}
+function isSoldOut(product){
+  const stock = productStock(product);
+  return stock.current <= 0;
+}
+function isLowStock(product){
+  const stock = productStock(product);
+  return stock.current > 0 && stock.min > 0 && stock.current <= stock.min;
+}
+function stockStatusClass(product){
+  if(isSoldOut(product)) return 'stock-out';
+  if(isLowStock(product)) return 'stock-low';
+  return 'stock-ok';
+}
+function stockStatusText(product){
+  if(isSoldOut(product)) return t('stockOut');
+  if(isLowStock(product)) return t('stockLow');
+  return t('stockOk');
+}
 function cartEntryProductId(entry){
   if(entry && typeof entry === 'object') return entry.productId ?? entry.id ?? '';
   return entry;
@@ -1046,7 +1090,7 @@ function openSlotInfo(productId){ state.ui.slotInfoProductId = String(productId)
 function closeSlotInfo(){ state.ui.slotInfoProductId = null; save(); render(); }
 function addBundleProduct(productId){
   const product = currentProducts().find((item)=>String(item.id)===String(productId));
-  if(!product) return;
+  if(!product || isSoldOut(product)) return;
   const multiplier = selectedBundleMultiplier(product);
   state.cart.push({ productId: String(product.id), kind: 'bundle', multiplier });
   save(); render();
@@ -1087,6 +1131,9 @@ function normalizeCatalogProduct(row, index){
     active: Boolean(row?.is_active ?? row?.active ?? true),
     image_url: row?.image_url || '',
     sort_order: Number(row?.sort_order ?? 0),
+    stock_total: stockValue(row?.stock_total ?? row?.initial_stock ?? 0, 0),
+    stock_current: stockValue(row?.stock_current ?? row?.current_stock ?? row?.stock_total ?? row?.initial_stock ?? 0, 0),
+    stock_min: stockValue(row?.stock_min ?? row?.minimum_stock ?? 0, 0),
     slot_type: meta.slot_type,
     bundle_content: { de: meta.content_de, fr: meta.content_fr || meta.content_de },
     option_label: { de: meta.option_label_de, fr: meta.option_label_fr || meta.option_label_de },
@@ -1501,6 +1548,9 @@ async function saveAdminProducts(){
       is_active: product.active !== false,
       image_url: product.image_url || '',
       sort_order: Number(product.sort_order || 0),
+      stock_total: stockValue(product.stock_total, 0),
+      stock_current: stockValue(product.stock_current, 0),
+      stock_min: stockValue(product.stock_min, 0),
       slot_type: product.slot_type === 'bundle' ? 'bundle' : 'normal',
       bundle_content_de: product.bundle_content?.de || '',
       bundle_content_fr: product.bundle_content?.fr || '',
@@ -1597,7 +1647,7 @@ window.addEventListener('hashchange',()=>{
     render();
   }
 });
-function onSelectProduct(id){ const product = currentProducts().find((item)=>String(item.id)===String(id)); if(!product) return; if(product.slot_type==='bundle'){ addBundleProduct(id); return; } state.cart.push(id); save(); render(); }
+function onSelectProduct(id){ const product = currentProducts().find((item)=>String(item.id)===String(id)); if(!product || isSoldOut(product)) return; if(product.slot_type==='bundle'){ addBundleProduct(id); return; } state.cart.push(id); save(); render(); }
 function removeOne(id){
   const key = String(id);
   const parts = key.split('::');
@@ -1680,7 +1730,8 @@ function renderMachine(){
             const displayName = p.name[state.lang];
             const displayPriceValue = displayPrice(p);
             return `
-          <div class="slot ${isBundle ? 'slot-bundle' : ''}" data-id="${p.id}" role="button" tabindex="0" aria-label="${escapeAttr(displayName)}">
+          <div class="slot ${isBundle ? 'slot-bundle' : ''} ${isSoldOut(p) ? 'is-sold-out' : ''}" data-id="${p.id}" role="button" tabindex="0" aria-label="${escapeAttr(displayName)}">
+            ${isSoldOut(p) ? `<div class="soldout-ribbon">${t('stockOut')}</div>` : ''}
             <div class="slot-top">
               <div class="slot-image-frame">
                 ${p.image_url ? `<img class="slot-product-img" src="${escapeAttr(p.image_url)}" alt="${escapeAttr(displayName)}" loading="lazy">` : `<div class="img-placeholder">SPÄTER BILD</div>`}
@@ -1688,6 +1739,7 @@ function renderMachine(){
               <div class="spirals">◜◜◜</div>
             </div>
             <div class="price">${money(displayPriceValue)}</div>
+            <div class="stock-mini ${stockStatusClass(p)}">${stockStatusText(p)} · ${productStock(p).current}</div>
             <div class="namebar ${isBundle ? 'namebar-bundle' : ''}" title="${escapeAttr(displayName)}">
               ${isBundle ? `<button class="slot-mini-btn slot-info-btn" type="button" data-slot-info="${p.id}" aria-label="${t('slotInfo')}">
                 <span class="slot-info-icon">i</span>
@@ -2495,6 +2547,12 @@ function renderAdminProducts(){
       </div>
       ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
       ${state.admin.productsMessage ? `<div class="note">${escapeHtml(state.admin.productsMessage)}</div>` : ''}
+      <div class="inventory-summary">
+        <div><strong>${products.length}</strong><span>Produkte</span></div>
+        <div><strong>${products.filter(p=>isLowStock(p)).length}</strong><span>${t('stockLow')}</span></div>
+        <div><strong>${products.filter(p=>isSoldOut(p)).length}</strong><span>${t('stockOut')}</span></div>
+        <div><strong>${money(products.reduce((sum,p)=>sum + productStock(p).current * Number(p.price || 0),0))}</strong><span>Lagerwert</span></div>
+      </div>
       <div class="admin-products-grid">
         ${products.length ? products.map((product, index) => `
           <div class="card admin-product-card" draggable="true" data-draggable-slot="${index}">
@@ -2516,6 +2574,12 @@ function renderAdminProducts(){
             <div class="admin-product-row">
               <div class="field"><label>${t('adminPrice')}</label><input data-product-field="price" data-product-index="${index}" type="number" min="0" step="0.05" value="${escapeAttr(String(product.price ?? 0))}"></div>
               <div class="field admin-active-field"><label>${t('adminActive')}</label><label class="admin-toggle"><input data-product-field="active" data-product-index="${index}" type="checkbox" ${product.active !== false ? 'checked' : ''}><span>${product.active !== false ? 'On' : 'Off'}</span></label></div>
+            </div>
+            <div class="admin-product-row admin-product-row-equal inventory-row">
+              <div class="field"><label>${t('adminStockTotal')}</label><input data-product-field="stock_total" data-product-index="${index}" type="number" min="0" step="1" value="${escapeAttr(String(productStock(product).total))}"></div>
+              <div class="field"><label>${t('adminStockCurrent')}</label><input data-product-field="stock_current" data-product-index="${index}" type="number" min="0" step="1" value="${escapeAttr(String(productStock(product).current))}"></div>
+              <div class="field"><label>${t('adminStockMin')}</label><input data-product-field="stock_min" data-product-index="${index}" type="number" min="0" step="1" value="${escapeAttr(String(productStock(product).min))}"></div>
+              <div class="inventory-status ${stockStatusClass(product)}"><strong>${t('adminStockStatus')}</strong><span>${stockStatusText(product)}</span></div>
             </div>
             <div class="admin-product-row admin-product-row-equal bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}">
               <div class="field"><label>${t('adminBundleContentDe')}</label><textarea data-product-field="bundle_content_de" data-product-index="${index}">${escapeHtml(product.bundle_content?.de || '')}</textarea></div>
