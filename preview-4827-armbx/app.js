@@ -2211,6 +2211,58 @@ function bindContact(){
   });
   const btn=document.getElementById('contactSendBtn'); if(btn) btn.onclick=()=>submitContact();
 }
+
+function addPageBlock(pageIndex, type){
+  const page = state.admin.pages?.[pageIndex];
+  if(!page) return;
+  const meta = ensurePageMeta(page);
+  meta.blocks.push(newPageBlock(type));
+  save(); render();
+}
+function movePageBlock(pageIndex, blockIndex, delta){
+  const page = state.admin.pages?.[pageIndex];
+  if(!page) return;
+  const blocks = ensurePageMeta(page).blocks;
+  const j = blockIndex + delta;
+  if(blockIndex < 0 || j < 0 || blockIndex >= blocks.length || j >= blocks.length) return;
+  [blocks[blockIndex], blocks[j]] = [blocks[j], blocks[blockIndex]];
+  save(); render();
+}
+function deletePageBlock(pageIndex, blockIndex){
+  const page = state.admin.pages?.[pageIndex];
+  if(!page) return;
+  const blocks = ensurePageMeta(page).blocks;
+  blocks.splice(blockIndex, 1);
+  save(); render();
+}
+async function uploadCmsBlockImage(pageIndex, blockIndex, file){
+  if(!file) return;
+  const page = state.admin.pages?.[pageIndex];
+  const block = page ? ensurePageMeta(page).blocks?.[blockIndex] : null;
+  if(!block) return;
+  const allowed = ['image/jpeg','image/png','image/webp','image/gif'];
+  if(file.type && !allowed.includes(file.type)){
+    state.admin.loginError = 'Nur JPG, PNG, WebP oder GIF erlaubt'; save(); render(); return;
+  }
+  if(file.size && file.size > 8 * 1024 * 1024){
+    state.admin.loginError = 'Bild ist zu gross. Maximum 8 MB.'; save(); render(); return;
+  }
+  state.admin.productsMessage = 'CMS Bild wird hochgeladen …'; state.admin.loginError=''; save(); render();
+  try{
+    const form = new FormData();
+    form.append('file', file);
+    form.append('slot', `cms-${page.slug || pageIndex}`);
+    const response = await fetch('/.netlify/functions/upload-product-image', { method:'POST', body: form, credentials:'same-origin' });
+    const data = await response.json().catch(()=>({}));
+    if(!response.ok || data.success === false || !data.publicUrl) throw new Error(data.error || 'Upload fehlgeschlagen');
+    const freshPage = state.admin.pages?.[pageIndex];
+    const freshBlock = freshPage ? ensurePageMeta(freshPage).blocks?.[blockIndex] : null;
+    if(freshBlock) freshBlock.image_url = data.publicUrl;
+    state.admin.productsMessage = 'CMS Bild hochgeladen. Bitte Design speichern.';
+    save(); render();
+  }catch(error){ state.admin.loginError = error.message || 'Upload fehlgeschlagen'; save(); render(); }
+}
+
 function bindAdminDesign(){
   const back=document.getElementById('adminDesignBackBtn'); if(back) back.onclick=()=>{ history.replaceState(null,'','#admin-orders'); state.route='admin-orders'; loadAdminOrders(); };
   const logout=document.getElementById('adminLogoutBtn'); if(logout) logout.onclick=()=>doAdminLogout();
@@ -2219,6 +2271,12 @@ function bindAdminDesign(){
   document.querySelectorAll('[data-page-delete]').forEach(btn=>btn.onclick=()=>{ const i=Number(btn.getAttribute('data-page-delete')); const p=state.admin.pages?.[i]; if(!p) return; if(confirm(`Seite wirklich löschen: ${p.slug}?`)){ state.admin.pages.splice(i,1); save(); render(); } });
   document.querySelectorAll('[data-page-up]').forEach(btn=>btn.onclick=()=>moveAdminPage(Number(btn.getAttribute('data-page-up')),-1));
   document.querySelectorAll('[data-page-down]').forEach(btn=>btn.onclick=()=>moveAdminPage(Number(btn.getAttribute('data-page-down')),1));
+  document.querySelectorAll('[data-add-block]').forEach(btn=>btn.onclick=()=>addPageBlock(Number(btn.getAttribute('data-page-index')), btn.getAttribute('data-add-block')));
+  document.querySelectorAll('[data-block-field]').forEach(el=>el.oninput=()=>{ const pi=Number(el.getAttribute('data-page-index')); const bi=Number(el.getAttribute('data-block-index')); const f=el.getAttribute('data-block-field'); const page=state.admin.pages?.[pi]; const block=page ? ensurePageMeta(page).blocks?.[bi] : null; if(block){ block[f]=el.value; save(); } });
+  document.querySelectorAll('[data-block-up]').forEach(btn=>btn.onclick=()=>movePageBlock(Number(btn.getAttribute('data-page-index')), Number(btn.getAttribute('data-block-index')), -1));
+  document.querySelectorAll('[data-block-down]').forEach(btn=>btn.onclick=()=>movePageBlock(Number(btn.getAttribute('data-page-index')), Number(btn.getAttribute('data-block-index')), 1));
+  document.querySelectorAll('[data-block-delete]').forEach(btn=>btn.onclick=()=>deletePageBlock(Number(btn.getAttribute('data-page-index')), Number(btn.getAttribute('data-block-index'))));
+  document.querySelectorAll('[data-block-upload]').forEach(input=>input.onchange=()=>uploadCmsBlockImage(Number(input.getAttribute('data-page-index')), Number(input.getAttribute('data-block-index')), input.files?.[0]));
   const add=document.getElementById('adminAddPageBtn'); if(add) add.onclick=()=>addAdminPage();
   const saveBtn=document.getElementById('adminSaveDesignBtn'); if(saveBtn) saveBtn.onclick=()=>saveAdminDesign();
 }
@@ -2243,6 +2301,79 @@ function bindAdminLogin(){
 }
 
 
+
+function pageBlocks(page){
+  const meta = page?.meta && typeof page.meta === 'object' ? page.meta : {};
+  return Array.isArray(meta.blocks) ? meta.blocks : [];
+}
+function ensurePageMeta(page){
+  if(!page.meta || typeof page.meta !== 'object') page.meta = {};
+  if(!Array.isArray(page.meta.blocks)) page.meta.blocks = [];
+  return page.meta;
+}
+function blockText(block, key){
+  const langKey = `${key}_${state.lang}`;
+  const deKey = `${key}_de`;
+  const frKey = `${key}_fr`;
+  return String(block?.[langKey] || block?.[deKey] || block?.[frKey] || '');
+}
+function renderButtonUrl(url){
+  const value = String(url || '').trim();
+  if(!value) return '#';
+  if(value.startsWith('#') || value.startsWith('/') || /^https?:\/\//i.test(value) || /^mailto:/i.test(value)) return value;
+  return `#${slugifyPage(value)}`;
+}
+function renderPageBlock(block){
+  const type = block?.type || 'text';
+  const align = ['left','center','right'].includes(block?.align) ? block.align : 'left';
+  const style = `${block?.bgColor ? `--block-bg:${escapeAttr(block.bgColor)};` : ''}${block?.textColor ? `--block-color:${escapeAttr(block.textColor)};` : ''}`;
+  if(type === 'heading') return `<section class="pb-block pb-heading align-${align}" style="${style}"><h2>${escapeHtml(blockText(block,'title'))}</h2></section>`;
+  if(type === 'image'){
+    const url = String(block?.image_url || '').trim();
+    const alt = blockText(block,'alt') || blockText(block,'title');
+    if(!url) return '';
+    return `<section class="pb-block pb-image align-${align}" style="${style}"><img src="${escapeAttr(url)}" alt="${escapeAttr(alt)}"></section>`;
+  }
+  if(type === 'button'){
+    const label = blockText(block,'label') || 'Mehr erfahren';
+    return `<section class="pb-block pb-button align-${align}" style="${style}"><a class="cta primary" href="${escapeAttr(renderButtonUrl(block?.url))}">${escapeHtml(label)}</a></section>`;
+  }
+  if(type === 'divider') return `<div class="pb-divider"></div>`;
+  if(type === 'quote') return `<section class="pb-block pb-quote align-${align}" style="${style}"><blockquote>${escapeHtml(blockText(block,'text')).replace(/\n/g,'<br>')}</blockquote></section>`;
+  if(type === 'columns') return `<section class="pb-block pb-columns" style="${style}"><div>${escapeHtml(blockText(block,'left')).replace(/\n/g,'<br>')}</div><div>${escapeHtml(blockText(block,'right')).replace(/\n/g,'<br>')}</div></section>`;
+  return `<section class="pb-block pb-text align-${align}" style="${style}">${escapeHtml(blockText(block,'text') || blockText(block,'title')).replace(/\n/g,'<br>')}</section>`;
+}
+function renderPageContent(page){
+  const blocks = pageBlocks(page).filter(Boolean);
+  if(blocks.length) return `<div class="page-builder-content">${blocks.map(renderPageBlock).join('')}</div>`;
+  return `<div class="content-card">${escapeHtml(page ? pageContent(page) : '').replace(/\n/g,'<br>')}</div>`;
+}
+function newPageBlock(type='text'){
+  const base = { id: `blk_${Date.now()}_${Math.random().toString(16).slice(2)}`, type, align:'left', bgColor:'', textColor:'' };
+  if(type === 'heading') return { ...base, title_de:'Neue Überschrift', title_fr:'Nouveau titre' };
+  if(type === 'image') return { ...base, image_url:'', alt_de:'Bild', alt_fr:'Image' };
+  if(type === 'button') return { ...base, label_de:'Button', label_fr:'Bouton', url:'#shop', align:'center' };
+  if(type === 'divider') return { ...base };
+  if(type === 'quote') return { ...base, text_de:'Zitat oder Hinweis', text_fr:'Citation ou note' };
+  if(type === 'columns') return { ...base, left_de:'Linke Spalte', left_fr:'Colonne gauche', right_de:'Rechte Spalte', right_fr:'Colonne droite' };
+  return { ...base, text_de:'Neuer Textblock', text_fr:'Nouveau bloc de texte' };
+}
+function blockLabel(type){ return ({heading:'Überschrift',text:'Text',image:'Bild/Logo',button:'Button/Link',divider:'Trennlinie',quote:'Zitat/Hinweis',columns:'2 Spalten'})[type] || 'Text'; }
+function renderBlockEditor(block, pageIndex, blockIndex){
+  const type = block?.type || 'text';
+  const baseAttrs = `data-page-index="${pageIndex}" data-block-index="${blockIndex}"`;
+  const styleFields = `<div class="pb-admin-style-row"><div class="field"><label>Ausrichtung</label><select ${baseAttrs} data-block-field="align"><option value="left" ${block.align==='left'?'selected':''}>Links</option><option value="center" ${block.align==='center'?'selected':''}>Zentriert</option><option value="right" ${block.align==='right'?'selected':''}>Rechts</option></select></div><div class="field"><label>Textfarbe</label><input ${baseAttrs} data-block-field="textColor" type="color" value="${escapeAttr(block.textColor || '#ffffff')}"></div><div class="field"><label>Block-Hintergrund</label><input ${baseAttrs} data-block-field="bgColor" type="color" value="${escapeAttr(block.bgColor || '#071d36')}"></div></div>`;
+  let body = '';
+  if(type === 'heading') body = `<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Überschrift DE</label><input ${baseAttrs} data-block-field="title_de" value="${escapeAttr(block.title_de || '')}"></div><div class="field"><label>Überschrift FR</label><input ${baseAttrs} data-block-field="title_fr" value="${escapeAttr(block.title_fr || '')}"></div></div>`;
+  else if(type === 'image') body = `<div class="field"><label>Bild / Logo URL</label><input ${baseAttrs} data-block-field="image_url" value="${escapeAttr(block.image_url || '')}" placeholder="https://.../bild.png"></div><div class="cms-image-upload-row"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" ${baseAttrs} data-block-upload><span>Bild hochladen oder URL einfügen</span></div>${block.image_url ? `<div class="cms-block-image-preview"><img src="${escapeAttr(block.image_url)}" alt=""></div>` : ''}<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Alt Text DE</label><input ${baseAttrs} data-block-field="alt_de" value="${escapeAttr(block.alt_de || '')}"></div><div class="field"><label>Alt Text FR</label><input ${baseAttrs} data-block-field="alt_fr" value="${escapeAttr(block.alt_fr || '')}"></div></div>`;
+  else if(type === 'button') body = `<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Button DE</label><input ${baseAttrs} data-block-field="label_de" value="${escapeAttr(block.label_de || '')}"></div><div class="field"><label>Button FR</label><input ${baseAttrs} data-block-field="label_fr" value="${escapeAttr(block.label_fr || '')}"></div></div><div class="field"><label>Link / Ziel</label><input ${baseAttrs} data-block-field="url" value="${escapeAttr(block.url || '')}" placeholder="#shop, #kontakt, https://..."></div>`;
+  else if(type === 'quote') body = `<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Zitat DE</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="text_de">${escapeHtml(block.text_de || '')}</textarea></div><div class="field"><label>Zitat FR</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="text_fr">${escapeHtml(block.text_fr || '')}</textarea></div></div>`;
+  else if(type === 'columns') body = `<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Spalte links DE</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="left_de">${escapeHtml(block.left_de || '')}</textarea></div><div class="field"><label>Spalte links FR</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="left_fr">${escapeHtml(block.left_fr || '')}</textarea></div></div><div class="admin-product-row admin-product-row-equal"><div class="field"><label>Spalte rechts DE</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="right_de">${escapeHtml(block.right_de || '')}</textarea></div><div class="field"><label>Spalte rechts FR</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="right_fr">${escapeHtml(block.right_fr || '')}</textarea></div></div>`;
+  else if(type === 'divider') body = `<div class="note">Trennlinie ohne Inhalt. Du kannst sie hoch/runter verschieben.</div>`;
+  else body = `<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Text DE</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="text_de">${escapeHtml(block.text_de || '')}</textarea></div><div class="field"><label>Text FR</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="text_fr">${escapeHtml(block.text_fr || '')}</textarea></div></div>`;
+  return `<div class="cms-block-editor"><div class="cms-block-head"><strong>${blockIndex+1}. ${blockLabel(type)}</strong><div class="cms-page-actions"><button class="back-btn" type="button" ${baseAttrs} data-block-up>Hoch</button><button class="back-btn" type="button" ${baseAttrs} data-block-down>Runter</button><button class="back-btn danger" type="button" ${baseAttrs} data-block-delete>Löschen</button></div></div>${body}${type !== 'divider' ? styleFields : ''}</div>`;
+}
+
 function renderContentPage(){
   const page = findSitePage(state.currentPageSlug);
   if(state.currentPageSlug === 'kontakt') return renderContactPage();
@@ -2250,7 +2381,7 @@ function renderContentPage(){
   ${topbar()}
   <div class="page"><div class="shell content-shell">
     <h1>${escapeHtml(page ? pageTitle(page) : t('menuIdea'))}</h1>
-    <div class="content-card">${escapeHtml(page ? pageContent(page) : '').replace(/\n/g,'<br>')}</div>
+    ${renderPageContent(page)}
   </div></div>`;
 }
 function renderContactPage(){
@@ -2259,7 +2390,7 @@ function renderContactPage(){
   ${topbar()}
   <div class="page"><div class="shell content-shell">
     <h1>${escapeHtml(page ? pageTitle(page) : t('contactTitle'))}</h1>
-    ${page ? `<div class="content-card">${escapeHtml(pageContent(page)).replace(/\n/g,'<br>')}</div>` : ''}
+    ${page ? renderPageContent(page) : ''}
     <div class="card contact-card">
       ${state.contact.error ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.contact.error)}</li></ul></div>` : ''}
       ${state.contact.status ? `<div class="note">${escapeHtml(state.contact.status)}</div>` : ''}
@@ -2294,7 +2425,19 @@ function renderAdminDesign(){
       <div class="cms-page-head"><div><strong>${escapeHtml(p.title_de || p.slug)}</strong><span>#${escapeHtml(p.slug || '')}</span></div><div class="cms-page-actions"><button class="back-btn" type="button" data-page-up="${i}">${t('adminMoveUp')}</button><button class="back-btn" type="button" data-page-down="${i}">${t('adminMoveDown')}</button><button class="back-btn danger" type="button" data-page-delete="${i}">${t('adminDeletePage')}</button></div></div>
       <div class="admin-product-row admin-product-row-equal cms-meta-row"><div class="field"><label>${t('adminPageSlug')}</label><input data-page-field="slug" data-page-index="${i}" value="${escapeAttr(p.slug || '')}" onblur="this.value=slugifyPage(this.value)"></div><div class="field"><label>${t('adminPageSort')}</label><input data-page-field="sort_order" data-page-index="${i}" type="number" value="${escapeAttr(String(p.sort_order ?? i+1))}"></div><label class="admin-toggle cms-check"><input data-page-field="show_in_menu" data-page-index="${i}" type="checkbox" ${p.show_in_menu !== false ? 'checked' : ''}><span>${t('adminShowMenu')}</span></label><label class="admin-toggle cms-check"><input data-page-field="is_active" data-page-index="${i}" type="checkbox" ${p.is_active !== false ? 'checked' : ''}><span>${t('adminPageActive')}</span></label></div>
       <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminTitleDe')}</label><input data-page-field="title_de" data-page-index="${i}" value="${escapeAttr(p.title_de || '')}"></div><div class="field"><label>${t('adminTitleFr')}</label><input data-page-field="title_fr" data-page-index="${i}" value="${escapeAttr(p.title_fr || '')}"></div></div>
-      <div class="admin-product-row admin-product-row-equal"><div class="field"><label>Inhalt DE</label><textarea class="cms-editor" data-page-field="content_de" data-page-index="${i}">${escapeHtml(p.content_de || '')}</textarea></div><div class="field"><label>Inhalt FR</label><textarea class="cms-editor" data-page-field="content_fr" data-page-index="${i}">${escapeHtml(p.content_fr || '')}</textarea></div></div>
+      <div class="admin-product-row admin-product-row-equal"><div class="field"><label>Fallback Text DE</label><textarea class="cms-editor" data-page-field="content_de" data-page-index="${i}">${escapeHtml(p.content_de || '')}</textarea></div><div class="field"><label>Fallback Text FR</label><textarea class="cms-editor" data-page-field="content_fr" data-page-index="${i}">${escapeHtml(p.content_fr || '')}</textarea></div></div>
+      <div class="cms-builder-zone">
+        <div class="cms-builder-head"><div><strong>Page Builder Module</strong><span>Baue diese Seite mit Blöcken: Text, Bild, Button, Spalten usw.</span></div><div class="cms-add-blocks">
+          <button type="button" class="back-btn" data-add-block="heading" data-page-index="${i}">+ Überschrift</button>
+          <button type="button" class="back-btn" data-add-block="text" data-page-index="${i}">+ Text</button>
+          <button type="button" class="back-btn" data-add-block="image" data-page-index="${i}">+ Bild/Logo</button>
+          <button type="button" class="back-btn" data-add-block="button" data-page-index="${i}">+ Button</button>
+          <button type="button" class="back-btn" data-add-block="columns" data-page-index="${i}">+ 2 Spalten</button>
+          <button type="button" class="back-btn" data-add-block="quote" data-page-index="${i}">+ Hinweis</button>
+          <button type="button" class="back-btn" data-add-block="divider" data-page-index="${i}">+ Linie</button>
+        </div></div>
+        <div class="cms-block-list">${(pageBlocks(p).length ? pageBlocks(p) : []).map((b,bi)=>renderBlockEditor(b,i,bi)).join('') || '<div class="note">Noch keine Module. Füge oben einen Block hinzu.</div>'}</div>
+      </div>
     </div>`).join('')}</div>
     <div class="admin-primary-row sticky-save"><button class="cta primary" id="adminSaveDesignBtn">${t('adminDesignSave')}</button></div>
   </div></div>`;
