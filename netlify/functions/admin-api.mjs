@@ -514,6 +514,81 @@ async function saveProducts(body) {
   return listProducts();
 }
 
+async function getAnalytics() {
+  const [ordersRaw, itemsRaw] = await Promise.all([
+    supa('orders?select=id,order_number,created_at,customer_email,shipping_method,total,total_chf,order_status,status&order=created_at.desc&limit=1000'),
+    supa('order_items?select=order_id,product_name,quantity,total_price,total_price_chf,line_total_chf,created_at&order=created_at.desc&limit=2000')
+  ]);
+
+  const orders = Array.isArray(ordersRaw) ? ordersRaw.map(normalizeOrder) : [];
+  const items = Array.isArray(itemsRaw) ? itemsRaw : [];
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const start7 = new Date(startOfToday); start7.setDate(start7.getDate() - 6);
+  const start30 = new Date(startOfToday); start30.setDate(start30.getDate() - 29);
+  const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const amount = (order) => Number(order?.total ?? order?.total_chf ?? 0) || 0;
+  const itemAmount = (item) => Number(item?.total_price ?? item?.total_price_chf ?? item?.line_total_chf ?? 0) || 0;
+  const inRange = (value, start) => new Date(value || 0) >= start;
+  const sumOrders = (list) => list.reduce((sum, order) => sum + amount(order), 0);
+
+  const todayOrders = orders.filter(order => inRange(order.created_at, startOfToday));
+  const weekOrders = orders.filter(order => inRange(order.created_at, start7));
+  const monthOrders = orders.filter(order => inRange(order.created_at, startMonth));
+  const thirtyOrders = orders.filter(order => inRange(order.created_at, start30));
+
+  const statusCounts = orders.reduce((acc, order) => {
+    const key = order.order_status || order.status || 'new';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  const productMap = new Map();
+  for (const item of items) {
+    const key = String(item.product_name || 'Produkt');
+    const existing = productMap.get(key) || { product_name: key, quantity: 0, revenue: 0 };
+    existing.quantity += Number(item.quantity || 0) || 0;
+    existing.revenue += itemAmount(item);
+    productMap.set(key, existing);
+  }
+
+  const dailyMap = new Map();
+  for (let i = 13; i >= 0; i -= 1) {
+    const d = new Date(startOfToday); d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    dailyMap.set(key, { date: key, orders: 0, revenue: 0 });
+  }
+  for (const order of orders) {
+    const key = new Date(order.created_at || 0).toISOString().slice(0, 10);
+    if (dailyMap.has(key)) {
+      const row = dailyMap.get(key);
+      row.orders += 1;
+      row.revenue += amount(order);
+    }
+  }
+
+  const uniqueCustomers = new Set(orders.map(order => String(order.customer_email || '').trim().toLowerCase()).filter(Boolean));
+
+  return {
+    summary: {
+      orders_total: orders.length,
+      orders_today: todayOrders.length,
+      orders_7d: weekOrders.length,
+      orders_30d: thirtyOrders.length,
+      revenue_total: sumOrders(orders),
+      revenue_today: sumOrders(todayOrders),
+      revenue_7d: sumOrders(weekOrders),
+      revenue_month: sumOrders(monthOrders),
+      avg_order_value: orders.length ? sumOrders(orders) / orders.length : 0,
+      customers_total: uniqueCustomers.size,
+      status_counts: statusCounts
+    },
+    top_products: Array.from(productMap.values()).sort((a,b) => b.quantity - a.quantity || b.revenue - a.revenue).slice(0, 12),
+    daily: Array.from(dailyMap.values())
+  };
+}
+
 export default async (request) => {
   try {
     const url = new URL(request.url);
@@ -617,6 +692,11 @@ export default async (request) => {
     if (action === 'inventory-movements' && request.method === 'GET') {
       const movements = await listInventoryMovements();
       return json(200, { success: true, movements });
+    }
+
+    if (action === 'analytics' && request.method === 'GET') {
+      const analytics = await getAnalytics();
+      return json(200, { success: true, analytics });
     }
 
     return json(405, { success: false, error: 'Methode/Aktion nicht erlaubt' });
