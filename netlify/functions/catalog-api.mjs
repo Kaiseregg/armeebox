@@ -102,6 +102,9 @@ function normalizeProductRow(row) {
     image_url: row?.image_url || '',
     is_active: Boolean(row?.is_active ?? row?.active ?? false),
     sort_order: Number(row?.sort_order ?? 0),
+    stock_total: Number(row?.stock_total ?? row?.initial_stock ?? 0),
+    stock_current: Number(row?.stock_current ?? row?.current_stock ?? row?.stock_total ?? row?.initial_stock ?? 0),
+    stock_min: Number(row?.stock_min ?? row?.minimum_stock ?? 0),
     slot_type: meta.slot_type,
     bundle_content_de: meta.bundle_content_de,
     bundle_content_fr: meta.bundle_content_fr || meta.bundle_content_de,
@@ -170,7 +173,7 @@ export default async (request) => {
     }
 
     if (action === 'products' && request.method === 'GET') {
-      const rows = await supa('products?select=id,slot,name,name_de,name_fr,description_de,description_fr,price,price_chf,active,is_active,image_url,sort_order&or=(is_active.eq.true,active.eq.true)&order=slot.asc');
+      const rows = await supa('products?select=id,slot,name,name_de,name_fr,description_de,description_fr,price,price_chf,active,is_active,image_url,sort_order,stock_total,stock_current,stock_min&or=(is_active.eq.true,active.eq.true)&order=slot.asc');
       return json(200, { success: true, products: Array.isArray(rows) ? rows.map(normalizeProductRow) : [] });
     }
     return json(405, { success: false, error: 'Methode/Aktion nicht erlaubt' });

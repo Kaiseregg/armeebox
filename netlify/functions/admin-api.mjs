@@ -146,6 +146,9 @@ function normalizeProductRow(row) {
     is_active: Boolean(row?.is_active ?? row?.active ?? false),
     image_url: row?.image_url || '',
     sort_order: Number(row?.sort_order ?? 0),
+    stock_total: Number(row?.stock_total ?? row?.initial_stock ?? 0),
+    stock_current: Number(row?.stock_current ?? row?.current_stock ?? row?.stock_total ?? row?.initial_stock ?? 0),
+    stock_min: Number(row?.stock_min ?? row?.minimum_stock ?? 0),
     slot_type: meta.slot_type,
     bundle_content_de: meta.bundle_content_de,
     bundle_content_fr: meta.bundle_content_fr || meta.bundle_content_de,
@@ -180,6 +183,9 @@ function normalizeIncomingProducts(body) {
         is_active: Boolean(item?.is_active ?? item?.active),
         image_url: String(item?.image_url ?? '').trim(),
         sort_order: Number(item?.sort_order ?? 0),
+        stock_total: Number(item?.stock_total ?? item?.initial_stock ?? 0),
+        stock_current: Number(item?.stock_current ?? item?.current_stock ?? item?.stock_total ?? 0),
+        stock_min: Number(item?.stock_min ?? item?.minimum_stock ?? 0),
         slot_type: item?.slot_type === 'bundle' ? 'bundle' : 'normal',
         bundle_content_de: coerceLocalizedText(item?.bundle_content_de ?? item?.bundle_content ?? item?.description_de ?? '', item?.description_de ?? '').trim(),
         bundle_content_fr: coerceLocalizedText(item?.bundle_content_fr ?? item?.description_fr ?? '', '').trim(),
@@ -371,6 +377,9 @@ async function saveProducts(body) {
       is_active: active,
       image_url: item.image_url || null,
       sort_order: Number.isFinite(item.sort_order) ? item.sort_order : 0,
+      stock_total: Number.isFinite(item.stock_total) ? Math.max(0, Math.floor(item.stock_total)) : 0,
+      stock_current: Number.isFinite(item.stock_current) ? Math.max(0, Math.floor(item.stock_current)) : 0,
+      stock_min: Number.isFinite(item.stock_min) ? Math.max(0, Math.floor(item.stock_min)) : 0,
       updated_at: new Date().toISOString()
     };
 
