@@ -461,19 +461,24 @@ async function saveProducts(body) {
 
   const incomingSlots = new Set(items.map((item) => item.slot));
 
-  for (const item of items) {
+  const writeProduct = async (item, exists) => {
     const price = Number.isFinite(item.price_chf) ? item.price_chf : 0;
     const nameDe = item.name_de || '';
     const nameFr = item.name_fr || nameDe;
     const active = item.is_active === true;
-    const payload = {
+
+    // Wichtig:
+    // bundle_content_* und option_label_* werden IMMER in description_fr als META gespeichert.
+    // Die separaten Spalten sind optional. Falls sie in Supabase noch nicht existieren,
+    // fällt der Code automatisch auf die stabile bestehende Struktur zurück.
+    const stablePayload = {
       slot: item.slot,
       name: nameDe,
       name_de: nameDe,
       name_fr: nameFr,
       description_de: item.bundle_content_de || item.description_de || null,
       description_fr: encodeBundleMeta(item),
-      price: price,
+      price,
       price_chf: price,
       active,
       is_active: active,
@@ -482,28 +487,56 @@ async function saveProducts(body) {
       stock_total: Number.isFinite(item.stock_total) ? Math.max(0, Math.floor(item.stock_total)) : 0,
       stock_current: Number.isFinite(item.stock_current) ? Math.max(0, Math.floor(item.stock_current)) : 0,
       stock_min: Number.isFinite(item.stock_min) ? Math.max(0, Math.floor(item.stock_min)) : 0,
+      updated_at: new Date().toISOString()
+    };
+
+    const extendedPayload = {
+      ...stablePayload,
       slot_type: item.slot_type === 'bundle' ? 'bundle' : 'normal',
       bundle_content_de: item.bundle_content_de || item.description_de || null,
       bundle_content_fr: item.bundle_content_fr || null,
       option_label_de: item.option_label_de || null,
       option_label_fr: item.option_label_fr || null,
-      quantity_options: parseQuantityOptions(item.quantity_options, [2, 3, 4]),
-      updated_at: new Date().toISOString()
+      quantity_options: parseQuantityOptions(item.quantity_options, [2, 3, 4])
     };
 
-    if (existingBySlot.has(item.slot)) {
-      await supa(`products?slot=eq.${encodeURIComponent(item.slot)}`, {
-        method: 'PATCH',
+    const insertPayload = { ...extendedPayload, created_at: new Date().toISOString() };
+    const insertStablePayload = { ...stablePayload, created_at: new Date().toISOString() };
+
+    const path = exists
+      ? `products?slot=eq.${encodeURIComponent(item.slot)}`
+      : 'products';
+
+    const method = exists ? 'PATCH' : 'POST';
+
+    try {
+      await supa(path, {
+        method,
         headers: { Prefer: 'return=representation' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(exists ? extendedPayload : insertPayload)
       });
-    } else {
-      await supa('products', {
-        method: 'POST',
+    } catch (error) {
+      const msg = String(error?.message || '').toLowerCase();
+      const likelyColumnMismatch =
+        msg.includes('column') ||
+        msg.includes('schema cache') ||
+        msg.includes('slot_type') ||
+        msg.includes('bundle_content') ||
+        msg.includes('option_label') ||
+        msg.includes('quantity_options');
+
+      if (!likelyColumnMismatch) throw error;
+
+      await supa(path, {
+        method,
         headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ ...payload, created_at: new Date().toISOString() })
+        body: JSON.stringify(exists ? stablePayload : insertStablePayload)
       });
     }
+  };
+
+  for (const item of items) {
+    await writeProduct(item, existingBySlot.has(item.slot));
   }
 
   for (const [slot, row] of existingBySlot.entries()) {
