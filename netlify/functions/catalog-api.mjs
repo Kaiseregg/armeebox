@@ -112,38 +112,52 @@ function normalizeProductRow(row) {
 }
 
 
+
+const DEFAULT_DESIGN_SETTINGS = {
+  machineTitle: '',
+  machineInner: '',
+  machineTitle_de: '',
+  machineTitle_fr: '',
+  machineInner_de: '',
+  machineInner_fr: '',
+  buttonColor: '#65a832',
+  slotColor: '#3d5366',
+  frameColor: '#b22b2b',
+  bgColor: '#061527'
+};
+
 async function getDesignSettings() {
-  const defaults = { machineTitle: '', machineInner: '', machineTitle_de: '', machineTitle_fr: '', machineInner_de: '', machineInner_fr: '', buttonColor: '#65a832', slotColor: '#3d5366', frameColor: '#b22b2b', bgColor: '#061527' };
-  try {
-    const rows = await supa("admin_settings?select=*&key=eq.design_settings&limit=1");
-    const row = Array.isArray(rows) ? rows[0] : null;
-    const value = row?.value || row?.settings || row?.data || null;
-    if (value && typeof value === 'object') return { ...defaults, ...value };
-    if (typeof value === 'string') return { ...defaults, ...JSON.parse(value) };
-  } catch (_) {}
   try {
     const rows = await supa('site_settings?select=*&limit=1');
     const row = Array.isArray(rows) ? rows[0] : null;
-    if (row) return { ...defaults, ...(row.design_settings || row.settings || {}), machineTitle: row.machine_title || row.machineTitle || defaults.machineTitle, machineInner: row.machine_inner || row.machineInner || defaults.machineInner };
-  } catch (_) {}
-  return defaults;
+    const cms = row?.cms_settings && typeof row.cms_settings === 'object' ? row.cms_settings : {};
+    const design = cms.design || row?.design_settings || row?.settings || {};
+    return {
+      ...DEFAULT_DESIGN_SETTINGS,
+      ...design,
+      machineTitle: design.machineTitle || row?.machine_title || row?.machineTitle || '',
+      machineInner: design.machineInner || row?.machine_inner || row?.machineInner || ''
+    };
+  } catch (_) {
+    return DEFAULT_DESIGN_SETTINGS;
+  }
 }
-async function getPagesMeta() {
-  try {
-    const rows = await supa('admin_settings?select=*&key=eq.cms_pages_meta&limit=1');
-    const row = Array.isArray(rows) ? rows[0] : null;
-    const value = row?.value || row?.settings || row?.data || null;
-    if (value && typeof value === 'object') return value;
-    if (typeof value === 'string') return JSON.parse(value);
-  } catch (_) {}
-  return {};
-}
+
 async function getSitePages() {
   try {
-    const rows = await supa('site_pages?select=*&order=slug.asc');
-    const meta = await getPagesMeta();
-    return (Array.isArray(rows) ? rows : []).map((row,index)=>{ const m = meta?.[row.slug] || {}; return { ...row, sort_order: Number(m.sort_order ?? index+1), show_in_menu: m.show_in_menu !== false, is_active: m.is_active !== false }; }).filter(p=>p.is_active !== false).sort((a,b)=>Number(a.sort_order ?? 999)-Number(b.sort_order ?? 999) || String(a.slug||'').localeCompare(String(b.slug||'')));
-  } catch (_) { return []; }
+    const rows = await supa('site_pages?select=*&is_active=eq.true&order=sort_order.asc,slug.asc');
+    return (Array.isArray(rows) ? rows : [])
+      .map((row, index) => ({
+        ...row,
+        sort_order: Number(row?.sort_order ?? index + 1),
+        show_in_menu: row?.show_in_menu !== false,
+        is_active: row?.is_active !== false
+      }))
+      .filter((page) => page.is_active !== false)
+      .sort((a, b) => Number(a.sort_order ?? 999) - Number(b.sort_order ?? 999) || String(a.slug || '').localeCompare(String(b.slug || '')));
+  } catch (_) {
+    return [];
+  }
 }
 
 export default async (request) => {
