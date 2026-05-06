@@ -339,6 +339,85 @@ async function saveSitePages(pages) {
   return listSitePages();
 }
 
+async function logInventoryMovement(entry) {
+  try {
+    await supa('inventory_movements', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        product_id: entry.product_id || null,
+        product_name: String(entry.product_name || ''),
+        movement_type: String(entry.movement_type || 'manual'),
+        quantity: Number(entry.quantity || 0),
+        stock_before: Number(entry.stock_before || 0),
+        stock_after: Number(entry.stock_after || 0),
+        reason: String(entry.reason || ''),
+        source: String(entry.source || 'admin'),
+        created_at: new Date().toISOString()
+      })
+    });
+  } catch (error) {
+    console.warn('inventory movement skipped', error?.message || error);
+  }
+}
+
+async function listInventoryMovements() {
+  const rows = await supa('inventory_movements?select=*&order=created_at.desc&limit=80');
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function adjustStock(body) {
+  const productId = body?.product_id || body?.id;
+  const mode = String(body?.mode || 'add');
+  const rawValue = Number(body?.value ?? body?.quantity ?? 0);
+  if (!productId) throw new Error('Produkt fehlt');
+  if (!Number.isFinite(rawValue)) throw new Error('Ungültiger Lagerwert');
+
+  const rows = await supa(`products?select=id,name,name_de,stock_current,stock_total&id=eq.${encodeURIComponent(productId)}&limit=1`);
+  const product = Array.isArray(rows) ? rows[0] : null;
+  if (!product) throw new Error('Produkt nicht gefunden');
+
+  const before = Math.max(0, Math.floor(Number(product.stock_current ?? 0) || 0));
+  const totalBefore = Math.max(0, Math.floor(Number(product.stock_total ?? before) || 0));
+  let after = before;
+  let movementType = 'manual';
+  let qty = 0;
+
+  if (mode === 'set') {
+    after = Math.max(0, Math.floor(rawValue));
+    qty = after - before;
+    movementType = 'correction';
+  } else if (mode === 'remove') {
+    qty = -Math.max(0, Math.floor(rawValue));
+    after = Math.max(0, before + qty);
+    movementType = 'manual_remove';
+  } else {
+    qty = Math.max(0, Math.floor(rawValue));
+    after = before + qty;
+    movementType = 'restock';
+  }
+
+  const nextTotal = mode === 'add' ? Math.max(totalBefore, after) : Math.max(totalBefore, after);
+  await supa(`products?id=eq.${encodeURIComponent(productId)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ stock_current: after, stock_total: nextTotal, updated_at: new Date().toISOString() })
+  });
+
+  await logInventoryMovement({
+    product_id: product.id,
+    product_name: product.name_de || product.name || '',
+    movement_type: movementType,
+    quantity: qty,
+    stock_before: before,
+    stock_after: after,
+    reason: body?.reason || 'Admin Lagerbuchung',
+    source: 'admin'
+  });
+
+  return { product_id: product.id, before, after, quantity: qty };
+}
+
 async function listProducts() {
   const rows = await supa('products?select=*&order=slot.asc');
   return (Array.isArray(rows) ? rows : []).map(normalizeProductRow).sort((a, b) => a.slot - b.slot);
@@ -523,7 +602,21 @@ export default async (request) => {
     if (action === 'products' && request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
       const products = await saveProducts(body);
-      return json(200, { success: true, products });
+      const movements = await listInventoryMovements().catch(() => []);
+      return json(200, { success: true, products, movements });
+    }
+
+    if (action === 'adjust-stock' && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const result = await adjustStock(body);
+      const products = await listProducts();
+      const movements = await listInventoryMovements().catch(() => []);
+      return json(200, { success: true, result, products, movements });
+    }
+
+    if (action === 'inventory-movements' && request.method === 'GET') {
+      const movements = await listInventoryMovements();
+      return json(200, { success: true, movements });
     }
 
     return json(405, { success: false, error: 'Methode/Aktion nicht erlaubt' });
