@@ -99,50 +99,27 @@ function coerceLocalizedText(value, fallback = '') {
   return String(value ?? fallback ?? '');
 }
 
-function parseQuantityOptions(value, fallback = [2, 3, 4]) {
-  if (Array.isArray(value)) {
-    const parsed = value.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0);
-    return parsed.length ? parsed : fallback;
-  }
-  if (typeof value === 'string') {
-    try {
-      const json = JSON.parse(value);
-      if (Array.isArray(json)) return parseQuantityOptions(json, fallback);
-    } catch (_) {}
-    const parsed = value.split(/[;,|\s]+/).map((item) => Number(String(item).replace(/x/gi, ''))).filter((item) => Number.isFinite(item) && item > 0);
-    return parsed.length ? parsed : fallback;
-  }
-  return fallback;
-}
-
 function parseBundleMeta(row) {
   const raw = String(row?.description_fr || '');
-  const fallbackContentDe = String(row?.description_de || '');
-  const direct = {
-    slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
-    bundle_content_de: coerceLocalizedText(row?.bundle_content_de ?? '', fallbackContentDe),
-    bundle_content_fr: coerceLocalizedText(row?.bundle_content_fr ?? '', ''),
-    option_label_de: coerceLocalizedText(row?.option_label_de ?? '', ''),
-    option_label_fr: coerceLocalizedText(row?.option_label_fr ?? '', ''),
-    quantity_options: parseQuantityOptions(row?.quantity_options, [2, 3, 4])
-  };
-
-  let legacy = {};
-  if (raw.startsWith(META_PREFIX)) {
-    try { legacy = JSON.parse(raw.slice(META_PREFIX.length)) || {}; } catch (_) { legacy = {}; }
+  const fallbackContent = String(row?.description_de || '');
+  const base = { slot_type: 'normal', bundle_content_de: fallbackContent, bundle_content_fr: '', option_label_de: '', option_label_fr: '', quantity_options: [2, 3, 4] };
+  if (!raw.startsWith(META_PREFIX)) return base;
+  try {
+    const meta = JSON.parse(raw.slice(META_PREFIX.length));
+    const quantity_options = Array.isArray(meta?.quantity_options)
+      ? meta.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+      : base.quantity_options;
+    return {
+      slot_type: meta?.slot_type === 'bundle' ? 'bundle' : 'normal',
+      bundle_content_de: String(meta?.content_de ?? meta?.content ?? fallbackContent ?? ''),
+      bundle_content_fr: coerceLocalizedText(meta?.content_fr ?? '', ''),
+      option_label_de: coerceLocalizedText(meta?.option_label_de ?? '', ''),
+      option_label_fr: coerceLocalizedText(meta?.option_label_fr ?? '', ''),
+      quantity_options: quantity_options.length ? quantity_options : base.quantity_options
+    };
+  } catch (_) {
+    return base;
   }
-
-  const legacyOptions = parseQuantityOptions(legacy?.quantity_options, direct.quantity_options);
-  const slotType = direct.slot_type === 'bundle' || legacy?.slot_type === 'bundle' ? 'bundle' : 'normal';
-
-  return {
-    slot_type: slotType,
-    bundle_content_de: direct.bundle_content_de || coerceLocalizedText(legacy?.content_de ?? legacy?.content ?? '', fallbackContentDe),
-    bundle_content_fr: direct.bundle_content_fr || coerceLocalizedText(legacy?.content_fr ?? '', ''),
-    option_label_de: direct.option_label_de || coerceLocalizedText(legacy?.option_label_de ?? '', ''),
-    option_label_fr: direct.option_label_fr || coerceLocalizedText(legacy?.option_label_fr ?? '', ''),
-    quantity_options: legacyOptions.length ? legacyOptions : [2, 3, 4]
-  };
 }
 
 function encodeBundleMeta(row) {
@@ -461,24 +438,19 @@ async function saveProducts(body) {
 
   const incomingSlots = new Set(items.map((item) => item.slot));
 
-  const writeProduct = async (item, exists) => {
+  for (const item of items) {
     const price = Number.isFinite(item.price_chf) ? item.price_chf : 0;
     const nameDe = item.name_de || '';
     const nameFr = item.name_fr || nameDe;
     const active = item.is_active === true;
-
-    // Wichtig:
-    // bundle_content_* und option_label_* werden IMMER in description_fr als META gespeichert.
-    // Die separaten Spalten sind optional. Falls sie in Supabase noch nicht existieren,
-    // fällt der Code automatisch auf die stabile bestehende Struktur zurück.
-    const stablePayload = {
+    const payload = {
       slot: item.slot,
       name: nameDe,
       name_de: nameDe,
       name_fr: nameFr,
       description_de: item.bundle_content_de || item.description_de || null,
       description_fr: encodeBundleMeta(item),
-      price,
+      price: price,
       price_chf: price,
       active,
       is_active: active,
@@ -490,53 +462,19 @@ async function saveProducts(body) {
       updated_at: new Date().toISOString()
     };
 
-    const extendedPayload = {
-      ...stablePayload,
-      slot_type: item.slot_type === 'bundle' ? 'bundle' : 'normal',
-      bundle_content_de: item.bundle_content_de || item.description_de || null,
-      bundle_content_fr: item.bundle_content_fr || null,
-      option_label_de: item.option_label_de || null,
-      option_label_fr: item.option_label_fr || null,
-      quantity_options: parseQuantityOptions(item.quantity_options, [2, 3, 4])
-    };
-
-    const insertPayload = { ...extendedPayload, created_at: new Date().toISOString() };
-    const insertStablePayload = { ...stablePayload, created_at: new Date().toISOString() };
-
-    const path = exists
-      ? `products?slot=eq.${encodeURIComponent(item.slot)}`
-      : 'products';
-
-    const method = exists ? 'PATCH' : 'POST';
-
-    try {
-      await supa(path, {
-        method,
+    if (existingBySlot.has(item.slot)) {
+      await supa(`products?slot=eq.${encodeURIComponent(item.slot)}`, {
+        method: 'PATCH',
         headers: { Prefer: 'return=representation' },
-        body: JSON.stringify(exists ? extendedPayload : insertPayload)
+        body: JSON.stringify(payload)
       });
-    } catch (error) {
-      const msg = String(error?.message || '').toLowerCase();
-      const likelyColumnMismatch =
-        msg.includes('column') ||
-        msg.includes('schema cache') ||
-        msg.includes('slot_type') ||
-        msg.includes('bundle_content') ||
-        msg.includes('option_label') ||
-        msg.includes('quantity_options');
-
-      if (!likelyColumnMismatch) throw error;
-
-      await supa(path, {
-        method,
+    } else {
+      await supa('products', {
+        method: 'POST',
         headers: { Prefer: 'return=representation' },
-        body: JSON.stringify(exists ? stablePayload : insertStablePayload)
+        body: JSON.stringify({ ...payload, created_at: new Date().toISOString() })
       });
     }
-  };
-
-  for (const item of items) {
-    await writeProduct(item, existingBySlot.has(item.slot));
   }
 
   for (const [slot, row] of existingBySlot.entries()) {
