@@ -122,7 +122,9 @@ hr{border:none;border-top:1px solid rgba(255,255,255,.08);margin:16px 0}
 .admin-chip{display:inline-block;border:1px solid #5d789a;background:#11233f;color:#fff;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700}
 .admin-chip.new{background:#243d63}
 .admin-chip.in_progress{background:#63511f}
+.admin-chip.shipped{background:#1f5d63}
 .admin-chip.done{background:#2f5a2d}
+.admin-chip.archived{background:#3b4050;color:#cbd5e1}
 .admin-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .admin-actions{display:flex;gap:10px;flex-wrap:wrap}
 .admin-detail-grid{display:grid;grid-template-columns:1.25fr .9fr;gap:18px}

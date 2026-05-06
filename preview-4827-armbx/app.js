@@ -570,12 +570,16 @@ const texts = {
     adminFilterNew: 'Neu',
     adminFilterProgress: 'In Bearbeitung',
     adminFilterDone: 'Erledigt',
+    adminFilterShipped: 'Versandt',
+    adminFilterArchived: 'Archiviert',
     adminNoResults: 'Keine Bestellungen für diese Suche / diesen Filter.',
     adminShippingBarracks: 'Versand Kaserne',
     adminShippingPrivate: 'Versand Privat',
     adminStatusNew: 'Neu',
     adminStatusInProgress: 'In Bearbeitung',
     adminStatusDone: 'Erledigt',
+    adminStatusShipped: 'Versandt',
+    adminStatusArchived: 'Archiviert',
     adminListHint: 'Suche, Filter und Statusübersicht',
     adminOrderInfo: 'Bestellinfo',
     adminItems: 'Artikel',
@@ -751,12 +755,16 @@ const texts = {
     adminFilterNew: 'Nouveau',
     adminFilterProgress: 'En cours',
     adminFilterDone: 'Terminé',
+    adminFilterShipped: 'Expédié',
+    adminFilterArchived: 'Archivé',
     adminNoResults: 'Aucune commande pour cette recherche / ce filtre.',
     adminShippingBarracks: 'Envoi caserne',
     adminShippingPrivate: 'Envoi privé',
     adminStatusNew: 'Nouveau',
     adminStatusInProgress: 'En cours',
     adminStatusDone: 'Terminé',
+    adminStatusShipped: 'Expédié',
+    adminStatusArchived: 'Archivé',
     adminListHint: 'Recherche, filtres et aperçu des statuts',
     adminOrderInfo: 'Infos commande',
     adminItems: 'Articles',
@@ -854,7 +862,7 @@ const texts = {
   }
 };
 
-const ADMIN_STATUSES = ['new','in_progress','done'];
+const ADMIN_STATUSES = ['new','in_progress','shipped','done','archived'];
 
 const STORAGE_KEY = 'armeebox_preview_state_v18';
 const META_PREFIX = '__ARMBX_META__';
@@ -1238,13 +1246,17 @@ function formatDate(value){
 }
 function adminStatusLabel(value){
   if(value==='in_progress') return 'in_progress';
+  if(value==='shipped') return 'shipped';
   if(value==='done') return 'done';
+  if(value==='archived') return 'archived';
   return 'new';
 }
 function adminStatusText(value){
   const status = adminStatusLabel(value);
   if(status==='in_progress') return t('adminStatusInProgress');
+  if(status==='shipped') return t('adminStatusShipped');
   if(status==='done') return t('adminStatusDone');
+  if(status==='archived') return t('adminStatusArchived');
   return t('adminStatusNew');
 }
 function shippingMethodText(value){
@@ -2179,7 +2191,9 @@ function renderAdminOrders(){
             <option value="all" ${state.admin.filter==='all'?'selected':''}>${t('adminFilterAll')}</option>
             <option value="new" ${state.admin.filter==='new'?'selected':''}>${t('adminFilterNew')}</option>
             <option value="in_progress" ${state.admin.filter==='in_progress'?'selected':''}>${t('adminFilterProgress')}</option>
+            <option value="shipped" ${state.admin.filter==='shipped'?'selected':''}>${t('adminFilterShipped')}</option>
             <option value="done" ${state.admin.filter==='done'?'selected':''}>${t('adminFilterDone')}</option>
+            <option value="archived" ${state.admin.filter==='archived'?'selected':''}>${t('adminFilterArchived')}</option>
           </select>
         </div>
         <div class="admin-filter-stats note">${filtered.length} / ${(state.admin.orders || []).length} ${t('adminOrders').toLowerCase()}</div>
