@@ -579,3 +579,26 @@ input[type="color"]{height:44px;padding:4px;cursor:pointer;}
 .admin-products-grid{align-items:start}
 .stock-booking-row{align-items:end}
 @media(max-width:720px){.slot-info-strip{font-size:11px;min-height:24px}.section-title-row{align-items:flex-start}.inventory-overview .admin-table{min-width:620px}}
+
+/* Step 11.6.1 feedback fixes */
+.namebar,
+.namebar-bundle .namebar-text{
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.namebar{font-size:14px;line-height:1.12;padding:7px 8px;}
+.namebar-bundle{grid-template-columns:32px minmax(0,1fr);}
+.slot-info-strip{
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height:1.15;
+  padding:5px 8px;
+  min-height:28px;
+}
+.admin-row-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:nowrap;}
+.admin-row-actions .mini{white-space:nowrap;}
+@media(max-width:900px){
+  .admin-row-actions{flex-wrap:wrap;justify-content:flex-start;}
+  .namebar{font-size:12px;}
+}

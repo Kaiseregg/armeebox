@@ -633,7 +633,7 @@ const texts = {
     adminBundleLabelDe: 'Text zur Auswahl DE',
     adminBundleLabelFr: 'Text zur Auswahl FR',
     slotInfo: 'Inhalt',
-    slotWeeklyChoice: 'Pro Woche',
+    slotWeeklyChoice: 'Info Inhalt',
     slotAddBundle: 'Abo hinzufügen',
     slotChooseOption: 'Option wählen',
     slotInfoTitle: 'Inhalt des Fresspäckli',
@@ -818,7 +818,7 @@ const texts = {
     adminBundleLabelDe: 'Texte du choix DE',
     adminBundleLabelFr: 'Texte du choix FR',
     slotInfo: 'Contenu',
-    slotWeeklyChoice: 'Par semaine',
+    slotWeeklyChoice: 'Info contenu',
     slotAddBundle: 'Ajouter abonnement',
     slotChooseOption: 'Choisir',
     slotInfoTitle: 'Contenu du paquet',
@@ -1335,6 +1335,7 @@ function filteredAdminOrders(){
   const filter = state.admin.filter || 'all';
   return (state.admin.orders || []).filter(order => {
     const status = adminStatusLabel(order.order_status || order.status);
+    if(filter === 'all' && status === 'archived') return false;
     if(filter !== 'all' && status !== filter) return false;
     if(!search) return true;
     const meta = order.order_meta || {};
@@ -2996,8 +2997,8 @@ function renderAdminProducts(){
               <div class="field"><label>${t('adminBundleContentFr')}</label><textarea data-product-field="bundle_content_fr" data-product-index="${index}">${escapeHtml(product.bundle_content?.fr || '')}</textarea></div>
             </div>
             <div class="admin-product-row admin-product-row-equal bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}">
-              <div class="field"><label>${t('adminBundleLabelDe')}</label><input data-product-field="option_label_de" data-product-index="${index}" value="${escapeAttr(product.option_label?.de || '')}"></div>
-              <div class="field"><label>${t('adminBundleLabelFr')}</label><input data-product-field="option_label_fr" data-product-index="${index}" value="${escapeAttr(product.option_label?.fr || '')}"></div>
+              <div class="field"><label>Text auf Info-Button DE</label><input data-product-field="option_label_de" data-product-index="${index}" value="${escapeAttr(product.option_label?.de || '')}"></div>
+              <div class="field"><label>Text auf Info-Button FR</label><input data-product-field="option_label_fr" data-product-index="${index}" value="${escapeAttr(product.option_label?.fr || '')}"></div>
             </div>
             <div class="field bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}"><label>${t('adminBundleOptions')}</label><input data-product-field="quantity_options" data-product-index="${index}" value="${escapeAttr((product.quantity_options || [2,3,4]).join(','))}"></div>
             <div class="field"><label>${t('adminImageUrl')}</label><input data-product-field="image_url" data-product-index="${index}" placeholder="https://.../bild.png" value="${escapeAttr(product.image_url || '')}"></div>
@@ -3028,6 +3029,8 @@ function bindAdminOrders(){
   if(analyticsBtn) analyticsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-analytics'); state.route='admin-analytics'; loadAdminAnalytics(); };
   const customersBtn = document.getElementById('adminCustomersBtn');
   if(customersBtn) customersBtn.onclick = ()=>{ history.replaceState(null,'','#admin-customers'); state.route='admin-customers'; loadAdminCustomers(); };
+  const archiveTab = document.getElementById('adminArchiveTabBtn');
+  if(archiveTab) archiveTab.onclick = ()=>{ state.admin.filter='archived'; save(); render(); };
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
   const search = document.getElementById('adminSearchInput');
