@@ -589,6 +589,91 @@ async function getAnalytics() {
   };
 }
 
+function safeEmail(value) {
+  const email = String(value || '').trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+}
+function orderTotal(row) {
+  return Number(row?.total ?? row?.total_chf ?? 0) || 0;
+}
+function orderName(row) {
+  const meta = row?.order_meta && typeof row.order_meta === 'object' ? row.order_meta : {};
+  return String(
+    meta.privateName ||
+    meta.senderName ||
+    [meta.soldierFirstName, meta.soldierLastName].filter(Boolean).join(' ') ||
+    row?.recipient_name ||
+    ''
+  ).trim();
+}
+async function listCustomersCrm() {
+  const map = new Map();
+  const touch = (email, patch = {}) => {
+    const clean = safeEmail(email);
+    if (!clean) return null;
+    const current = map.get(clean) || {
+      email: clean,
+      name: '',
+      order_count: 0,
+      total_spent: 0,
+      last_order_at: '',
+      last_order_number: '',
+      contact_count: 0,
+      source: 'Kontakt'
+    };
+    const next = { ...current, ...patch };
+    if (!next.name && current.name) next.name = current.name;
+    map.set(clean, next);
+    return next;
+  };
+
+  const orders = await supa('orders?select=id,order_number,created_at,customer_email,total,total_chf,recipient_name,order_meta&order=created_at.desc&limit=2000').catch(() => []);
+  for (const order of Array.isArray(orders) ? orders : []) {
+    const email = safeEmail(order.customer_email);
+    if (!email) continue;
+    const current = touch(email) || {};
+    const created = String(order.created_at || '');
+    const isNewer = !current.last_order_at || created > current.last_order_at;
+    touch(email, {
+      name: current.name || orderName(order),
+      order_count: Number(current.order_count || 0) + 1,
+      total_spent: Number(current.total_spent || 0) + orderTotal(order),
+      last_order_at: isNewer ? created : current.last_order_at,
+      last_order_number: isNewer ? String(order.order_number || '') : current.last_order_number,
+      source: 'Kunde'
+    });
+  }
+
+  const messages = await supa('contact_messages?select=*&order=created_at.desc&limit=2000').catch(() => []);
+  for (const msg of Array.isArray(messages) ? messages : []) {
+    const email = safeEmail(msg.email || msg.sender_email || msg.customer_email);
+    if (!email) continue;
+    const current = touch(email) || {};
+    touch(email, {
+      name: current.name || String(msg.name || msg.sender_name || '').trim(),
+      contact_count: Number(current.contact_count || 0) + 1,
+      source: Number(current.order_count || 0) > 0 ? 'Kunde + Kontakt' : 'Kontakt'
+    });
+  }
+
+  const customersTable = await supa('customers?select=*&limit=2000').catch(() => []);
+  for (const c of Array.isArray(customersTable) ? customersTable : []) {
+    const email = safeEmail(c.email);
+    if (!email) continue;
+    const current = touch(email) || {};
+    touch(email, {
+      name: current.name || [c.first_name, c.last_name].filter(Boolean).join(' ') || c.name || '',
+      source: current.source || 'Kunde'
+    });
+  }
+
+  return Array.from(map.values()).sort((a, b) => {
+    const bySpent = Number(b.total_spent || 0) - Number(a.total_spent || 0);
+    if (bySpent) return bySpent;
+    return String(b.last_order_at || '').localeCompare(String(a.last_order_at || '')) || String(a.email).localeCompare(String(b.email));
+  });
+}
+
 export default async (request) => {
   try {
     const url = new URL(request.url);
@@ -697,6 +782,11 @@ export default async (request) => {
     if (action === 'analytics' && request.method === 'GET') {
       const analytics = await getAnalytics();
       return json(200, { success: true, analytics });
+    }
+
+    if (action === 'customers' && request.method === 'GET') {
+      const customers = await listCustomersCrm();
+      return json(200, { success: true, customers });
     }
 
     return json(405, { success: false, error: 'Methode/Aktion nicht erlaubt' });
