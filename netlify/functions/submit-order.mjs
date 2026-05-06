@@ -32,6 +32,83 @@ function buildOrderNumber(orderId) {
   return `AB-${y}${m}${day}-${shortId}`;
 }
 
+
+
+async function supabaseFetch(path, options = {}) {
+  const supabaseUrl = requireEnv('SUPABASE_URL');
+  const serviceRoleKey = requireEnv('SUPABASE_SERVICE_ROLE_KEY');
+  const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      ...(options.headers || {})
+    }
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || `Supabase request failed: ${response.status}`);
+  }
+  return data;
+}
+
+function aggregateInventoryItems(items) {
+  const map = new Map();
+  for (const item of items || []) {
+    const id = item.product_id;
+    if (id == null || id === '') continue;
+    const key = String(id);
+    const quantity = Math.max(0, Math.floor(Number(item.quantity ?? 1) || 0));
+    if (!quantity) continue;
+    map.set(key, (map.get(key) || 0) + quantity);
+  }
+  return [...map.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+}
+
+async function reduceProductStock(items) {
+  const grouped = aggregateInventoryItems(items);
+  if (!grouped.length) return [];
+
+  const changes = [];
+  for (const entry of grouped) {
+    const rows = await supabaseFetch(`products?select=id,name,name_de,stock_current&id=eq.${encodeURIComponent(entry.productId)}&limit=1`);
+    const product = Array.isArray(rows) ? rows[0] : null;
+    if (!product) continue;
+
+    const current = Math.max(0, Math.floor(Number(product.stock_current ?? 0) || 0));
+    if (current < entry.quantity) {
+      const label = product.name_de || product.name || 'Produkt';
+      throw new Error(`${label} ist nicht mehr genügend an Lager.`);
+    }
+
+    const next = current - entry.quantity;
+    await supabaseFetch(`products?id=eq.${encodeURIComponent(entry.productId)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ stock_current: next, updated_at: new Date().toISOString() })
+    });
+    try {
+      await supabaseFetch('inventory_movements', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          product_id: product.id,
+          product_name: product.name_de || product.name || 'Produkt',
+          movement_type: 'sale',
+          quantity: -entry.quantity,
+          stock_before: current,
+          stock_after: next,
+          reason: 'Bestellung',
+          source: 'order',
+          created_at: new Date().toISOString()
+        })
+      });
+    } catch (_) {}
+    changes.push({ product_id: entry.productId, before: current, sold: entry.quantity, after: next });
+  }
+  return changes;
+}
 async function insertOrder(orderRow, items) {
   const supabaseUrl = requireEnv('SUPABASE_URL');
   const serviceRoleKey = requireEnv('SUPABASE_SERVICE_ROLE_KEY');
@@ -88,6 +165,7 @@ async function insertOrder(orderRow, items) {
 
     // Legacy-Spalten für deine bestehende DB
     unit_price_chf: unitPrice,
+    line_total_chf: totalPrice,
     total_price_chf: totalPrice
   };
 });
@@ -332,6 +410,7 @@ export default async (request) => {
   order_status: 'new'
 };
 
+    const stockChanges = await reduceProductStock(payload.items);
     const createdOrder = await insertOrder(orderRow, payload.items);
 
     const orderForMail = {
@@ -349,7 +428,8 @@ export default async (request) => {
         order_number: createdOrder.order_number,
         customer_email: createdOrder.customer_email
       },
-      email: emailResult
+      email: emailResult,
+      inventory: { reduced: stockChanges }
     });
   } catch (error) {
     console.error('submit-order failed', error);
