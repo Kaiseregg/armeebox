@@ -878,6 +878,7 @@ const state = {
     productsSaving: false,
     productsMessage: '',
     inventoryMovements: [],
+    analytics: null,
     stockAdjustments: {},
     search: '',
     filter: 'all',
@@ -1376,6 +1377,22 @@ async function loadAdminOrders(){
     render();
   }
 }
+
+async function loadAdminAnalytics(){
+  state.admin.loading = true;
+  state.admin.loginError = '';
+  render();
+  try{
+    const data = await adminRequest('analytics');
+    state.admin.analytics = data.analytics || null;
+  }catch(error){
+    state.admin.loginError = error.message || 'Statistik konnte nicht geladen werden';
+  }finally{
+    state.admin.loading = false;
+    save();
+    render();
+  }
+}
 async function loadAdminOrder(id){
   state.admin.loading = true;
   state.admin.loginError = '';
@@ -1668,7 +1685,7 @@ function shippingCost(){ return state.shipping==='private' ? 9 : 0; }
 function total(){ return subtotal()+shippingCost(); }
 function setRoute(route){ state.route=route; state.submitError=''; save(); render(); }
 function updateHash(){
-  const map={language:'#language',intro:'#intro',shop:'#shop',order:'#order',review:'#review',confirmation:'#confirmation','admin-login':'#admin-login','admin-orders':'#admin-orders','admin-order':'#admin-order','admin-products':'#admin-products','admin-design':'#admin-design',page:'#page'};
+  const map={language:'#language',intro:'#intro',shop:'#shop',order:'#order',review:'#review',confirmation:'#confirmation','admin-login':'#admin-login','admin-orders':'#admin-orders','admin-order':'#admin-order','admin-products':'#admin-products','admin-design':'#admin-design','admin-analytics':'#admin-analytics',page:'#page'};
   if(state.route==='admin-order'){
     const id = state.admin.currentOrder?.id || new URLSearchParams(location.search).get('id') || '';
     const target = `#admin-order${id ? `?id=${encodeURIComponent(id)}` : ''}`;
@@ -1703,7 +1720,7 @@ function resetOrderData(){
 }
 window.addEventListener('hashchange',()=>{
   const h=location.hash.replace('#','').split('?')[0];
-  if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products','admin-design','page'].includes(h)){
+  if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products','admin-design','admin-analytics','page'].includes(h)){
     state.route=h;
     if(h==='admin-order'){
       const id = new URLSearchParams(location.search).get('id');
@@ -2027,7 +2044,7 @@ function renderAdminOrders(){
       <div class="admin-toolbar">
         <div><h1 style="margin:0;font-size:48px">${t('adminOrders')}</h1><div class="note">${t('adminListHint')}</div></div>
         <div class="admin-actions">
-          <button class="back-btn" id="adminProductsBtn">${t('adminProducts')}</button><button class="back-btn" id="adminDesignBtn">${t('adminDesign')}</button>
+          <button class="back-btn" id="adminProductsBtn">${t('adminProducts')}</button><button class="back-btn" id="adminAnalyticsBtn">Statistik</button><button class="back-btn" id="adminDesignBtn">${t('adminDesign')}</button>
           <button class="back-btn" id="adminRefreshBtn">${t('adminRefresh')}</button>
           <button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button>
         </div>
@@ -2550,6 +2567,55 @@ function renderContactPage(){
     </div>
   </div></div>`;
 }
+
+function renderAdminAnalytics(){
+  const a = state.admin.analytics || {};
+  const s = a.summary || {};
+  const daily = Array.isArray(a.daily) ? a.daily : [];
+  const top = Array.isArray(a.top_products) ? a.top_products : [];
+  const maxRevenue = Math.max(1, ...daily.map(row => Number(row.revenue || 0)));
+  return `
+  ${topbar()}
+  <div class="page"><div class="shell admin-shell">
+    <div class="admin-toolbar">
+      <div><h1 style="margin:0;font-size:44px">Statistik</h1><div class="note">Umsatz, Bestseller und Bestellentwicklung</div></div>
+      <div class="admin-actions"><button class="back-btn" id="adminAnalyticsBackBtn">${t('adminBackOrders')}</button><button class="back-btn" id="adminAnalyticsRefreshBtn">Aktualisieren</button><button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button></div>
+    </div>
+    ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
+    ${state.admin.loading ? `<div class="note">Statistik wird geladen …</div>` : `
+      <div class="stats-grid">
+        <div class="stat-card"><span>Heute</span><strong>${money(s.revenue_today || 0)}</strong><small>${Number(s.orders_today || 0)} Bestellungen</small></div>
+        <div class="stat-card"><span>7 Tage</span><strong>${money(s.revenue_7d || 0)}</strong><small>${Number(s.orders_7d || 0)} Bestellungen</small></div>
+        <div class="stat-card"><span>Monat</span><strong>${money(s.revenue_month || 0)}</strong><small>laufender Monat</small></div>
+        <div class="stat-card"><span>Total</span><strong>${money(s.revenue_total || 0)}</strong><small>${Number(s.orders_total || 0)} Bestellungen</small></div>
+        <div class="stat-card"><span>Ø Warenkorb</span><strong>${money(s.avg_order_value || 0)}</strong><small>Durchschnitt</small></div>
+        <div class="stat-card"><span>Kunden</span><strong>${Number(s.customers_total || 0)}</strong><small>eindeutige E-Mails</small></div>
+      </div>
+      <div class="analytics-grid">
+        <div class="card analytics-card"><h3>Umsatz letzte 14 Tage</h3>
+          <div class="bar-chart">${daily.map(row => `<div class="bar-row"><span>${escapeHtml(String(row.date || '').slice(5))}</span><div><i style="width:${Math.max(4, Math.round((Number(row.revenue || 0) / maxRevenue) * 100))}%"></i></div><strong>${money(row.revenue || 0)}</strong></div>`).join('')}</div>
+        </div>
+        <div class="card analytics-card"><h3>Bestseller</h3>
+          ${top.length ? `<div class="top-products">${top.map((p,idx)=>`<div class="top-product-row"><span>${idx+1}</span><strong>${escapeHtml(p.product_name || '-')}</strong><em>${Number(p.quantity || 0)} Stk.</em><b>${money(p.revenue || 0)}</b></div>`).join('')}</div>` : `<div class="note">Noch keine Artikelverkäufe vorhanden.</div>`}
+        </div>
+      </div>
+      <div class="card analytics-card"><h3>Status Übersicht</h3><div class="status-overview">
+        <div><span>Neu</span><strong>${Number(s.status_counts?.new || 0)}</strong></div>
+        <div><span>In Bearbeitung</span><strong>${Number(s.status_counts?.in_progress || 0)}</strong></div>
+        <div><span>Erledigt</span><strong>${Number(s.status_counts?.done || 0)}</strong></div>
+      </div></div>
+    `}
+  </div></div>`;
+}
+function bindAdminAnalytics(){
+  const back = document.getElementById('adminAnalyticsBackBtn');
+  if(back) back.onclick = ()=>{ history.replaceState(null,'','#admin-orders'); state.route='admin-orders'; loadAdminOrders(); };
+  const refresh = document.getElementById('adminAnalyticsRefreshBtn');
+  if(refresh) refresh.onclick = ()=>loadAdminAnalytics();
+  const logout = document.getElementById('adminLogoutBtn');
+  if(logout) logout.onclick = ()=>doAdminLogout();
+}
+
 function renderAdminDesign(){
   const d = state.admin.design || state.settings || {};
   const pages = [...(state.admin.pages || state.pages || [])].sort((a,b)=>Number(a.sort_order ?? 999)-Number(b.sort_order ?? 999) || String(a.slug||'').localeCompare(String(b.slug||'')));
@@ -2698,6 +2764,8 @@ function bindAdminOrders(){
   if(productsBtn) productsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-products'); state.route='admin-products'; loadAdminProducts(); };
   const designBtn = document.getElementById('adminDesignBtn');
   if(designBtn) designBtn.onclick = ()=>{ history.replaceState(null,'','#admin-design'); state.route='admin-design'; loadAdminDesign(); };
+  const analyticsBtn = document.getElementById('adminAnalyticsBtn');
+  if(analyticsBtn) analyticsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-analytics'); state.route='admin-analytics'; loadAdminAnalytics(); };
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
   const search = document.getElementById('adminSearchInput');
@@ -2741,6 +2809,8 @@ function bindAdminOrder(){
   if(productsBtn) productsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-products'); state.route='admin-products'; loadAdminProducts(); };
   const designBtn = document.getElementById('adminDesignBtn');
   if(designBtn) designBtn.onclick = ()=>{ history.replaceState(null,'','#admin-design'); state.route='admin-design'; loadAdminDesign(); };
+  const analyticsBtn = document.getElementById('adminAnalyticsBtn');
+  if(analyticsBtn) analyticsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-analytics'); state.route='admin-analytics'; loadAdminAnalytics(); };
   const printBtn = document.getElementById('adminPrintDeliveryNoteBtn');
   if(printBtn) printBtn.onclick = ()=>printDeliveryNote();
   const saveBtn = document.getElementById('adminSaveStatusBtn');
@@ -2865,7 +2935,7 @@ function bindAdminProducts(){
   if(saveBtn) saveBtn.onclick = ()=>saveAdminProducts();
 }
 function render(){
-  if((state.route==='admin-orders' || state.route==='admin-order' || state.route==='admin-products' || state.route==='admin-design') && !state.admin.loggedIn){
+  if((state.route==='admin-orders' || state.route==='admin-order' || state.route==='admin-products' || state.route==='admin-design' || state.route==='admin-analytics') && !state.admin.loggedIn){
     state.route = 'admin-login';
   }
   updateHash();
@@ -2881,6 +2951,7 @@ function render(){
   if(state.route==='admin-order') html=renderAdminOrder();
   if(state.route==='admin-products') html=renderAdminProducts();
   if(state.route==='admin-design') html=renderAdminDesign();
+  if(state.route==='admin-analytics') html=renderAdminAnalytics();
   if(state.route==='page') html=renderContentPage();
   app.innerHTML=html;
   bindCommon();
@@ -2894,10 +2965,11 @@ function render(){
   if(state.route==='admin-order') bindAdminOrder();
   if(state.route==='admin-products') bindAdminProducts();
   if(state.route==='admin-design') bindAdminDesign();
+  if(state.route==='admin-analytics') bindAdminAnalytics();
   if(state.route==='page' && state.currentPageSlug==='kontakt') bindContact();
 }
 const initialHash = location.hash.replace('#','').split('?')[0];
-if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products','admin-design','page'].includes(initialHash)) {
+if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products','admin-design','admin-analytics','page'].includes(initialHash)) {
   state.route=initialHash;
 } else if(['grundidee','kontakt','agb'].includes(initialHash)) {
   state.currentPageSlug=initialHash; state.route='page';
