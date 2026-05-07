@@ -2502,7 +2502,8 @@ function buildOrderPayload(){
       product_id: item.id,
       slot_code: item.slot,
       product_name: item.kind === 'bundle' ? `${item.name[state.lang]} (${item.multiplier}x / ${item.qtyLabel || localizedBundleLabel(item)})` : item.name[state.lang],
-      quantity: item.kind === 'bundle' ? item.qty : item.qty,
+      quantity: item.qty,
+      stock_quantity: item.kind === 'bundle' ? item.qty * Number(item.multiplier || 1) : item.qty,
       unit_price: item.price,
       total_price: item.price * item.qty
     }))
