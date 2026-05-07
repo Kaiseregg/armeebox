@@ -1000,14 +1000,12 @@ function parseBundleMeta(row){
   const directOptions = Array.isArray(row?.quantity_options)
     ? row.quantity_options.map((value)=>Number(value)).filter((value)=>Number.isFinite(value) && value > 0)
     : [];
-  const directBundle = row?.bundle_content && typeof row.bundle_content === 'object' ? row.bundle_content : null;
-  const directLabel = row?.option_label && typeof row.option_label === 'object' ? row.option_label : null;
   const base = {
     slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
-    content_de: localizedAdminValue(row?.bundle_content_de ?? directBundle?.de ?? row?.bundle_content ?? row?.description_de ?? '', row?.description_de ?? ''),
-    content_fr: localizedAdminValue(row?.bundle_content_fr ?? directBundle?.fr ?? '', ''),
-    option_label_de: localizedAdminValue(row?.option_label_de ?? directLabel?.de ?? '', ''),
-    option_label_fr: localizedAdminValue(row?.option_label_fr ?? directLabel?.fr ?? '', ''),
+    content_de: localizedAdminValue(row?.bundle_content_de ?? row?.bundle_content ?? row?.description_de ?? '', row?.description_de ?? ''),
+    content_fr: localizedAdminValue(row?.bundle_content_fr ?? '', ''),
+    option_label_de: localizedAdminValue(row?.option_label_de ?? '', ''),
+    option_label_fr: localizedAdminValue(row?.option_label_fr ?? '', ''),
     quantity_options: directOptions.length ? directOptions : [2,3,4]
   };
   const raw = String(row?.description_fr || '');
@@ -1727,43 +1725,22 @@ async function uploadAdminProductImage(index, file){
   }
 }
 
-function collectAdminProductsFromForm(){
-  let products = adminProductsList();
-  document.querySelectorAll('[data-product-field]').forEach((input)=>{
-    const index = Number(input.getAttribute('data-product-index'));
-    const field = input.getAttribute('data-product-field');
-    const product = products[index];
-    if(!product || field === 'slotNumber') return;
-    const value = input.type === 'checkbox' ? input.checked : input.value;
-    if(field === 'active') product.active = !!input.checked;
-    else if(field === 'price') product.price = Number(value || 0);
-    else if(field === 'slot_type') product.slot_type = value === 'bundle' ? 'bundle' : 'normal';
-    else if(field === 'bundle_content_de') product.bundle_content = { ...(product.bundle_content || {}), de: String(value || ''), fr: product.bundle_content?.fr || '' };
-    else if(field === 'bundle_content_fr') product.bundle_content = { ...(product.bundle_content || {}), de: product.bundle_content?.de || '', fr: String(value || '') };
-    else if(field === 'option_label_de') product.option_label = { ...(product.option_label || {}), de: String(value || ''), fr: product.option_label?.fr || '' };
-    else if(field === 'option_label_fr') product.option_label = { ...(product.option_label || {}), de: product.option_label?.de || '', fr: String(value || '') };
-    else if(field === 'quantity_options') product.quantity_options = bundleOptionsFromInput(value);
-    else if(field === 'name_de') product.name = { ...(product.name || {}), de: String(value || ''), fr: product.name?.fr || String(value || '') };
-    else if(field === 'name_fr') product.name = { ...(product.name || {}), de: product.name?.de || '', fr: String(value || '') };
-    else if(['stock_total','stock_current','stock_min','sort_order'].includes(field)) product[field] = Number(value || 0);
-    else product[field] = value;
-  });
-  state.admin.products = products;
-  save();
-  return products;
+function readAdminProductField(index, field, fallback = ''){
+  const el = document.querySelector(`[data-product-index="${index}"][data-product-field="${field}"]`);
+  if(!el) return fallback;
+  if(el.type === 'checkbox') return !!el.checked;
+  return el.value;
 }
 
 async function saveAdminProducts(){
-  collectAdminProductsFromForm();
   state.admin.productsSaving = true;
   state.admin.loginError = '';
   state.admin.productsMessage = '';
-  render();
   try{
     const list = adminProductsList();
     const usedSlots = new Set();
-    for (const product of list){
-      const slotNumber = Number(product.slotNumber);
+    const rows = list.map((product, index) => {
+      const slotNumber = Number(readAdminProductField(index, 'slotNumber', product.slotNumber));
       if(!Number.isInteger(slotNumber) || slotNumber < 1){
         throw new Error('Ungültige Slotnummer');
       }
@@ -1771,25 +1748,26 @@ async function saveAdminProducts(){
         throw new Error('Slotnummern müssen eindeutig sein');
       }
       usedSlots.add(slotNumber);
-    }
-    const rows = list.map(product => ({
-      slot: Number(product.slotNumber),
-      name_de: product.name?.de || '',
-      name_fr: product.name?.fr || product.name?.de || '',
-      price_chf: Number(product.price || 0),
-      is_active: product.active !== false,
-      image_url: product.image_url || '',
-      sort_order: Number(product.sort_order || 0),
-      stock_total: stockValue(product.stock_total, 0),
-      stock_current: stockValue(product.stock_current, 0),
-      stock_min: stockValue(product.stock_min, 0),
-      slot_type: product.slot_type === 'bundle' ? 'bundle' : 'normal',
-      bundle_content_de: product.bundle_content?.de || '',
-      bundle_content_fr: product.bundle_content?.fr || '',
-      option_label_de: product.option_label?.de || '',
-      option_label_fr: product.option_label?.fr || '',
-      quantity_options: Array.isArray(product.quantity_options) ? product.quantity_options : []
-    }));
+      return {
+        slot: slotNumber,
+        name_de: String(readAdminProductField(index, 'name_de', product.name?.de || '')),
+        name_fr: String(readAdminProductField(index, 'name_fr', product.name?.fr || product.name?.de || '')),
+        price_chf: Number(readAdminProductField(index, 'price', product.price || 0) || 0),
+        is_active: readAdminProductField(index, 'active', product.active !== false),
+        image_url: String(readAdminProductField(index, 'image_url', product.image_url || '')),
+        sort_order: Number(product.sort_order || 0),
+        stock_total: stockValue(readAdminProductField(index, 'stock_total', product.stock_total), 0),
+        stock_current: stockValue(readAdminProductField(index, 'stock_current', product.stock_current), 0),
+        stock_min: stockValue(readAdminProductField(index, 'stock_min', product.stock_min), 0),
+        slot_type: readAdminProductField(index, 'slot_type', product.slot_type) === 'bundle' ? 'bundle' : 'normal',
+        bundle_content_de: String(readAdminProductField(index, 'bundle_content_de', product.bundle_content?.de || '')),
+        bundle_content_fr: String(readAdminProductField(index, 'bundle_content_fr', product.bundle_content?.fr || '')),
+        option_label_de: String(readAdminProductField(index, 'option_label_de', product.option_label?.de || '')),
+        option_label_fr: String(readAdminProductField(index, 'option_label_fr', product.option_label?.fr || '')),
+        quantity_options: bundleOptionsFromInput(readAdminProductField(index, 'quantity_options', (product.quantity_options || [2,3,4]).join(',')))
+      };
+    });
+    render();
     const data = await adminRequest('products', { method:'POST', body:{ products: rows } });
     const products = Array.isArray(data.products) ? data.products : rows;
     state.admin.products = products;
