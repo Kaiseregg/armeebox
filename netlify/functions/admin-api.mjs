@@ -96,30 +96,33 @@ function coercePrice(row) {
 
 function coerceLocalizedText(value, fallback = '') {
   if (value && typeof value === 'object') return String(value.de || value.fr || fallback || '');
-  return String(value ?? fallback ?? '');
+  const text = String(value ?? fallback ?? '');
+  if (text === '[object Object]') return String(fallback || '');
+  return text;
 }
 
 function parseBundleMeta(row) {
   const raw = String(row?.description_fr || '');
-  const fallbackContent = String(row?.description_de || '');
-  const base = { slot_type: 'normal', bundle_content_de: fallbackContent, bundle_content_fr: '', option_label_de: '', option_label_fr: '', quantity_options: [2, 3, 4] };
-  if (!raw.startsWith(META_PREFIX)) return base;
-  try {
-    const meta = JSON.parse(raw.slice(META_PREFIX.length));
-    const quantity_options = Array.isArray(meta?.quantity_options)
-      ? meta.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
-      : base.quantity_options;
-    return {
-      slot_type: meta?.slot_type === 'bundle' ? 'bundle' : 'normal',
-      bundle_content_de: String(meta?.content_de ?? meta?.content ?? fallbackContent ?? ''),
-      bundle_content_fr: coerceLocalizedText(meta?.content_fr ?? '', ''),
-      option_label_de: coerceLocalizedText(meta?.option_label_de ?? '', ''),
-      option_label_fr: coerceLocalizedText(meta?.option_label_fr ?? '', ''),
-      quantity_options: quantity_options.length ? quantity_options : base.quantity_options
-    };
-  } catch (_) {
-    return base;
+  const descriptionDe = coerceLocalizedText(row?.description_de ?? '', '');
+  let legacy = {};
+  if (raw.startsWith(META_PREFIX)) {
+    try { legacy = JSON.parse(raw.slice(META_PREFIX.length)) || {}; } catch (_) { legacy = {}; }
   }
+  const quantity_options = Array.isArray(row?.quantity_options)
+    ? row.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+    : (Array.isArray(legacy?.quantity_options) ? legacy.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0) : [2, 3, 4]);
+  const contentDe = coerceLocalizedText(row?.bundle_content_de ?? legacy?.content_de ?? legacy?.content ?? descriptionDe ?? '', descriptionDe);
+  const contentFr = coerceLocalizedText(row?.bundle_content_fr ?? legacy?.content_fr ?? '', '');
+  const labelDe = coerceLocalizedText(row?.option_label_de ?? legacy?.option_label_de ?? '', '');
+  const labelFr = coerceLocalizedText(row?.option_label_fr ?? legacy?.option_label_fr ?? '', '');
+  return {
+    slot_type: row?.slot_type === 'bundle' || legacy?.slot_type === 'bundle' ? 'bundle' : 'normal',
+    bundle_content_de: contentDe,
+    bundle_content_fr: contentFr,
+    option_label_de: labelDe,
+    option_label_fr: labelFr,
+    quantity_options: quantity_options.length ? quantity_options : [2, 3, 4]
+  };
 }
 
 function encodeBundleMeta(row) {
@@ -151,9 +154,9 @@ function normalizeProductRow(row) {
     stock_min: Number(row?.stock_min ?? row?.minimum_stock ?? 0),
     slot_type: meta.slot_type,
     bundle_content_de: meta.bundle_content_de,
-    bundle_content_fr: meta.bundle_content_fr || meta.bundle_content_de,
+    bundle_content_fr: meta.bundle_content_fr,
     option_label_de: meta.option_label_de,
-    option_label_fr: meta.option_label_fr || meta.option_label_de,
+    option_label_fr: meta.option_label_fr,
     quantity_options: meta.quantity_options
   };
 }
@@ -450,6 +453,12 @@ async function saveProducts(body) {
       name_fr: nameFr,
       description_de: item.bundle_content_de || item.description_de || null,
       description_fr: encodeBundleMeta(item),
+      slot_type: item.slot_type === 'bundle' ? 'bundle' : 'normal',
+      bundle_content_de: item.bundle_content_de || item.description_de || null,
+      bundle_content_fr: item.bundle_content_fr || null,
+      option_label_de: item.option_label_de || null,
+      option_label_fr: item.option_label_fr || null,
+      quantity_options: parseQuantityOptions(item.quantity_options, [2, 3, 4]),
       price: price,
       price_chf: price,
       active,
