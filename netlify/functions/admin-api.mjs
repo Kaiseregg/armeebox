@@ -101,6 +101,26 @@ function coerceLocalizedText(value, fallback = '') {
   return text;
 }
 
+
+function parseQuantityOptions(value, fallback = [2, 3, 4]) {
+  if (Array.isArray(value)) {
+    const parsed = value.map((item) => Number(String(item).replace(/x/gi, ''))).filter((item) => Number.isFinite(item) && item > 0);
+    return parsed.length ? parsed : fallback;
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsedJson = JSON.parse(value);
+      if (Array.isArray(parsedJson)) return parseQuantityOptions(parsedJson, fallback);
+    } catch (_) {}
+    const parsed = value
+      .split(/[;,|\s]+/)
+      .map((item) => Number(String(item).replace(/x/gi, '')))
+      .filter((item) => Number.isFinite(item) && item > 0);
+    return parsed.length ? parsed : fallback;
+  }
+  return fallback;
+}
+
 function parseBundleMeta(row) {
   const raw = String(row?.description_fr || '');
   const descriptionDe = coerceLocalizedText(row?.description_de ?? '', '');
