@@ -544,3 +544,17 @@ input[type="color"]{height:44px;padding:4px;cursor:pointer;}
 
 
 .admin-row-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}.admin-row-actions .back-btn.mini{padding:8px 12px;font-size:13px;min-width:0}.back-btn.danger{border-color:#ff5b6b;color:#fff;background:rgba(120,20,35,.22)}.back-btn.danger:hover{background:rgba(180,35,55,.34)}.back-btn:disabled{opacity:.45;cursor:not-allowed}.card-actions{justify-content:flex-start;margin-top:12px}.admin-table th:last-child,.admin-table td:last-child{text-align:right;min-width:270px}@media(max-width:760px){.admin-row-actions{justify-content:stretch}.admin-row-actions .back-btn{flex:1 1 100%;text-align:center;justify-content:center}.admin-table th:last-child,.admin-table td:last-child{text-align:left;min-width:0}}
+
+/* STEP 11.6.14 small corrections: bundle info button + inventory overview */
+.namebar-bundle-clean{display:flex;align-items:center;justify-content:center;text-align:center;padding:8px 10px}
+.namebar-bundle-clean .namebar-text{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-align:center;line-height:1.15;word-break:break-word}
+.slot-info-wide-btn{width:100%;min-height:30px;margin-top:6px;border-radius:9px;border:1px solid rgba(141,178,215,.45);background:linear-gradient(180deg,#15283b,#09131d);color:#efff87;font-weight:800;font-size:13px;cursor:pointer;text-align:center}
+.slot-info-wide-btn:hover{filter:brightness(1.12)}
+.slot-bundle .select-light{margin-top:6px}
+.inventory-overview-card{margin-top:18px}
+.inventory-overview-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px}
+.inventory-overview-head h3{margin:0}
+.inventory-overview-table{display:grid;gap:6px}
+.inventory-overview-row{display:grid;grid-template-columns:70px 1.5fr .7fr .7fr .7fr .8fr;gap:10px;align-items:center;padding:9px 10px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.035);font-size:12px}
+.inventory-overview-row-head{font-weight:900;color:#ffe16a;background:rgba(255,255,255,.06)}
+@media(max-width:700px){.inventory-overview-head{align-items:stretch;flex-direction:column}.inventory-overview-row{grid-template-columns:1fr 1fr;gap:6px}.inventory-overview-row-head{display:none}.slot-info-wide-btn{min-height:28px;font-size:12px}}

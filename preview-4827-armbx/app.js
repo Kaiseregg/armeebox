@@ -636,6 +636,9 @@ const texts = {
     slotWeeklyChoice: 'Pro Woche',
     slotAddBundle: 'Abo hinzufügen',
     slotChooseOption: 'Option wählen',
+    slotViewContent: 'Inhalt ansehen',
+    adminInventoryOverview: 'Gesamtübersicht Lager',
+    adminInventoryPrint: 'Lagerübersicht drucken',
     slotInfoTitle: 'Inhalt des Fresspäckli',
     close: 'Schliessen',
     menuMachine: 'Automat',
@@ -821,6 +824,9 @@ const texts = {
     slotWeeklyChoice: 'Par semaine',
     slotAddBundle: 'Ajouter abonnement',
     slotChooseOption: 'Choisir',
+    slotViewContent: 'Voir contenu',
+    adminInventoryOverview: 'Vue globale du stock',
+    adminInventoryPrint: 'Imprimer le stock',
     slotInfoTitle: 'Contenu du paquet',
     close: 'Fermer',
     menuMachine: 'Automate',
@@ -1725,22 +1731,16 @@ async function uploadAdminProductImage(index, file){
   }
 }
 
-function readAdminProductField(index, field, fallback = ''){
-  const el = document.querySelector(`[data-product-index="${index}"][data-product-field="${field}"]`);
-  if(!el) return fallback;
-  if(el.type === 'checkbox') return !!el.checked;
-  return el.value;
-}
-
 async function saveAdminProducts(){
   state.admin.productsSaving = true;
   state.admin.loginError = '';
   state.admin.productsMessage = '';
+  render();
   try{
     const list = adminProductsList();
     const usedSlots = new Set();
-    const rows = list.map((product, index) => {
-      const slotNumber = Number(readAdminProductField(index, 'slotNumber', product.slotNumber));
+    for (const product of list){
+      const slotNumber = Number(product.slotNumber);
       if(!Number.isInteger(slotNumber) || slotNumber < 1){
         throw new Error('Ungültige Slotnummer');
       }
@@ -1748,26 +1748,25 @@ async function saveAdminProducts(){
         throw new Error('Slotnummern müssen eindeutig sein');
       }
       usedSlots.add(slotNumber);
-      return {
-        slot: slotNumber,
-        name_de: String(readAdminProductField(index, 'name_de', product.name?.de || '')),
-        name_fr: String(readAdminProductField(index, 'name_fr', product.name?.fr || product.name?.de || '')),
-        price_chf: Number(readAdminProductField(index, 'price', product.price || 0) || 0),
-        is_active: readAdminProductField(index, 'active', product.active !== false),
-        image_url: String(readAdminProductField(index, 'image_url', product.image_url || '')),
-        sort_order: Number(product.sort_order || 0),
-        stock_total: stockValue(readAdminProductField(index, 'stock_total', product.stock_total), 0),
-        stock_current: stockValue(readAdminProductField(index, 'stock_current', product.stock_current), 0),
-        stock_min: stockValue(readAdminProductField(index, 'stock_min', product.stock_min), 0),
-        slot_type: readAdminProductField(index, 'slot_type', product.slot_type) === 'bundle' ? 'bundle' : 'normal',
-        bundle_content_de: String(readAdminProductField(index, 'bundle_content_de', product.bundle_content?.de || '')),
-        bundle_content_fr: String(readAdminProductField(index, 'bundle_content_fr', product.bundle_content?.fr || '')),
-        option_label_de: String(readAdminProductField(index, 'option_label_de', product.option_label?.de || '')),
-        option_label_fr: String(readAdminProductField(index, 'option_label_fr', product.option_label?.fr || '')),
-        quantity_options: bundleOptionsFromInput(readAdminProductField(index, 'quantity_options', (product.quantity_options || [2,3,4]).join(',')))
-      };
-    });
-    render();
+    }
+    const rows = list.map(product => ({
+      slot: Number(product.slotNumber),
+      name_de: product.name?.de || '',
+      name_fr: product.name?.fr || product.name?.de || '',
+      price_chf: Number(product.price || 0),
+      is_active: product.active !== false,
+      image_url: product.image_url || '',
+      sort_order: Number(product.sort_order || 0),
+      stock_total: stockValue(product.stock_total, 0),
+      stock_current: stockValue(product.stock_current, 0),
+      stock_min: stockValue(product.stock_min, 0),
+      slot_type: product.slot_type === 'bundle' ? 'bundle' : 'normal',
+      bundle_content_de: product.bundle_content?.de || '',
+      bundle_content_fr: product.bundle_content?.fr || '',
+      option_label_de: product.option_label?.de || '',
+      option_label_fr: product.option_label?.fr || '',
+      quantity_options: Array.isArray(product.quantity_options) ? product.quantity_options : []
+    }));
     const data = await adminRequest('products', { method:'POST', body:{ products: rows } });
     const products = Array.isArray(data.products) ? data.products : rows;
     state.admin.products = products;
@@ -1995,12 +1994,10 @@ function renderMachine(){
               <div class="spirals">◜◜◜</div>
             </div>
             <div class="price">${money(displayPriceValue)}</div>
-            <div class="namebar ${isBundle ? 'namebar-bundle' : ''}" title="${escapeAttr(displayName)}">
-              ${isBundle ? `<button class="slot-mini-btn slot-info-btn" type="button" data-slot-info="${p.id}" aria-label="${t('slotInfo')}">
-                <span class="slot-info-icon">i</span>
-              </button>` : ''}
+            <div class="namebar ${isBundle ? 'namebar-bundle-clean' : ''}" title="${escapeAttr(displayName)}">
               <span class="namebar-text">${displayName}</span>
             </div>
+            ${isBundle ? `<button class="slot-info-wide-btn" type="button" data-slot-info="${p.id}" aria-label="${t('slotInfo')}">${t('slotViewContent')}</button>` : ''}
             <div class="select-light ${isBundle ? 'select-light-bundle' : ''}">
               ${isBundle ? `<select class="slot-bundle-select" data-slot-option-select="${p.id}" aria-label="${t('slotChooseOption')}">
                 ${(Array.isArray(p.quantity_options)&&p.quantity_options.length?p.quantity_options:[2,3,4]).map((opt)=>`<option value="${opt}" ${Number(opt)===Number(currentMultiplier)?'selected':''}>${opt}x</option>`).join('')}
@@ -2456,7 +2453,8 @@ function buildOrderPayload(){
       product_name: item.kind === 'bundle' ? `${item.name[state.lang]} (${item.multiplier}x / ${item.qtyLabel || localizedBundleLabel(item)})` : item.name[state.lang],
       quantity: item.kind === 'bundle' ? item.qty : item.qty,
       unit_price: item.price,
-      total_price: item.price * item.qty
+      total_price: item.price * item.qty,
+      stock_quantity: item.kind === 'bundle' ? Number(item.multiplier || 1) * Number(item.qty || 1) : Number(item.qty || 1)
     }))
   };
 }
@@ -3016,20 +3014,27 @@ function renderAdminProducts(){
           </div>
         `).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
       </div>
-      <div class="inventory-history card-soft">
-        <h3>${t('adminStockHistory')}</h3>
-        ${(state.admin.inventoryMovements || []).length ? `
-          <div class="inventory-history-table">
-            ${(state.admin.inventoryMovements || []).slice(0, 20).map(m => `
-              <div class="inventory-history-row">
-                <span>${escapeHtml(new Date(m.created_at || Date.now()).toLocaleString('de-CH'))}</span>
-                <strong>${escapeHtml(m.product_name || '-')}</strong>
-                <span>${escapeHtml(movementLabel(m.movement_type))}</span>
-                <span class="${Number(m.quantity || 0) < 0 ? 'stock-out-text' : 'stock-ok-text'}">${Number(m.quantity || 0) > 0 ? '+' : ''}${escapeHtml(String(m.quantity || 0))}</span>
-                <span>${escapeHtml(String(m.stock_before ?? ''))} → ${escapeHtml(String(m.stock_after ?? ''))}</span>
-              </div>
-            `).join('')}
-          </div>` : `<div class="note">Noch keine Lagerbewegungen vorhanden.</div>`}
+      <div class="inventory-history card-soft inventory-overview-card">
+        <div class="inventory-overview-head">
+          <h3>${t('adminInventoryOverview')}</h3>
+          <button class="back-btn" id="printInventoryBtn" type="button">${t('adminInventoryPrint')}</button>
+        </div>
+        <div class="inventory-overview-table">
+          <div class="inventory-overview-row inventory-overview-row-head">
+            <span>Slot</span><span>Produkt</span><span>Gesamt</span><span>Aktuell</span><span>Minimum</span><span>Status</span>
+          </div>
+          ${products.map(p => {
+            const st = productStock(p);
+            return `<div class="inventory-overview-row">
+              <span>${escapeHtml(String(p.slot || String(p.slotNumber || '').padStart(2,'0')))}</span>
+              <strong>${escapeHtml(p.name?.de || p.name?.fr || '-')}</strong>
+              <span>${escapeHtml(String(st.total))}</span>
+              <span>${escapeHtml(String(st.current))}</span>
+              <span>${escapeHtml(String(st.min))}</span>
+              <span class="${stockStatusClass(p)}">${stockStatusText(p)}</span>
+            </div>`;
+          }).join('')}
+        </div>
       </div>
       <div class="admin-primary-row">
         <button class="cta primary" id="adminSaveProductsBtn" ${state.admin.productsSaving ? 'disabled' : ''}>${state.admin.productsSaving ? t('adminProductsSaving') : t('adminProductsSave')}</button>
@@ -3112,11 +3117,27 @@ function bindAdminOrder(){
     if(state.admin.currentOrder?.id) saveAdminStatus(state.admin.currentOrder.id, status);
   };
 }
+
+function printInventoryOverview(){
+  const products = adminProductsList();
+  const rows = products.map((p)=>{
+    const st = productStock(p);
+    return `<tr><td>${escapeHtml(String(p.slot || String(p.slotNumber || '').padStart(2,'0')))}</td><td>${escapeHtml(p.name?.de || p.name?.fr || '-')}</td><td>${escapeHtml(String(st.total))}</td><td>${escapeHtml(String(st.current))}</td><td>${escapeHtml(String(st.min))}</td><td>${escapeHtml(stockStatusText(p))}</td></tr>`;
+  }).join('');
+  const win = window.open('', '_blank');
+  if(!win) return;
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>ARMEEBOX Lagerübersicht</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#111}h1{margin:0 0 6px}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{padding:10px;border-bottom:1px solid #ccc;text-align:left}th{border-bottom:2px solid #111}.meta{color:#555;margin-top:4px}@media print{button{display:none}}</style></head><body><h1>ARMEEBOX Lagerübersicht</h1><div class="meta">${new Date().toLocaleString('de-CH')}</div><button onclick="window.print()" style="margin-top:16px;padding:10px 18px">Drucken</button><table><thead><tr><th>Slot</th><th>Produkt</th><th>Gesamt</th><th>Aktuell</th><th>Minimum</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+  win.document.close();
+  setTimeout(()=>win.print(), 250);
+}
+
 function bindAdminProducts(){
   const back = document.getElementById('adminBackToOrdersBtn');
   if(back) back.onclick = ()=>{ history.replaceState(null,'','#admin-orders'); state.route='admin-orders'; loadAdminOrders(); };
   const refresh = document.getElementById('adminProductsRefreshBtn');
   if(refresh) refresh.onclick = ()=>loadAdminProducts();
+  const printInventory = document.getElementById('printInventoryBtn');
+  if(printInventory) printInventory.onclick = ()=>printInventoryOverview();
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
   document.querySelectorAll('[data-product-field]').forEach(input => {
