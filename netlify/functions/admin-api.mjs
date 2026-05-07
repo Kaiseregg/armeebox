@@ -128,15 +128,20 @@ function parseBundleMeta(row) {
   if (raw.startsWith(META_PREFIX)) {
     try { legacy = JSON.parse(raw.slice(META_PREFIX.length)) || {}; } catch (_) { legacy = {}; }
   }
-  const quantity_options = Array.isArray(row?.quantity_options)
-    ? row.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
-    : (Array.isArray(legacy?.quantity_options) ? legacy.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0) : [2, 3, 4]);
-  const contentDe = coerceLocalizedText(row?.bundle_content_de ?? legacy?.content_de ?? legacy?.content ?? descriptionDe ?? '', descriptionDe);
-  const contentFr = coerceLocalizedText(row?.bundle_content_fr ?? legacy?.content_fr ?? '', '');
-  const labelDe = coerceLocalizedText(row?.option_label_de ?? legacy?.option_label_de ?? '', '');
-  const labelFr = coerceLocalizedText(row?.option_label_fr ?? legacy?.option_label_fr ?? '', '');
+
+  // IMPORTANT: description_fr meta is the stable source of truth.
+  // Direct DB columns may contain old/stale values like "[object Object]" from earlier attempts.
+  const quantity_options = Array.isArray(legacy?.quantity_options)
+    ? legacy.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+    : parseQuantityOptions(row?.quantity_options, [2, 3, 4]);
+
+  const contentDe = coerceLocalizedText(legacy?.content_de ?? legacy?.content ?? row?.bundle_content_de ?? descriptionDe ?? '', descriptionDe);
+  const contentFr = coerceLocalizedText(legacy?.content_fr ?? row?.bundle_content_fr ?? '', '');
+  const labelDe = coerceLocalizedText(legacy?.option_label_de ?? row?.option_label_de ?? '', '');
+  const labelFr = coerceLocalizedText(legacy?.option_label_fr ?? row?.option_label_fr ?? '', '');
+
   return {
-    slot_type: row?.slot_type === 'bundle' || legacy?.slot_type === 'bundle' ? 'bundle' : 'normal',
+    slot_type: legacy?.slot_type === 'bundle' || row?.slot_type === 'bundle' ? 'bundle' : 'normal',
     bundle_content_de: contentDe,
     bundle_content_fr: contentFr,
     option_label_de: labelDe,
