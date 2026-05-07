@@ -112,6 +112,85 @@ async function insertOrder(orderRow, items) {
   return patchedOrderData[0];
 }
 
+
+async function supabaseRequest(path, options = {}) {
+  const supabaseUrl = requireEnv('SUPABASE_URL');
+  const serviceRoleKey = requireEnv('SUPABASE_SERVICE_ROLE_KEY');
+  const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      ...(options.headers || {})
+    }
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.message || data?.error || `Supabase request failed: ${response.status}`);
+  return data;
+}
+
+async function logInventorySale(entry) {
+  try {
+    await supabaseRequest('inventory_movements', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        product_id: entry.product_id || null,
+        product_name: entry.product_name || '',
+        movement_type: 'sale',
+        quantity: -Math.abs(Number(entry.quantity || 0)),
+        stock_before: Number(entry.stock_before || 0),
+        stock_after: Number(entry.stock_after || 0),
+        reason: entry.reason || 'Bestellung',
+        source: 'order',
+        created_at: new Date().toISOString()
+      })
+    });
+  } catch (error) {
+    console.warn('inventory sale movement skipped', error?.message || error);
+  }
+}
+
+async function reduceStockForOrder(items, orderNumber) {
+  for (const item of Array.isArray(items) ? items : []) {
+    const qty = Math.max(0, Math.floor(Number(item.stock_quantity ?? item.quantity ?? 0) || 0));
+    if (!qty) continue;
+
+    const productId = String(item.product_id || '').trim();
+    const slotNumber = Number(String(item.slot_code || '').replace(/^0+/, '') || 0);
+    let rows = [];
+
+    if (productId && productId !== 'null' && productId !== 'undefined' && productId !== 'NaN') {
+      rows = await supabaseRequest(`products?select=id,name,name_de,stock_current,stock_total&id=eq.${encodeURIComponent(productId)}&limit=1`).catch(() => []);
+    }
+    if ((!Array.isArray(rows) || !rows[0]) && Number.isFinite(slotNumber) && slotNumber > 0) {
+      rows = await supabaseRequest(`products?select=id,name,name_de,stock_current,stock_total&slot=eq.${encodeURIComponent(slotNumber)}&limit=1`).catch(() => []);
+    }
+
+    const product = Array.isArray(rows) ? rows[0] : null;
+    if (!product?.id) continue;
+
+    const before = Math.max(0, Math.floor(Number(product.stock_current ?? product.stock_total ?? 0) || 0));
+    const after = Math.max(0, before - qty);
+
+    await supabaseRequest(`products?id=eq.${encodeURIComponent(product.id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ stock_current: after, updated_at: new Date().toISOString() })
+    });
+
+    await logInventorySale({
+      product_id: product.id,
+      product_name: product.name_de || product.name || item.product_name || '',
+      quantity: qty,
+      stock_before: before,
+      stock_after: after,
+      reason: orderNumber ? `Bestellung ${orderNumber}` : 'Bestellung'
+    });
+  }
+}
+
 function buildCustomerMail(order) {
   const shippingLabel = order.shipping_method === 'private' ? 'Versand Privat' : 'Versand Kaserne';
   const meta = order.order_meta || {};
@@ -333,6 +412,10 @@ export default async (request) => {
 };
 
     const createdOrder = await insertOrder(orderRow, payload.items);
+
+    await reduceStockForOrder(payload.items, createdOrder.order_number).catch((error) => {
+      console.warn('stock reduction skipped', error?.message || error);
+    });
 
     const orderForMail = {
       ...createdOrder,
