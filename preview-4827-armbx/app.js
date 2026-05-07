@@ -1762,6 +1762,43 @@ function syncAdminProductsFromDom(){
   return products;
 }
 
+
+
+function readAdminProductRowsDirectFromDom(){
+  const products = adminProductsList();
+  const rows = products.map((product, index) => {
+    const get = (field) => document.querySelector(`[data-product-index="${index}"][data-product-field="${field}"]`);
+    const value = (field, fallback = '') => {
+      const el = get(field);
+      return el ? String(el.value ?? '') : String(fallback ?? '');
+    };
+    const checked = (field, fallback = true) => {
+      const el = get(field);
+      return el ? !!el.checked : fallback;
+    };
+    const slotNumber = Math.max(1, Number(value('slotNumber', product.slotNumber || index + 1)) || (index + 1));
+    return {
+      slot: slotNumber,
+      name_de: value('name_de', product.name?.de || ''),
+      name_fr: value('name_fr', product.name?.fr || product.name?.de || ''),
+      price_chf: Number(value('price', product.price || 0) || 0),
+      is_active: checked('active', product.active !== false),
+      image_url: value('image_url', product.image_url || ''),
+      sort_order: Number(product.sort_order || 0),
+      stock_total: stockValue(value('stock_total', productStock(product).total), 0),
+      stock_current: stockValue(value('stock_current', productStock(product).current), 0),
+      stock_min: stockValue(value('stock_min', productStock(product).min), 0),
+      slot_type: value('slot_type', product.slot_type || 'normal') === 'bundle' ? 'bundle' : 'normal',
+      bundle_content_de: value('bundle_content_de', product.bundle_content?.de || ''),
+      bundle_content_fr: value('bundle_content_fr', product.bundle_content?.fr || ''),
+      option_label_de: value('option_label_de', product.option_label?.de || ''),
+      option_label_fr: value('option_label_fr', product.option_label?.fr || ''),
+      quantity_options: bundleOptionsFromInput(value('quantity_options', (product.quantity_options || [2,3,4]).join(',')))
+    };
+  });
+  return rows;
+}
+
 async function saveAdminProducts(){
   syncAdminProductsFromDom();
   state.admin.productsSaving = true;
@@ -1782,24 +1819,9 @@ async function saveAdminProducts(){
       }
       usedSlots.add(slotNumber);
     }
-    const rows = list.map(product => ({
-      slot: Number(product.slotNumber),
-      name_de: product.name?.de || '',
-      name_fr: product.name?.fr || product.name?.de || '',
-      price_chf: Number(product.price || 0),
-      is_active: product.active !== false,
-      image_url: product.image_url || '',
-      sort_order: Number(product.sort_order || 0),
-      stock_total: stockValue(product.stock_total, 0),
-      stock_current: stockValue(product.stock_current, 0),
-      stock_min: stockValue(product.stock_min, 0),
-      slot_type: product.slot_type === 'bundle' ? 'bundle' : 'normal',
-      bundle_content_de: product.bundle_content?.de || '',
-      bundle_content_fr: product.bundle_content?.fr || '',
-      option_label_de: product.option_label?.de || '',
-      option_label_fr: product.option_label?.fr || '',
-      quantity_options: Array.isArray(product.quantity_options) ? product.quantity_options : []
-    }));
+    // STEP 11.6.18: beim Speichern direkt aus den sichtbaren Formularfeldern lesen.
+    // So gehen FR-Beschreibung und Text-zur-Auswahl DE/FR nicht mehr durch alten State verloren.
+    const rows = readAdminProductRowsDirectFromDom();
     const data = await adminRequest('products', { method:'POST', body:{ products: rows } });
     const products = Array.isArray(data.products) ? data.products : rows;
     state.admin.products = products;
