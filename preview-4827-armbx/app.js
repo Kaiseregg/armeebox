@@ -633,12 +633,9 @@ const texts = {
     adminBundleLabelDe: 'Text zur Auswahl DE',
     adminBundleLabelFr: 'Text zur Auswahl FR',
     slotInfo: 'Inhalt',
-    slotWeeklyChoice: 'Pro Woche',
+    slotWeeklyChoice: 'Info Inhalt',
     slotAddBundle: 'Abo hinzufügen',
     slotChooseOption: 'Option wählen',
-    slotViewContent: 'Inhalt ansehen',
-    adminInventoryOverview: 'Gesamtübersicht Lager',
-    adminInventoryPrint: 'Lagerübersicht drucken',
     slotInfoTitle: 'Inhalt des Fresspäckli',
     close: 'Schliessen',
     menuMachine: 'Automat',
@@ -821,12 +818,9 @@ const texts = {
     adminBundleLabelDe: 'Texte du choix DE',
     adminBundleLabelFr: 'Texte du choix FR',
     slotInfo: 'Contenu',
-    slotWeeklyChoice: 'Par semaine',
+    slotWeeklyChoice: 'Info contenu',
     slotAddBundle: 'Ajouter abonnement',
     slotChooseOption: 'Choisir',
-    slotViewContent: 'Voir contenu',
-    adminInventoryOverview: 'Vue globale du stock',
-    adminInventoryPrint: 'Imprimer le stock',
     slotInfoTitle: 'Contenu du paquet',
     close: 'Fermer',
     menuMachine: 'Automate',
@@ -1010,8 +1004,8 @@ function parseBundleMeta(row){
     slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
     content_de: localizedAdminValue(row?.bundle_content_de ?? row?.bundle_content ?? row?.description_de ?? '', row?.description_de ?? ''),
     content_fr: localizedAdminValue(row?.bundle_content_fr ?? '', ''),
-    option_label_de: localizedAdminValue(row?.option_label_de ?? '', ''),
-    option_label_fr: localizedAdminValue(row?.option_label_fr ?? '', ''),
+    option_label_de: localizedAdminValue(row?.option_label_de ?? row?.option_label?.de ?? '', ''),
+    option_label_fr: localizedAdminValue(row?.option_label_fr ?? row?.option_label?.fr ?? '', ''),
     quantity_options: directOptions.length ? directOptions : [2,3,4]
   };
   const raw = String(row?.description_fr || '');
@@ -1023,8 +1017,8 @@ function parseBundleMeta(row){
         slot_type: row?.slot_type === 'bundle' || meta?.slot_type === 'bundle' ? 'bundle' : 'normal',
         content_de: localizedAdminValue(row?.bundle_content_de ?? row?.bundle_content ?? meta?.content_de ?? meta?.content ?? base.content_de ?? '', base.content_de ?? ''),
         content_fr: localizedAdminValue(row?.bundle_content_fr ?? meta?.content_fr ?? base.content_fr ?? '', base.content_fr ?? ''),
-        option_label_de: localizedAdminValue(row?.option_label_de ?? meta?.option_label_de ?? base.option_label_de ?? '', base.option_label_de ?? ''),
-        option_label_fr: localizedAdminValue(row?.option_label_fr ?? meta?.option_label_fr ?? base.option_label_fr ?? '', base.option_label_fr ?? ''),
+        option_label_de: localizedAdminValue(row?.option_label_de ?? row?.option_label?.de ?? meta?.option_label_de ?? base.option_label_de ?? '', base.option_label_de ?? ''),
+        option_label_fr: localizedAdminValue(row?.option_label_fr ?? row?.option_label?.fr ?? meta?.option_label_fr ?? base.option_label_fr ?? '', base.option_label_fr ?? ''),
         quantity_options: directOptions.length ? directOptions : (options.length ? options : base.quantity_options)
       };
     }catch(_){ }
@@ -1341,6 +1335,7 @@ function filteredAdminOrders(){
   const filter = state.admin.filter || 'all';
   return (state.admin.orders || []).filter(order => {
     const status = adminStatusLabel(order.order_status || order.status);
+    if(filter === 'all' && status === 'archived') return false;
     if(filter !== 'all' && status !== filter) return false;
     if(!search) return true;
     const meta = order.order_meta || {};
@@ -1732,41 +1727,9 @@ async function uploadAdminProductImage(index, file){
 }
 
 
-function syncAdminProductsFromDom(){
-  const products = adminProductsList();
-  document.querySelectorAll('[data-product-field]').forEach((input) => {
-    const index = Number(input.getAttribute('data-product-index'));
-    const field = input.getAttribute('data-product-field');
-    const product = products[index];
-    if(!product || !field) return;
-    const value = field === 'active' ? !!input.checked : input.value;
-    if(field === 'active') product.active = !!input.checked;
-    else if(field === 'price') product.price = Number(value || 0);
-    else if(field === 'slot_type') product.slot_type = value === 'bundle' ? 'bundle' : 'normal';
-    else if(field === 'bundle_content_de') product.bundle_content = { ...(product.bundle_content && typeof product.bundle_content === 'object' ? product.bundle_content : {}), de: String(value || ''), fr: product.bundle_content?.fr || '' };
-    else if(field === 'bundle_content_fr') product.bundle_content = { ...(product.bundle_content && typeof product.bundle_content === 'object' ? product.bundle_content : {}), de: product.bundle_content?.de || '', fr: String(value || '') };
-    else if(field === 'option_label_de') product.option_label = { ...(product.option_label && typeof product.option_label === 'object' ? product.option_label : {}), de: String(value || ''), fr: product.option_label?.fr || '' };
-    else if(field === 'option_label_fr') product.option_label = { ...(product.option_label && typeof product.option_label === 'object' ? product.option_label : {}), de: product.option_label?.de || '', fr: String(value || '') };
-    else if(field === 'quantity_options') product.quantity_options = bundleOptionsFromInput(String(value || ''));
-    else if(field === 'slotNumber') product.slotNumber = Math.max(1, Number(value || product.slotNumber || 1));
-    else if(field === 'name_de') product.name = { ...(product.name && typeof product.name === 'object' ? product.name : {}), de: String(value || ''), fr: product.name?.fr || '' };
-    else if(field === 'name_fr') product.name = { ...(product.name && typeof product.name === 'object' ? product.name : {}), de: product.name?.de || '', fr: String(value || '') };
-    else if(field === 'stock_total') product.stock_total = Number(value || 0);
-    else if(field === 'stock_current') product.stock_current = Number(value || 0);
-    else if(field === 'stock_min') product.stock_min = Number(value || 0);
-    else if(field === 'image_url') product.image_url = String(value || '');
-    else product[field] = value;
-  });
-  state.admin.products = products;
-  save();
-  return products;
-}
-
-
-
 function readAdminProductRowsDirectFromDom(){
   const products = adminProductsList();
-  const rows = products.map((product, index) => {
+  return products.map((product, index) => {
     const get = (field) => document.querySelector(`[data-product-index="${index}"][data-product-field="${field}"]`);
     const value = (field, fallback = '') => {
       const el = get(field);
@@ -1777,6 +1740,7 @@ function readAdminProductRowsDirectFromDom(){
       return el ? !!el.checked : fallback;
     };
     const slotNumber = Math.max(1, Number(value('slotNumber', product.slotNumber || index + 1)) || (index + 1));
+    const qtyOptions = bundleOptionsFromInput(value('quantity_options', (product.quantity_options || [2,3,4]).join(',')));
     return {
       slot: slotNumber,
       name_de: value('name_de', product.name?.de || ''),
@@ -1793,24 +1757,22 @@ function readAdminProductRowsDirectFromDom(){
       bundle_content_fr: value('bundle_content_fr', product.bundle_content?.fr || ''),
       option_label_de: value('option_label_de', product.option_label?.de || ''),
       option_label_fr: value('option_label_fr', product.option_label?.fr || ''),
-      quantity_options: bundleOptionsFromInput(value('quantity_options', (product.quantity_options || [2,3,4]).join(',')))
+      quantity_options: qtyOptions
     };
   });
-  return rows;
 }
 
 async function saveAdminProducts(){
-  syncAdminProductsFromDom();
+  const rows = readAdminProductRowsDirectFromDom();
   state.admin.productsSaving = true;
   state.admin.loginError = '';
   state.admin.productsMessage = '';
   save();
   render();
   try{
-    const list = adminProductsList();
     const usedSlots = new Set();
-    for (const product of list){
-      const slotNumber = Number(product.slotNumber);
+    for (const product of rows){
+      const slotNumber = Number(product.slot);
       if(!Number.isInteger(slotNumber) || slotNumber < 1){
         throw new Error('Ungültige Slotnummer');
       }
@@ -1819,9 +1781,6 @@ async function saveAdminProducts(){
       }
       usedSlots.add(slotNumber);
     }
-    // STEP 11.6.18: beim Speichern direkt aus den sichtbaren Formularfeldern lesen.
-    // So gehen FR-Beschreibung und Text-zur-Auswahl DE/FR nicht mehr durch alten State verloren.
-    const rows = readAdminProductRowsDirectFromDom();
     const data = await adminRequest('products', { method:'POST', body:{ products: rows } });
     const products = Array.isArray(data.products) ? data.products : rows;
     state.admin.products = products;
@@ -1912,8 +1871,22 @@ function subtotal(){ return cartItemsDetailed().reduce((a,p)=>a+Number(p.price |
 function shippingCost(){ return state.shipping==='private' ? 9 : 0; }
 function total(){ return subtotal()+shippingCost(); }
 function setRoute(route){ state.route=route; state.submitError=''; save(); render(); }
+
+async function goAdminRoute(route){
+  state.admin.loginError = '';
+  state.route = route;
+  history.replaceState(null,'',`#${route}`);
+  save();
+  render();
+  if(route==='admin-products') return loadAdminProducts();
+  if(route==='admin-design') return loadAdminDesign();
+  if(route==='admin-analytics') return loadAdminAnalytics();
+  if(route==='admin-customers') return loadAdminCustomers();
+  if(route==='admin-orders') return loadAdminOrders();
+}
+window.ARMEBOX_GO_ADMIN = goAdminRoute;
 function updateHash(){
-  const map={language:'#language',intro:'#intro',shop:'#shop',order:'#order',review:'#review',confirmation:'#confirmation','admin-login':'#admin-login','admin-orders':'#admin-orders','admin-order':'#admin-order','admin-products':'#admin-products','admin-design':'#admin-design','admin-analytics':'#admin-analytics',page:'#page'};
+  const map={language:'#language',intro:'#intro',shop:'#shop',order:'#order',review:'#review',confirmation:'#confirmation','admin-login':'#admin-login','admin-orders':'#admin-orders','admin-order':'#admin-order','admin-products':'#admin-products','admin-design':'#admin-design','admin-analytics':'#admin-analytics','admin-customers':'#admin-customers',page:'#page'};
   if(state.route==='admin-order'){
     const id = state.admin.currentOrder?.id || new URLSearchParams(location.search).get('id') || '';
     const target = `#admin-order${id ? `?id=${encodeURIComponent(id)}` : ''}`;
@@ -1951,9 +1924,14 @@ window.addEventListener('hashchange',()=>{
   if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products','admin-design','admin-analytics','admin-customers','page'].includes(h)){
     state.route=h;
     if(h==='admin-order'){
-      const id = new URLSearchParams(location.search).get('id');
-      if(id) loadAdminOrder(id);
+      const id = new URLSearchParams(location.hash.split('?')[1] || location.search).get('id');
+      if(id) { loadAdminOrder(id); return; }
     }
+    if(h==='admin-products') { loadAdminProducts(); return; }
+    if(h==='admin-design') { loadAdminDesign(); return; }
+    if(h==='admin-analytics') { loadAdminAnalytics(); return; }
+    if(h==='admin-customers') { loadAdminCustomers(); return; }
+    if(h==='admin-orders') { loadAdminOrders(); return; }
     render();
   }
 });
@@ -2049,10 +2027,10 @@ function renderMachine(){
               <div class="spirals">◜◜◜</div>
             </div>
             <div class="price">${money(displayPriceValue)}</div>
-            <div class="namebar ${isBundle ? 'namebar-bundle-clean' : ''}" title="${escapeAttr(displayName)}">
-              <span class="namebar-text">${displayName}</span>
+            <div class="namebar ${isBundle ? 'namebar-bundle' : ''}" title="${escapeAttr(displayName)}">
+              <span class="namebar-text">${escapeHtml(displayName)}</span>
             </div>
-            ${isBundle ? `<button class="slot-info-wide-btn" type="button" data-slot-info="${p.id}" aria-label="${t('slotInfo')}">${t('slotViewContent')}</button>` : ''}
+            ${isBundle ? `<button class="slot-info-strip" type="button" data-slot-info="${p.id}">${escapeHtml(localizedBundleLabel(p) || 'Info Inhalt')}</button>` : ''}
             <div class="select-light ${isBundle ? 'select-light-bundle' : ''}">
               ${isBundle ? `<select class="slot-bundle-select" data-slot-option-select="${p.id}" aria-label="${t('slotChooseOption')}">
                 ${(Array.isArray(p.quantity_options)&&p.quantity_options.length?p.quantity_options:[2,3,4]).map((opt)=>`<option value="${opt}" ${Number(opt)===Number(currentMultiplier)?'selected':''}>${opt}x</option>`).join('')}
@@ -2280,8 +2258,8 @@ function renderAdminOrders(){
       <div class="admin-toolbar">
         <div><h1 style="margin:0;font-size:48px">${t('adminOrders')}</h1><div class="note">${t('adminListHint')}</div></div>
         <div class="admin-actions">
-          <button class="back-btn" id="adminProductsBtn">${t('adminProducts')}</button><button class="back-btn" id="adminAnalyticsBtn">Statistik</button><button class="back-btn" id="adminCustomersBtn">Kunden</button><button class="back-btn" id="adminDesignBtn">${t('adminDesign')}</button>
-          <button class="back-btn" id="adminRefreshBtn">${t('adminRefresh')}</button>
+          <button class="back-btn" type="button" id="adminProductsBtn" data-admin-go="admin-products" onclick="window.ARMEBOX_GO_ADMIN && window.ARMEBOX_GO_ADMIN('admin-products')">${t('adminProducts')}</button><button class="back-btn" type="button" id="adminAnalyticsBtn" data-admin-go="admin-analytics" onclick="window.ARMEBOX_GO_ADMIN && window.ARMEBOX_GO_ADMIN('admin-analytics')">Statistik</button><button class="back-btn" type="button" id="adminCustomersBtn" data-admin-go="admin-customers" onclick="window.ARMEBOX_GO_ADMIN && window.ARMEBOX_GO_ADMIN('admin-customers')">Kunden</button><button class="back-btn" type="button" id="adminDesignBtn" data-admin-go="admin-design" onclick="window.ARMEBOX_GO_ADMIN && window.ARMEBOX_GO_ADMIN('admin-design')">${t('adminDesign')}</button>
+          <button class="back-btn" type="button" id="adminArchiveTabBtn" data-admin-archive-tab="1">Archiv</button><button class="back-btn" id="adminRefreshBtn">${t('adminRefresh')}</button>
           <button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button>
         </div>
       </div>
@@ -2399,6 +2377,19 @@ function bindCommon(){
   }
   document.querySelectorAll('[data-nav]').forEach(btn=>btn.onclick=()=>setRoute(btn.getAttribute('data-nav')));
   document.querySelectorAll('[data-nav-page]').forEach(btn=>btn.onclick=()=>{ state.currentPageSlug=btn.getAttribute('data-nav-page'); setRoute('page'); });
+  document.querySelectorAll('[data-admin-go]').forEach(btn=>btn.onclick=(e)=>{
+    e.preventDefault();
+    const route = btn.getAttribute('data-admin-go');
+    if(route) goAdminRoute(route);
+  });
+  document.querySelectorAll('[data-admin-archive-tab]').forEach(btn=>btn.onclick=(e)=>{
+    e.preventDefault();
+    state.admin.filter='archived';
+    history.replaceState(null,'','#admin-orders');
+    state.route='admin-orders';
+    save();
+    render();
+  });
 }
 function bindMachine(){
   document.querySelectorAll('.slot').forEach(el=>el.onclick=(e)=>{
@@ -2508,8 +2499,7 @@ function buildOrderPayload(){
       product_name: item.kind === 'bundle' ? `${item.name[state.lang]} (${item.multiplier}x / ${item.qtyLabel || localizedBundleLabel(item)})` : item.name[state.lang],
       quantity: item.kind === 'bundle' ? item.qty : item.qty,
       unit_price: item.price,
-      total_price: item.price * item.qty,
-      stock_quantity: item.kind === 'bundle' ? Number(item.multiplier || 1) * Number(item.qty || 1) : Number(item.qty || 1)
+      total_price: item.price * item.qty
     }))
   };
 }
@@ -2878,6 +2868,8 @@ function bindAdminCustomers(){
   if(back) back.onclick = ()=>{ history.replaceState(null,'','#admin-orders'); state.route='admin-orders'; loadAdminOrders(); };
   const refresh = document.getElementById('adminCustomersRefreshBtn');
   if(refresh) refresh.onclick = ()=>loadAdminCustomers();
+  const archiveTab = document.getElementById('adminArchiveTabBtn');
+  if(archiveTab) archiveTab.onclick = ()=>{ state.admin.filter='archived'; save(); render(); };
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
   const search = document.getElementById('adminCustomerSearchInput');
@@ -2991,6 +2983,49 @@ function renderAdminDesign(){
     <div class="admin-primary-row sticky-save"><button class="cta primary" id="adminSaveDesignBtn">${t('adminDesignSave')}</button></div>
   </div></div>`;
 }
+
+function renderInventoryOverview(products){
+  const list = Array.isArray(products) ? [...products] : [];
+  const rows = list
+    .sort((a,b)=>Number(a.slotNumber || a.slot || 0)-Number(b.slotNumber || b.slot || 0))
+    .map(product => {
+      const stock = productStock(product);
+      const name = product?.name?.de || product?.name_de || product?.name || `Slot ${product?.slotNumber || product?.slot || ''}`;
+      const slot = product?.slotNumber || product?.slot || '-';
+      const price = Number(product?.price || product?.price_chf || 0);
+      const value = stock.current * price;
+      return `
+        <tr>
+          <td><strong>${escapeHtml(String(slot).padStart(2,'0'))}</strong></td>
+          <td>${escapeHtml(name)}</td>
+          <td>${money(price)}</td>
+          <td>${stock.total}</td>
+          <td><strong>${stock.current}</strong></td>
+          <td>${stock.min}</td>
+          <td><span class="inventory-pill ${stockStatusClass(product)}">${stockStatusText(product)}</span></td>
+          <td>${money(value)}</td>
+        </tr>`;
+    }).join('');
+  const totalCurrent = list.reduce((sum,p)=>sum + productStock(p).current,0);
+  const totalValue = list.reduce((sum,p)=>sum + productStock(p).current * Number(p.price || p.price_chf || 0),0);
+  return `
+    <div class="inventory-overview card">
+      <div class="section-title-row">
+        <div>
+          <h3>Gesamtübersicht Ware</h3>
+          <div class="note">Interne Lagerübersicht: effektiver Bestand, Mindestbestand und Lagerwert.</div>
+        </div>
+        <div class="inventory-mini-summary"><strong>${totalCurrent}</strong> Stück · <strong>${money(totalValue)}</strong></div>
+      </div>
+      <div class="inventory-overview-table">
+        <table class="admin-table">
+          <thead><tr><th>Slot</th><th>Produkt</th><th>Preis</th><th>Gesamt</th><th>Ist</th><th>Min.</th><th>Status</th><th>Wert</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="8">Keine Produkte vorhanden.</td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
 function renderAdminProducts(){
   const products = adminProductsList();
   return `
@@ -3036,7 +3071,7 @@ function renderAdminProducts(){
               <div class="field"><label>${t('adminNameFr')}</label><input data-product-field="name_fr" data-product-index="${index}" value="${escapeAttr(product.name?.fr || product.name?.de || '')}"></div>
             </div>
             <div class="admin-product-row">
-              <div class="field"><label>${t('adminPrice')}</label><input data-product-field="price" data-product-index="${index}" type="number" min="0" step="0.05" value="${escapeAttr(String(product.price ?? 0))}"></div>
+              <div class="field"><label>${product.slot_type === 'bundle' ? 'Basispreis pro Auswahl/Einheit' : t('adminPrice')}</label><input data-product-field="price" data-product-index="${index}" type="number" min="0" step="0.05" value="${escapeAttr(String(product.price ?? 0))}"></div>
               <div class="field admin-active-field"><label>${t('adminActive')}</label><label class="admin-toggle"><input data-product-field="active" data-product-index="${index}" type="checkbox" ${product.active !== false ? 'checked' : ''}><span>${product.active !== false ? 'On' : 'Off'}</span></label></div>
             </div>
             <div class="admin-product-row admin-product-row-equal inventory-row">
@@ -3056,8 +3091,8 @@ function renderAdminProducts(){
               <div class="field"><label>${t('adminBundleContentFr')}</label><textarea data-product-field="bundle_content_fr" data-product-index="${index}">${escapeHtml(product.bundle_content?.fr || '')}</textarea></div>
             </div>
             <div class="admin-product-row admin-product-row-equal bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}">
-              <div class="field"><label>${t('adminBundleLabelDe')}</label><input data-product-field="option_label_de" data-product-index="${index}" value="${escapeAttr(product.option_label?.de || '')}"></div>
-              <div class="field"><label>${t('adminBundleLabelFr')}</label><input data-product-field="option_label_fr" data-product-index="${index}" value="${escapeAttr(product.option_label?.fr || '')}"></div>
+              <div class="field"><label>Text auf Info-Button DE</label><input data-product-field="option_label_de" data-product-index="${index}" value="${escapeAttr(product.option_label?.de || '')}"></div>
+              <div class="field"><label>Text auf Info-Button FR</label><input data-product-field="option_label_fr" data-product-index="${index}" value="${escapeAttr(product.option_label?.fr || '')}"></div>
             </div>
             <div class="field bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}"><label>${t('adminBundleOptions')}</label><input data-product-field="quantity_options" data-product-index="${index}" value="${escapeAttr((product.quantity_options || [2,3,4]).join(','))}"></div>
             <div class="field"><label>${t('adminImageUrl')}</label><input data-product-field="image_url" data-product-index="${index}" placeholder="https://.../bild.png" value="${escapeAttr(product.image_url || '')}"></div>
@@ -3069,28 +3104,7 @@ function renderAdminProducts(){
           </div>
         `).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
       </div>
-      <div class="inventory-history card-soft inventory-overview-card">
-        <div class="inventory-overview-head">
-          <h3>${t('adminInventoryOverview')}</h3>
-          <button class="back-btn" id="printInventoryBtn" type="button">${t('adminInventoryPrint')}</button>
-        </div>
-        <div class="inventory-overview-table">
-          <div class="inventory-overview-row inventory-overview-row-head">
-            <span>Slot</span><span>Produkt</span><span>Gesamt</span><span>Aktuell</span><span>Minimum</span><span>Status</span>
-          </div>
-          ${products.map(p => {
-            const st = productStock(p);
-            return `<div class="inventory-overview-row">
-              <span>${escapeHtml(String(p.slot || String(p.slotNumber || '').padStart(2,'0')))}</span>
-              <strong>${escapeHtml(p.name?.de || p.name?.fr || '-')}</strong>
-              <span>${escapeHtml(String(st.total))}</span>
-              <span>${escapeHtml(String(st.current))}</span>
-              <span>${escapeHtml(String(st.min))}</span>
-              <span class="${stockStatusClass(p)}">${stockStatusText(p)}</span>
-            </div>`;
-          }).join('')}
-        </div>
-      </div>
+      ${typeof renderInventoryOverview === 'function' ? renderInventoryOverview(products) : ''}
       <div class="admin-primary-row">
         <button class="cta primary" id="adminSaveProductsBtn" ${state.admin.productsSaving ? 'disabled' : ''}>${state.admin.productsSaving ? t('adminProductsSaving') : t('adminProductsSave')}</button>
       </div>
@@ -3102,13 +3116,15 @@ function bindAdminOrders(){
   const refresh = document.getElementById('adminRefreshBtn');
   if(refresh) refresh.onclick = ()=>loadAdminOrders();
   const productsBtn = document.getElementById('adminProductsBtn');
-  if(productsBtn) productsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-products'); state.route='admin-products'; loadAdminProducts(); };
+  if(productsBtn) productsBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-products'); };
   const designBtn = document.getElementById('adminDesignBtn');
-  if(designBtn) designBtn.onclick = ()=>{ history.replaceState(null,'','#admin-design'); state.route='admin-design'; loadAdminDesign(); };
+  if(designBtn) designBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-design'); };
   const analyticsBtn = document.getElementById('adminAnalyticsBtn');
-  if(analyticsBtn) analyticsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-analytics'); state.route='admin-analytics'; loadAdminAnalytics(); };
+  if(analyticsBtn) analyticsBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-analytics'); };
   const customersBtn = document.getElementById('adminCustomersBtn');
-  if(customersBtn) customersBtn.onclick = ()=>{ history.replaceState(null,'','#admin-customers'); state.route='admin-customers'; loadAdminCustomers(); };
+  if(customersBtn) customersBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-customers'); };
+  const archiveTab = document.getElementById('adminArchiveTabBtn');
+  if(archiveTab) archiveTab.onclick = ()=>{ state.admin.filter='archived'; save(); render(); };
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
   const search = document.getElementById('adminSearchInput');
@@ -3157,13 +3173,13 @@ function bindAdminOrder(){
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
   const productsBtn = document.getElementById('adminGoProductsBtn');
-  if(productsBtn) productsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-products'); state.route='admin-products'; loadAdminProducts(); };
+  if(productsBtn) productsBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-products'); };
   const designBtn = document.getElementById('adminDesignBtn');
-  if(designBtn) designBtn.onclick = ()=>{ history.replaceState(null,'','#admin-design'); state.route='admin-design'; loadAdminDesign(); };
+  if(designBtn) designBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-design'); };
   const analyticsBtn = document.getElementById('adminAnalyticsBtn');
-  if(analyticsBtn) analyticsBtn.onclick = ()=>{ history.replaceState(null,'','#admin-analytics'); state.route='admin-analytics'; loadAdminAnalytics(); };
+  if(analyticsBtn) analyticsBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-analytics'); };
   const customersBtn = document.getElementById('adminCustomersBtn');
-  if(customersBtn) customersBtn.onclick = ()=>{ history.replaceState(null,'','#admin-customers'); state.route='admin-customers'; loadAdminCustomers(); };
+  if(customersBtn) customersBtn.onclick = (e)=>{ e.preventDefault(); goAdminRoute('admin-customers'); };
   const printBtn = document.getElementById('adminPrintDeliveryNoteBtn');
   if(printBtn) printBtn.onclick = ()=>printDeliveryNote();
   const saveBtn = document.getElementById('adminSaveStatusBtn');
@@ -3172,27 +3188,11 @@ function bindAdminOrder(){
     if(state.admin.currentOrder?.id) saveAdminStatus(state.admin.currentOrder.id, status);
   };
 }
-
-function printInventoryOverview(){
-  const products = adminProductsList();
-  const rows = products.map((p)=>{
-    const st = productStock(p);
-    return `<tr><td>${escapeHtml(String(p.slot || String(p.slotNumber || '').padStart(2,'0')))}</td><td>${escapeHtml(p.name?.de || p.name?.fr || '-')}</td><td>${escapeHtml(String(st.total))}</td><td>${escapeHtml(String(st.current))}</td><td>${escapeHtml(String(st.min))}</td><td>${escapeHtml(stockStatusText(p))}</td></tr>`;
-  }).join('');
-  const win = window.open('', '_blank');
-  if(!win) return;
-  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>ARMEEBOX Lagerübersicht</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#111}h1{margin:0 0 6px}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{padding:10px;border-bottom:1px solid #ccc;text-align:left}th{border-bottom:2px solid #111}.meta{color:#555;margin-top:4px}@media print{button{display:none}}</style></head><body><h1>ARMEEBOX Lagerübersicht</h1><div class="meta">${new Date().toLocaleString('de-CH')}</div><button onclick="window.print()" style="margin-top:16px;padding:10px 18px">Drucken</button><table><thead><tr><th>Slot</th><th>Produkt</th><th>Gesamt</th><th>Aktuell</th><th>Minimum</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
-  win.document.close();
-  setTimeout(()=>win.print(), 250);
-}
-
 function bindAdminProducts(){
   const back = document.getElementById('adminBackToOrdersBtn');
   if(back) back.onclick = ()=>{ history.replaceState(null,'','#admin-orders'); state.route='admin-orders'; loadAdminOrders(); };
   const refresh = document.getElementById('adminProductsRefreshBtn');
   if(refresh) refresh.onclick = ()=>loadAdminProducts();
-  const printInventory = document.getElementById('printInventoryBtn');
-  if(printInventory) printInventory.onclick = ()=>printInventoryOverview();
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
   document.querySelectorAll('[data-product-field]').forEach(input => {
