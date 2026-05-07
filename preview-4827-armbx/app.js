@@ -1731,10 +1731,43 @@ async function uploadAdminProductImage(index, file){
   }
 }
 
+
+function syncAdminProductsFromDom(){
+  const products = adminProductsList();
+  document.querySelectorAll('[data-product-field]').forEach((input) => {
+    const index = Number(input.getAttribute('data-product-index'));
+    const field = input.getAttribute('data-product-field');
+    const product = products[index];
+    if(!product || !field) return;
+    const value = field === 'active' ? !!input.checked : input.value;
+    if(field === 'active') product.active = !!input.checked;
+    else if(field === 'price') product.price = Number(value || 0);
+    else if(field === 'slot_type') product.slot_type = value === 'bundle' ? 'bundle' : 'normal';
+    else if(field === 'bundle_content_de') product.bundle_content = { ...(product.bundle_content && typeof product.bundle_content === 'object' ? product.bundle_content : {}), de: String(value || ''), fr: product.bundle_content?.fr || '' };
+    else if(field === 'bundle_content_fr') product.bundle_content = { ...(product.bundle_content && typeof product.bundle_content === 'object' ? product.bundle_content : {}), de: product.bundle_content?.de || '', fr: String(value || '') };
+    else if(field === 'option_label_de') product.option_label = { ...(product.option_label && typeof product.option_label === 'object' ? product.option_label : {}), de: String(value || ''), fr: product.option_label?.fr || '' };
+    else if(field === 'option_label_fr') product.option_label = { ...(product.option_label && typeof product.option_label === 'object' ? product.option_label : {}), de: product.option_label?.de || '', fr: String(value || '') };
+    else if(field === 'quantity_options') product.quantity_options = bundleOptionsFromInput(String(value || ''));
+    else if(field === 'slotNumber') product.slotNumber = Math.max(1, Number(value || product.slotNumber || 1));
+    else if(field === 'name_de') product.name = { ...(product.name && typeof product.name === 'object' ? product.name : {}), de: String(value || ''), fr: product.name?.fr || '' };
+    else if(field === 'name_fr') product.name = { ...(product.name && typeof product.name === 'object' ? product.name : {}), de: product.name?.de || '', fr: String(value || '') };
+    else if(field === 'stock_total') product.stock_total = Number(value || 0);
+    else if(field === 'stock_current') product.stock_current = Number(value || 0);
+    else if(field === 'stock_min') product.stock_min = Number(value || 0);
+    else if(field === 'image_url') product.image_url = String(value || '');
+    else product[field] = value;
+  });
+  state.admin.products = products;
+  save();
+  return products;
+}
+
 async function saveAdminProducts(){
+  syncAdminProductsFromDom();
   state.admin.productsSaving = true;
   state.admin.loginError = '';
   state.admin.productsMessage = '';
+  save();
   render();
   try{
     const list = adminProductsList();
