@@ -1466,6 +1466,41 @@ function downloadCustomersCsv(){
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+function inventoryCsv(products){
+  const rows = [['Slot','Produkt','Preis CHF','Gesamt','Ist','Mindestbestand','Status','Lagerwert CHF']];
+  const list = Array.isArray(products) ? [...products] : [];
+  list
+    .sort((a,b)=>Number(a.slotNumber || a.slot || 0)-Number(b.slotNumber || b.slot || 0))
+    .forEach(product => {
+      const stock = productStock(product);
+      const name = product?.name?.de || product?.name_de || product?.name || `Slot ${product?.slotNumber || product?.slot || ''}`;
+      const price = Number(product?.price || product?.price_chf || 0);
+      rows.push([
+        product?.slotNumber || product?.slot || '',
+        name,
+        price.toFixed(2),
+        stock.total,
+        stock.current,
+        stock.min,
+        stockStatusText(product),
+        (stock.current * price).toFixed(2)
+      ]);
+    });
+  return rows.map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
+}
+function downloadInventoryCsv(){
+  const csv = inventoryCsv(adminProductsList());
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `armeebox-lager-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 function copyCustomerEmails(){
   const emails = filteredAdminCustomers().map(c=>c.email).filter(Boolean).join(', ');
   navigator.clipboard?.writeText(emails);
@@ -3021,7 +3056,11 @@ function renderInventoryOverview(products){
           <h3>Gesamtübersicht Ware</h3>
           <div class="note">Interne Lagerübersicht: effektiver Bestand, Mindestbestand und Lagerwert.</div>
         </div>
-        <div class="inventory-mini-summary"><strong>${totalCurrent}</strong> Stück · <strong>${money(totalValue)}</strong></div>
+        <div class="inventory-overview-actions">
+          <div class="inventory-mini-summary"><strong>${totalCurrent}</strong> Stück · <strong>${money(totalValue)}</strong></div>
+          <button class="back-btn" type="button" id="inventoryPrintBtn">Drucken</button>
+          <button class="back-btn" type="button" id="inventoryExportBtn">CSV Export</button>
+        </div>
       </div>
       <div class="inventory-overview-table">
         <table class="admin-table">
@@ -3305,6 +3344,11 @@ function bindAdminProducts(){
   });
   document.querySelectorAll('[data-stock-add]').forEach(btn => btn.onclick = () => adjustAdminStock(Number(btn.getAttribute('data-stock-add')), 'add'));
   document.querySelectorAll('[data-stock-set]').forEach(btn => btn.onclick = () => adjustAdminStock(Number(btn.getAttribute('data-stock-set')), 'set'));
+
+  const inventoryPrintBtn = document.getElementById('inventoryPrintBtn');
+  if(inventoryPrintBtn) inventoryPrintBtn.onclick = () => window.print();
+  const inventoryExportBtn = document.getElementById('inventoryExportBtn');
+  if(inventoryExportBtn) inventoryExportBtn.onclick = () => downloadInventoryCsv();
 
   const saveBtn = document.getElementById('adminSaveProductsBtn');
   if(saveBtn) saveBtn.onclick = ()=>saveAdminProducts();
