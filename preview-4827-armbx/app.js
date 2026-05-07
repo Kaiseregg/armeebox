@@ -1000,12 +1000,14 @@ function parseBundleMeta(row){
   const directOptions = Array.isArray(row?.quantity_options)
     ? row.quantity_options.map((value)=>Number(value)).filter((value)=>Number.isFinite(value) && value > 0)
     : [];
+  const directBundle = row?.bundle_content && typeof row.bundle_content === 'object' ? row.bundle_content : null;
+  const directLabel = row?.option_label && typeof row.option_label === 'object' ? row.option_label : null;
   const base = {
     slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
-    content_de: localizedAdminValue(row?.bundle_content_de ?? row?.bundle_content ?? row?.description_de ?? '', row?.description_de ?? ''),
-    content_fr: localizedAdminValue(row?.bundle_content_fr ?? '', ''),
-    option_label_de: localizedAdminValue(row?.option_label_de ?? '', ''),
-    option_label_fr: localizedAdminValue(row?.option_label_fr ?? '', ''),
+    content_de: localizedAdminValue(row?.bundle_content_de ?? directBundle?.de ?? row?.bundle_content ?? row?.description_de ?? '', row?.description_de ?? ''),
+    content_fr: localizedAdminValue(row?.bundle_content_fr ?? directBundle?.fr ?? '', ''),
+    option_label_de: localizedAdminValue(row?.option_label_de ?? directLabel?.de ?? '', ''),
+    option_label_fr: localizedAdminValue(row?.option_label_fr ?? directLabel?.fr ?? '', ''),
     quantity_options: directOptions.length ? directOptions : [2,3,4]
   };
   const raw = String(row?.description_fr || '');
@@ -1725,7 +1727,34 @@ async function uploadAdminProductImage(index, file){
   }
 }
 
+function collectAdminProductsFromForm(){
+  let products = adminProductsList();
+  document.querySelectorAll('[data-product-field]').forEach((input)=>{
+    const index = Number(input.getAttribute('data-product-index'));
+    const field = input.getAttribute('data-product-field');
+    const product = products[index];
+    if(!product || field === 'slotNumber') return;
+    const value = input.type === 'checkbox' ? input.checked : input.value;
+    if(field === 'active') product.active = !!input.checked;
+    else if(field === 'price') product.price = Number(value || 0);
+    else if(field === 'slot_type') product.slot_type = value === 'bundle' ? 'bundle' : 'normal';
+    else if(field === 'bundle_content_de') product.bundle_content = { ...(product.bundle_content || {}), de: String(value || ''), fr: product.bundle_content?.fr || '' };
+    else if(field === 'bundle_content_fr') product.bundle_content = { ...(product.bundle_content || {}), de: product.bundle_content?.de || '', fr: String(value || '') };
+    else if(field === 'option_label_de') product.option_label = { ...(product.option_label || {}), de: String(value || ''), fr: product.option_label?.fr || '' };
+    else if(field === 'option_label_fr') product.option_label = { ...(product.option_label || {}), de: product.option_label?.de || '', fr: String(value || '') };
+    else if(field === 'quantity_options') product.quantity_options = bundleOptionsFromInput(value);
+    else if(field === 'name_de') product.name = { ...(product.name || {}), de: String(value || ''), fr: product.name?.fr || String(value || '') };
+    else if(field === 'name_fr') product.name = { ...(product.name || {}), de: product.name?.de || '', fr: String(value || '') };
+    else if(['stock_total','stock_current','stock_min','sort_order'].includes(field)) product[field] = Number(value || 0);
+    else product[field] = value;
+  });
+  state.admin.products = products;
+  save();
+  return products;
+}
+
 async function saveAdminProducts(){
+  collectAdminProductsFromForm();
   state.admin.productsSaving = true;
   state.admin.loginError = '';
   state.admin.productsMessage = '';
