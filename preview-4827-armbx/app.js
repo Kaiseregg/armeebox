@@ -633,7 +633,7 @@ const texts = {
     adminBundleLabelDe: 'Text zur Auswahl DE',
     adminBundleLabelFr: 'Text zur Auswahl FR',
     slotInfo: 'Inhalt',
-    slotWeeklyChoice: 'Info Inhalt',
+    slotWeeklyChoice: 'Inhalt ansehen',
     slotAddBundle: 'Abo hinzufügen',
     slotChooseOption: 'Option wählen',
     slotInfoTitle: 'Inhalt des Fresspäckli',
@@ -818,7 +818,7 @@ const texts = {
     adminBundleLabelDe: 'Texte du choix DE',
     adminBundleLabelFr: 'Texte du choix FR',
     slotInfo: 'Contenu',
-    slotWeeklyChoice: 'Info contenu',
+    slotWeeklyChoice: 'Voir contenu',
     slotAddBundle: 'Ajouter abonnement',
     slotChooseOption: 'Choisir',
     slotInfoTitle: 'Contenu du paquet',
@@ -866,6 +866,11 @@ const ADMIN_STATUSES = ['new','in_progress','shipped','done','archived'];
 
 const STORAGE_KEY = 'armeebox_preview_state_v18';
 const META_PREFIX = '__ARMBX_META__';
+
+function getBundleInfoButtonText() {
+  return currentLang === 'fr' ? 'Voir contenu' : 'Info Inhalt';
+}
+
 const state = {
   lang: 'de',
   route: 'language',
@@ -2030,7 +2035,7 @@ function renderMachine(){
             <div class="namebar ${isBundle ? 'namebar-bundle' : ''}" title="${escapeAttr(displayName)}">
               <span class="namebar-text">${escapeHtml(displayName)}</span>
             </div>
-            ${isBundle ? `<button class="slot-info-strip" type="button" data-slot-info="${p.id}">${escapeHtml(localizedBundleLabel(p) || 'Info Inhalt')}</button>` : ''}
+            ${isBundle ? `<button class="slot-info-strip" type="button" data-slot-info="${p.id}">${escapeHtml(t('slotWeeklyChoice'))}</button>` : ''}
             <div class="select-light ${isBundle ? 'select-light-bundle' : ''}">
               ${isBundle ? `<select class="slot-bundle-select" data-slot-option-select="${p.id}" aria-label="${t('slotChooseOption')}">
                 ${(Array.isArray(p.quantity_options)&&p.quantity_options.length?p.quantity_options:[2,3,4]).map((opt)=>`<option value="${opt}" ${Number(opt)===Number(currentMultiplier)?'selected':''}>${opt}x</option>`).join('')}
