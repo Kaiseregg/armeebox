@@ -925,7 +925,10 @@ const state = {
     buttonColor: '#65a832',
     slotColor: '#3d5366',
     frameColor: '#b22b2b',
-    bgColor: '#061527'
+    bgColor: '#061527',
+    bgImage: '',
+    bgSize: 'cover',
+    bgPosition: 'center center'
   },
   pages: [],
   currentPageSlug: '',
@@ -2059,7 +2062,7 @@ function renderMachine(){
   return `
   ${topbar()}
   <div class="page">
-    <div class="shell" style="--admin-bg:${escapeAttr(settingValue('bgColor', '#061527'))};--admin-frame:${escapeAttr(settingValue('frameColor', '#b22b2b'))};--admin-slot:${escapeAttr(settingValue('slotColor', '#3d5366'))};--admin-button:${escapeAttr(settingValue('buttonColor', '#65a832'))}">
+    <div class="shell" style="--admin-bg:${escapeAttr(settingValue('bgColor', '#061527'))};--admin-frame:${escapeAttr(settingValue('frameColor', '#b22b2b'))};--admin-slot:${escapeAttr(settingValue('slotColor', '#3d5366'))};--admin-button:${escapeAttr(settingValue('buttonColor', '#65a832'))};${settingValue('bgImage','') ? `background-image:url('${escapeAttr(settingValue('bgImage',''))}');background-size:${escapeAttr(settingValue('bgSize','cover'))};background-position:${escapeAttr(settingValue('bgPosition','center center'))};` : ''}">
       <div class="header-row"><h1>${escapeHtml(localizedSetting('machineTitle', t('machineTitle')))}</h1></div>
       <div class="machine"><div class="machine-red"><div class="machine-inner">
         <div class="machine-banner">${escapeHtml(localizedSetting('machineInner', t('machineInner')))}</div>
@@ -2699,6 +2702,7 @@ function renderDesignPreviewOnly(){
   const p=document.getElementById('designLivePreview'); if(!p) return;
   const d=state.admin.design || {};
   p.style.setProperty('--button-color', d.buttonColor || '#65a832'); p.style.setProperty('--slot-color', d.slotColor || '#3d5366'); p.style.setProperty('--frame-color', d.frameColor || '#b22b2b'); p.style.setProperty('--bg-color', d.bgColor || '#061527');
+  p.style.backgroundImage = d.bgImage ? `url('${d.bgImage}')` : ''; p.style.backgroundSize = d.bgSize || 'cover'; p.style.backgroundPosition = d.bgPosition || 'center center';
 }
 function slugifyPage(value){ return String(value||'').toLowerCase().trim().replace(/[ä]/g,'ae').replace(/[ö]/g,'oe').replace(/[ü]/g,'ue').replace(/[éèê]/g,'e').replace(/[àâ]/g,'a').replace(/[ç]/g,'c').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || `seite-${Date.now()}`; }
 function addAdminPage(){ state.admin.pages = state.admin.pages || []; const base='neue-seite'; let slug=base; let n=2; const used=new Set(state.admin.pages.map(p=>p.slug)); while(used.has(slug)){ slug=`${base}-${n++}`; } state.admin.pages.push({ slug, title_de:'Neue Seite', title_fr:'Nouvelle page', content_de:'', content_fr:'', show_in_menu:true, is_active:true, sort_order: state.admin.pages.length+1 }); save(); render(); }
@@ -2738,22 +2742,60 @@ function renderButtonUrl(url){
   if(value.startsWith('#') || value.startsWith('/') || /^https?:\/\//i.test(value) || /^mailto:/i.test(value)) return value;
   return `#${slugifyPage(value)}`;
 }
+function cssLen(value, fallback=''){
+  const raw = String(value ?? '').trim();
+  if(!raw) return fallback;
+  if(/^\d+(\.\d+)?$/.test(raw)) return `${raw}px`;
+  if(/^[\d.]+(px|%|rem|em|vh|vw)$/i.test(raw)) return raw;
+  return fallback;
+}
+function blockOuterStyle(block, align='left'){
+  const styles = [];
+  if(block?.bgColor) styles.push(`background:${escapeAttr(block.bgColor)}`);
+  if(block?.textColor) styles.push(`color:${escapeAttr(block.textColor)}`);
+  const padding = cssLen(block?.padding, ''); if(padding) styles.push(`padding:${escapeAttr(padding)}`);
+  const radius = cssLen(block?.radius, ''); if(radius) styles.push(`border-radius:${escapeAttr(radius)}`);
+  const mt = cssLen(block?.marginTop, ''); if(mt) styles.push(`margin-top:${escapeAttr(mt)}`);
+  const mb = cssLen(block?.marginBottom, ''); if(mb) styles.push(`margin-bottom:${escapeAttr(mb)}`);
+  const maxWidth = cssLen(block?.maxWidth, '');
+  if(maxWidth){
+    styles.push(`max-width:${escapeAttr(maxWidth)}`);
+    if(align === 'center') styles.push('margin-left:auto','margin-right:auto');
+    if(align === 'right') styles.push('margin-left:auto');
+  }
+  if(block?.bgImage){
+    styles.push(`background-image:url('${escapeAttr(block.bgImage)}')`);
+    styles.push(`background-size:${escapeAttr(block.bgSize || 'cover')}`);
+    styles.push(`background-position:${escapeAttr(block.bgPosition || 'center center')}`);
+  }
+  return styles.join(';');
+}
 function renderPageBlock(block){
   const type = block?.type || 'text';
   const align = ['left','center','right'].includes(block?.align) ? block.align : 'left';
-  const style = `${block?.bgColor ? `--block-bg:${escapeAttr(block.bgColor)};` : ''}${block?.textColor ? `--block-color:${escapeAttr(block.textColor)};` : ''}`;
+  const style = blockOuterStyle(block, align);
   if(type === 'heading') return `<section class="pb-block pb-heading align-${align}" style="${style}"><h2>${escapeHtml(blockText(block,'title'))}</h2></section>`;
   if(type === 'image'){
     const url = String(block?.image_url || '').trim();
     const alt = blockText(block,'alt') || blockText(block,'title');
     if(!url) return '';
-    return `<section class="pb-block pb-image align-${align}" style="${style}"><img src="${escapeAttr(url)}" alt="${escapeAttr(alt)}"></section>`;
+    const imgStyles = [];
+    const imageWidth = cssLen(block?.imageWidth, ''); if(imageWidth) imgStyles.push(`width:${escapeAttr(imageWidth)}`);
+    const imageRadius = cssLen(block?.imageRadius, ''); if(imageRadius) imgStyles.push(`border-radius:${escapeAttr(imageRadius)}`);
+    const x = cssLen(block?.offsetX, ''); const y = cssLen(block?.offsetY, '');
+    if(x || y) imgStyles.push(`transform:translate(${escapeAttr(x || '0px')},${escapeAttr(y || '0px')})`);
+    return `<section class="pb-block pb-image align-${align}" style="${style}"><img src="${escapeAttr(url)}" alt="${escapeAttr(alt)}" style="${imgStyles.join(';')}"></section>`;
   }
   if(type === 'button'){
     const label = blockText(block,'label') || 'Mehr erfahren';
-    return `<section class="pb-block pb-button align-${align}" style="${style}"><a class="cta primary" href="${escapeAttr(renderButtonUrl(block?.url))}">${escapeHtml(label)}</a></section>`;
+    const btnStyles = [];
+    if(block?.buttonBg) btnStyles.push(`background:${escapeAttr(block.buttonBg)}`);
+    if(block?.buttonTextColor) btnStyles.push(`color:${escapeAttr(block.buttonTextColor)}`);
+    const br = cssLen(block?.buttonRadius, ''); if(br) btnStyles.push(`border-radius:${escapeAttr(br)}`);
+    const bp = cssLen(block?.buttonPadding, ''); if(bp) btnStyles.push(`padding:${escapeAttr(bp)}`);
+    return `<section class="pb-block pb-button align-${align}" style="${style}"><a class="cta primary" style="${btnStyles.join(';')}" href="${escapeAttr(renderButtonUrl(block?.url))}">${escapeHtml(label)}</a></section>`;
   }
-  if(type === 'divider') return `<div class="pb-divider"></div>`;
+  if(type === 'divider') return `<div class="pb-divider" style="${style}"></div>`;
   if(type === 'quote') return `<section class="pb-block pb-quote align-${align}" style="${style}"><blockquote>${escapeHtml(blockText(block,'text')).replace(/\n/g,'<br>')}</blockquote></section>`;
   if(type === 'columns') return `<section class="pb-block pb-columns" style="${style}"><div>${escapeHtml(blockText(block,'left')).replace(/\n/g,'<br>')}</div><div>${escapeHtml(blockText(block,'right')).replace(/\n/g,'<br>')}</div></section>`;
   return `<section class="pb-block pb-text align-${align}" style="${style}">${escapeHtml(blockText(block,'text') || blockText(block,'title')).replace(/\n/g,'<br>')}</section>`;
@@ -2797,10 +2839,10 @@ function renderPageContent(page){
   return parts.join('');
 }
 function newPageBlock(type='text'){
-  const base = { id: `blk_${Date.now()}_${Math.random().toString(16).slice(2)}`, type, align:'left', bgColor:'', textColor:'' };
+  const base = { id: `blk_${Date.now()}_${Math.random().toString(16).slice(2)}`, type, align:'left', bgColor:'', textColor:'', padding:'', radius:'', maxWidth:'', marginTop:'', marginBottom:'', bgImage:'', bgSize:'cover', bgPosition:'center center' };
   if(type === 'heading') return { ...base, title_de:'Neue Überschrift', title_fr:'Nouveau titre' };
-  if(type === 'image') return { ...base, image_url:'', alt_de:'Bild', alt_fr:'Image' };
-  if(type === 'button') return { ...base, label_de:'Button', label_fr:'Bouton', url:'#shop', align:'center' };
+  if(type === 'image') return { ...base, image_url:'', alt_de:'Bild', alt_fr:'Image', imageWidth:'100%', imageRadius:'12px', offsetX:'', offsetY:'' };
+  if(type === 'button') return { ...base, label_de:'Button', label_fr:'Bouton', url:'#shop', align:'center', buttonBg:'', buttonTextColor:'', buttonRadius:'999px', buttonPadding:'' };
   if(type === 'divider') return { ...base };
   if(type === 'quote') return { ...base, text_de:'Zitat oder Hinweis', text_fr:'Citation ou note' };
   if(type === 'columns') return { ...base, left_de:'Linke Spalte', left_fr:'Colonne gauche', right_de:'Rechte Spalte', right_fr:'Colonne droite' };
@@ -2810,11 +2852,11 @@ function blockLabel(type){ return ({heading:'Überschrift',text:'Text',image:'Bi
 function renderBlockEditor(block, pageIndex, blockIndex){
   const type = block?.type || 'text';
   const baseAttrs = `data-page-index="${pageIndex}" data-block-index="${blockIndex}"`;
-  const styleFields = `<div class="pb-admin-style-row"><div class="field"><label>Ausrichtung</label><select ${baseAttrs} data-block-field="align"><option value="left" ${block.align==='left'?'selected':''}>Links</option><option value="center" ${block.align==='center'?'selected':''}>Zentriert</option><option value="right" ${block.align==='right'?'selected':''}>Rechts</option></select></div><div class="field"><label>Textfarbe</label><input ${baseAttrs} data-block-field="textColor" type="color" value="${escapeAttr(block.textColor || '#ffffff')}"></div><div class="field"><label>Block-Hintergrund</label><input ${baseAttrs} data-block-field="bgColor" type="color" value="${escapeAttr(block.bgColor || '#071d36')}"></div></div>`;
+  const styleFields = `<div class="pb-admin-style-row"><div class="field"><label>Ausrichtung</label><select ${baseAttrs} data-block-field="align"><option value="left" ${block.align==='left'?'selected':''}>Links</option><option value="center" ${block.align==='center'?'selected':''}>Zentriert</option><option value="right" ${block.align==='right'?'selected':''}>Rechts</option></select></div><div class="field"><label>Textfarbe</label><input ${baseAttrs} data-block-field="textColor" type="color" value="${escapeAttr(block.textColor || '#ffffff')}"></div><div class="field"><label>Block-Hintergrund</label><input ${baseAttrs} data-block-field="bgColor" type="color" value="${escapeAttr(block.bgColor || '#071d36')}"></div><div class="field"><label>Breite</label><input ${baseAttrs} data-block-field="maxWidth" value="${escapeAttr(block.maxWidth || '')}" placeholder="z.B. 720px / 80%"></div><div class="field"><label>Abstand oben</label><input ${baseAttrs} data-block-field="marginTop" value="${escapeAttr(block.marginTop || '')}" placeholder="z.B. 20px"></div><div class="field"><label>Abstand unten</label><input ${baseAttrs} data-block-field="marginBottom" value="${escapeAttr(block.marginBottom || '')}" placeholder="z.B. 20px"></div><div class="field"><label>Innenabstand</label><input ${baseAttrs} data-block-field="padding" value="${escapeAttr(block.padding || '')}" placeholder="z.B. 18px"></div><div class="field"><label>Rundung</label><input ${baseAttrs} data-block-field="radius" value="${escapeAttr(block.radius || '')}" placeholder="z.B. 18px"></div></div><div class="pb-admin-style-row"><div class="field"><label>Block Hintergrundbild URL</label><input ${baseAttrs} data-block-field="bgImage" value="${escapeAttr(block.bgImage || '')}" placeholder="optional https://..."></div><div class="field"><label>Hintergrund-Grösse</label><select ${baseAttrs} data-block-field="bgSize"><option value="cover" ${block.bgSize!=='contain'?'selected':''}>Cover</option><option value="contain" ${block.bgSize==='contain'?'selected':''}>Contain</option></select></div><div class="field"><label>Hintergrund-Position</label><input ${baseAttrs} data-block-field="bgPosition" value="${escapeAttr(block.bgPosition || 'center center')}" placeholder="center center"></div></div>`;
   let body = '';
   if(type === 'heading') body = `<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Überschrift DE</label><input ${baseAttrs} data-block-field="title_de" value="${escapeAttr(block.title_de || '')}"></div><div class="field"><label>Überschrift FR</label><input ${baseAttrs} data-block-field="title_fr" value="${escapeAttr(block.title_fr || '')}"></div></div>`;
-  else if(type === 'image') body = `<div class="field"><label>Bild / Logo URL</label><input ${baseAttrs} data-block-field="image_url" value="${escapeAttr(block.image_url || '')}" placeholder="https://.../bild.png"></div><div class="cms-image-upload-row"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" ${baseAttrs} data-block-upload><span>Bild hochladen oder URL einfügen</span></div>${block.image_url ? `<div class="cms-block-image-preview"><img src="${escapeAttr(block.image_url)}" alt=""></div>` : ''}<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Alt Text DE</label><input ${baseAttrs} data-block-field="alt_de" value="${escapeAttr(block.alt_de || '')}"></div><div class="field"><label>Alt Text FR</label><input ${baseAttrs} data-block-field="alt_fr" value="${escapeAttr(block.alt_fr || '')}"></div></div>`;
-  else if(type === 'button') body = `<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Button DE</label><input ${baseAttrs} data-block-field="label_de" value="${escapeAttr(block.label_de || '')}"></div><div class="field"><label>Button FR</label><input ${baseAttrs} data-block-field="label_fr" value="${escapeAttr(block.label_fr || '')}"></div></div><div class="field"><label>Link / Ziel</label><input ${baseAttrs} data-block-field="url" value="${escapeAttr(block.url || '')}" placeholder="#shop, #kontakt, https://..."></div>`;
+  else if(type === 'image') body = `<div class="field"><label>Bild / Logo URL</label><input ${baseAttrs} data-block-field="image_url" value="${escapeAttr(block.image_url || '')}" placeholder="https://.../bild.png"></div><div class="cms-image-upload-row"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" ${baseAttrs} data-block-upload><span>Bild hochladen oder URL einfügen</span></div>${block.image_url ? `<div class="cms-block-image-preview"><img src="${escapeAttr(block.image_url)}" alt=""></div>` : ''}<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Alt Text DE</label><input ${baseAttrs} data-block-field="alt_de" value="${escapeAttr(block.alt_de || '')}"></div><div class="field"><label>Alt Text FR</label><input ${baseAttrs} data-block-field="alt_fr" value="${escapeAttr(block.alt_fr || '')}"></div></div><div class="admin-product-row admin-product-row-equal"><div class="field"><label>Bildbreite</label><input ${baseAttrs} data-block-field="imageWidth" value="${escapeAttr(block.imageWidth || '')}" placeholder="z.B. 320px / 60% / 100%"></div><div class="field"><label>Bild Rundung</label><input ${baseAttrs} data-block-field="imageRadius" value="${escapeAttr(block.imageRadius || '')}" placeholder="z.B. 14px"></div><div class="field"><label>Position X</label><input ${baseAttrs} data-block-field="offsetX" value="${escapeAttr(block.offsetX || '')}" placeholder="z.B. 20px / -10px"></div><div class="field"><label>Position Y</label><input ${baseAttrs} data-block-field="offsetY" value="${escapeAttr(block.offsetY || '')}" placeholder="z.B. 20px / -10px"></div></div>`;
+  else if(type === 'button') body = `<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Button DE</label><input ${baseAttrs} data-block-field="label_de" value="${escapeAttr(block.label_de || '')}"></div><div class="field"><label>Button FR</label><input ${baseAttrs} data-block-field="label_fr" value="${escapeAttr(block.label_fr || '')}"></div></div><div class="field"><label>Link / Ziel</label><input ${baseAttrs} data-block-field="url" value="${escapeAttr(block.url || '')}" placeholder="#shop, #kontakt, https://..."></div><div class="admin-product-row admin-product-row-equal"><div class="field"><label>Button Farbe</label><input ${baseAttrs} data-block-field="buttonBg" type="color" value="${escapeAttr(block.buttonBg || '#65a832')}"></div><div class="field"><label>Button Textfarbe</label><input ${baseAttrs} data-block-field="buttonTextColor" type="color" value="${escapeAttr(block.buttonTextColor || '#ffffff')}"></div><div class="field"><label>Button Rundung</label><input ${baseAttrs} data-block-field="buttonRadius" value="${escapeAttr(block.buttonRadius || '')}" placeholder="z.B. 999px"></div><div class="field"><label>Button Grösse</label><input ${baseAttrs} data-block-field="buttonPadding" value="${escapeAttr(block.buttonPadding || '')}" placeholder="z.B. 14px 24px"></div></div>`;
   else if(type === 'quote') body = `<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Zitat DE</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="text_de">${escapeHtml(block.text_de || '')}</textarea></div><div class="field"><label>Zitat FR</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="text_fr">${escapeHtml(block.text_fr || '')}</textarea></div></div>`;
   else if(type === 'columns') body = `<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Spalte links DE</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="left_de">${escapeHtml(block.left_de || '')}</textarea></div><div class="field"><label>Spalte links FR</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="left_fr">${escapeHtml(block.left_fr || '')}</textarea></div></div><div class="admin-product-row admin-product-row-equal"><div class="field"><label>Spalte rechts DE</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="right_de">${escapeHtml(block.right_de || '')}</textarea></div><div class="field"><label>Spalte rechts FR</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="right_fr">${escapeHtml(block.right_fr || '')}</textarea></div></div>`;
   else if(type === 'divider') body = `<div class="note">Trennlinie ohne Inhalt. Du kannst sie hoch/runter verschieben.</div>`;
@@ -2999,7 +3041,7 @@ function renderAdminDesign(){
   const d = state.admin.design || state.settings || {};
   const pages = [...(state.admin.pages || state.pages || [])].sort((a,b)=>Number(a.sort_order ?? 999)-Number(b.sort_order ?? 999) || String(a.slug||'').localeCompare(String(b.slug||'')));
   state.admin.pages = pages;
-  const previewStyle = `--button-color:${escapeAttr(d.buttonColor || '#65a832')};--slot-color:${escapeAttr(d.slotColor || '#3d5366')};--frame-color:${escapeAttr(d.frameColor || '#b22b2b')};--bg-color:${escapeAttr(d.bgColor || '#061527')}`;
+  const previewStyle = `--button-color:${escapeAttr(d.buttonColor || '#65a832')};--slot-color:${escapeAttr(d.slotColor || '#3d5366')};--frame-color:${escapeAttr(d.frameColor || '#b22b2b')};--bg-color:${escapeAttr(d.bgColor || '#061527')};${d.bgImage ? `background-image:url('${escapeAttr(d.bgImage)}');background-size:${escapeAttr(d.bgSize || 'cover')};background-position:${escapeAttr(d.bgPosition || 'center center')};` : ''}`;
   return `
   ${topbar()}
   <div class="page"><div class="shell admin-shell cms-pro-shell">
@@ -3011,6 +3053,7 @@ function renderAdminDesign(){
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminTitleDe')}</label><input data-design-field="machineTitle_de" value="${escapeAttr(d.machineTitle_de || d.machineTitle || '')}" placeholder="Automat ARMEEBOX"></div><div class="field"><label>${t('adminTitleFr')}</label><input data-design-field="machineTitle_fr" value="${escapeAttr(d.machineTitle_fr || '')}" placeholder="Automate ARMEEBOX"></div></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminSloganDe')}</label><input data-design-field="machineInner_de" value="${escapeAttr(d.machineInner_de || d.machineInner || '')}" placeholder="Achtung, fertig, Fresspäckli"></div><div class="field"><label>${t('adminSloganFr')}</label><input data-design-field="machineInner_fr" value="${escapeAttr(d.machineInner_fr || '')}" placeholder="À vos marques, prêts, paquet du soldat"></div></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminButtonColor')}</label><input data-design-field="buttonColor" type="color" value="${escapeAttr(d.buttonColor || '#65a832')}"></div><div class="field"><label>${t('adminSlotColor')}</label><input data-design-field="slotColor" type="color" value="${escapeAttr(d.slotColor || '#3d5366')}"></div><div class="field"><label>${t('adminFrameColor')}</label><input data-design-field="frameColor" type="color" value="${escapeAttr(d.frameColor || '#b22b2b')}"></div><div class="field"><label>${t('adminBgColor')}</label><input data-design-field="bgColor" type="color" value="${escapeAttr(d.bgColor || '#061527')}"></div></div>
+        <div class="admin-product-row admin-product-row-equal"><div class="field"><label>Website Hintergrundbild URL</label><input data-design-field="bgImage" value="${escapeAttr(d.bgImage || '')}" placeholder="optional https://.../hintergrund.jpg"></div><div class="field"><label>Hintergrund-Grösse</label><select data-design-field="bgSize"><option value="cover" ${(d.bgSize || 'cover') === 'cover' ? 'selected' : ''}>Cover</option><option value="contain" ${d.bgSize === 'contain' ? 'selected' : ''}>Contain</option></select></div><div class="field"><label>Hintergrund-Position</label><input data-design-field="bgPosition" value="${escapeAttr(d.bgPosition || 'center center')}" placeholder="center center"></div></div>
       </div>
       <div class="card cms-preview" id="designLivePreview" style="${previewStyle}"><h3>Live Preview</h3><div class="mini-machine"><div class="mini-frame"><div class="mini-title">${escapeHtml(d.machineTitle_de || d.machineTitle || t('machineTitle'))}</div><div class="mini-inner">${escapeHtml(d.machineInner_de || d.machineInner || t('machineInner'))}</div><div class="mini-slot">Slot</div><button>Button</button></div></div></div>
     </div>
