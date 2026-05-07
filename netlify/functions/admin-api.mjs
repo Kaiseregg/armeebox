@@ -96,26 +96,20 @@ function coercePrice(row) {
 
 function coerceLocalizedText(value, fallback = '') {
   if (value && typeof value === 'object') return String(value.de || value.fr || fallback || '');
-  const text = String(value ?? fallback ?? '');
-  if (text === '[object Object]') return String(fallback || '');
-  return text;
+  return String(value ?? fallback ?? '');
 }
-
 
 function parseQuantityOptions(value, fallback = [2, 3, 4]) {
   if (Array.isArray(value)) {
-    const parsed = value.map((item) => Number(String(item).replace(/x/gi, ''))).filter((item) => Number.isFinite(item) && item > 0);
+    const parsed = value.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0);
     return parsed.length ? parsed : fallback;
   }
   if (typeof value === 'string') {
     try {
-      const parsedJson = JSON.parse(value);
-      if (Array.isArray(parsedJson)) return parseQuantityOptions(parsedJson, fallback);
+      const json = JSON.parse(value);
+      if (Array.isArray(json)) return parseQuantityOptions(json, fallback);
     } catch (_) {}
-    const parsed = value
-      .split(/[;,|\s]+/)
-      .map((item) => Number(String(item).replace(/x/gi, '')))
-      .filter((item) => Number.isFinite(item) && item > 0);
+    const parsed = value.split(/[;,|\s]+/).map((item) => Number(String(item).replace(/x/gi, ''))).filter((item) => Number.isFinite(item) && item > 0);
     return parsed.length ? parsed : fallback;
   }
   return fallback;
@@ -123,30 +117,31 @@ function parseQuantityOptions(value, fallback = [2, 3, 4]) {
 
 function parseBundleMeta(row) {
   const raw = String(row?.description_fr || '');
-  const descriptionDe = coerceLocalizedText(row?.description_de ?? '', '');
+  const fallbackContentDe = String(row?.description_de || '');
+  const direct = {
+    slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
+    bundle_content_de: coerceLocalizedText(row?.bundle_content_de ?? '', fallbackContentDe),
+    bundle_content_fr: coerceLocalizedText(row?.bundle_content_fr ?? '', ''),
+    option_label_de: coerceLocalizedText(row?.option_label_de ?? '', ''),
+    option_label_fr: coerceLocalizedText(row?.option_label_fr ?? '', ''),
+    quantity_options: parseQuantityOptions(row?.quantity_options, [2, 3, 4])
+  };
+
   let legacy = {};
   if (raw.startsWith(META_PREFIX)) {
     try { legacy = JSON.parse(raw.slice(META_PREFIX.length)) || {}; } catch (_) { legacy = {}; }
   }
 
-  // IMPORTANT: description_fr meta is the stable source of truth.
-  // Direct DB columns may contain old/stale values like "[object Object]" from earlier attempts.
-  const quantity_options = Array.isArray(legacy?.quantity_options)
-    ? legacy.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
-    : parseQuantityOptions(row?.quantity_options, [2, 3, 4]);
-
-  const contentDe = coerceLocalizedText(legacy?.content_de ?? legacy?.content ?? row?.bundle_content_de ?? descriptionDe ?? '', descriptionDe);
-  const contentFr = coerceLocalizedText(legacy?.content_fr ?? row?.bundle_content_fr ?? '', '');
-  const labelDe = coerceLocalizedText(legacy?.option_label_de ?? row?.option_label_de ?? '', '');
-  const labelFr = coerceLocalizedText(legacy?.option_label_fr ?? row?.option_label_fr ?? '', '');
+  const legacyOptions = parseQuantityOptions(legacy?.quantity_options, direct.quantity_options);
+  const slotType = direct.slot_type === 'bundle' || legacy?.slot_type === 'bundle' ? 'bundle' : 'normal';
 
   return {
-    slot_type: legacy?.slot_type === 'bundle' || row?.slot_type === 'bundle' ? 'bundle' : 'normal',
-    bundle_content_de: contentDe,
-    bundle_content_fr: contentFr,
-    option_label_de: labelDe,
-    option_label_fr: labelFr,
-    quantity_options: quantity_options.length ? quantity_options : [2, 3, 4]
+    slot_type: slotType,
+    bundle_content_de: direct.bundle_content_de || coerceLocalizedText(legacy?.content_de ?? legacy?.content ?? '', fallbackContentDe),
+    bundle_content_fr: direct.bundle_content_fr || coerceLocalizedText(legacy?.content_fr ?? '', ''),
+    option_label_de: direct.option_label_de || coerceLocalizedText(legacy?.option_label_de ?? '', ''),
+    option_label_fr: direct.option_label_fr || coerceLocalizedText(legacy?.option_label_fr ?? '', ''),
+    quantity_options: legacyOptions.length ? legacyOptions : [2, 3, 4]
   };
 }
 
@@ -179,9 +174,9 @@ function normalizeProductRow(row) {
     stock_min: Number(row?.stock_min ?? row?.minimum_stock ?? 0),
     slot_type: meta.slot_type,
     bundle_content_de: meta.bundle_content_de,
-    bundle_content_fr: meta.bundle_content_fr,
+    bundle_content_fr: meta.bundle_content_fr || meta.bundle_content_de,
     option_label_de: meta.option_label_de,
-    option_label_fr: meta.option_label_fr,
+    option_label_fr: meta.option_label_fr || meta.option_label_de,
     quantity_options: meta.quantity_options
   };
 }
@@ -478,12 +473,6 @@ async function saveProducts(body) {
       name_fr: nameFr,
       description_de: item.bundle_content_de || item.description_de || null,
       description_fr: encodeBundleMeta(item),
-      slot_type: item.slot_type === 'bundle' ? 'bundle' : 'normal',
-      bundle_content_de: item.bundle_content_de || item.description_de || null,
-      bundle_content_fr: item.bundle_content_fr || null,
-      option_label_de: item.option_label_de || null,
-      option_label_fr: item.option_label_fr || null,
-      quantity_options: parseQuantityOptions(item.quantity_options, [2, 3, 4]),
       price: price,
       price_chf: price,
       active,
@@ -493,6 +482,12 @@ async function saveProducts(body) {
       stock_total: Number.isFinite(item.stock_total) ? Math.max(0, Math.floor(item.stock_total)) : 0,
       stock_current: Number.isFinite(item.stock_current) ? Math.max(0, Math.floor(item.stock_current)) : 0,
       stock_min: Number.isFinite(item.stock_min) ? Math.max(0, Math.floor(item.stock_min)) : 0,
+      slot_type: item.slot_type === 'bundle' ? 'bundle' : 'normal',
+      bundle_content_de: item.bundle_content_de || item.description_de || null,
+      bundle_content_fr: item.bundle_content_fr || null,
+      option_label_de: item.option_label_de || null,
+      option_label_fr: item.option_label_fr || null,
+      quantity_options: parseQuantityOptions(item.quantity_options, [2, 3, 4]),
       updated_at: new Date().toISOString()
     };
 

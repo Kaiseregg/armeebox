@@ -57,25 +57,22 @@ function coerceLocalizedText(value, fallback = '') {
 
 function parseBundleMeta(row) {
   const raw = String(row?.description_fr || '');
-  const fallbackContent = String(row?.description_de || '');
-  const base = { slot_type: 'normal', bundle_content_de: fallbackContent, bundle_content_fr: '', option_label_de: '', option_label_fr: '', quantity_options: [2, 3, 4] };
-  if (!raw.startsWith(META_PREFIX)) return base;
-  try {
-    const meta = JSON.parse(raw.slice(META_PREFIX.length));
-    const quantity_options = Array.isArray(meta?.quantity_options)
-      ? meta.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
-      : base.quantity_options;
-    return {
-      slot_type: meta?.slot_type === 'bundle' ? 'bundle' : 'normal',
-      bundle_content_de: String(meta?.content_de ?? meta?.content ?? fallbackContent ?? ''),
-      bundle_content_fr: coerceLocalizedText(meta?.content_fr ?? '', ''),
-      option_label_de: coerceLocalizedText(meta?.option_label_de ?? '', ''),
-      option_label_fr: coerceLocalizedText(meta?.option_label_fr ?? '', ''),
-      quantity_options: quantity_options.length ? quantity_options : base.quantity_options
-    };
-  } catch (_) {
-    return base;
+  const fallbackContent = coerceLocalizedText(row?.description_de || '', '');
+  let legacy = {};
+  if (raw.startsWith(META_PREFIX)) {
+    try { legacy = JSON.parse(raw.slice(META_PREFIX.length)) || {}; } catch (_) { legacy = {}; }
   }
+  const quantity_options = Array.isArray(row?.quantity_options)
+    ? row.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+    : (Array.isArray(legacy?.quantity_options) ? legacy.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0) : [2, 3, 4]);
+  return {
+    slot_type: row?.slot_type === 'bundle' || legacy?.slot_type === 'bundle' ? 'bundle' : 'normal',
+    bundle_content_de: coerceLocalizedText(row?.bundle_content_de ?? fallbackContent ?? legacy?.content_de ?? legacy?.content ?? '', fallbackContent),
+    bundle_content_fr: coerceLocalizedText(row?.bundle_content_fr ?? legacy?.content_fr ?? '', ''),
+    option_label_de: coerceLocalizedText(row?.option_label_de ?? legacy?.option_label_de ?? '', ''),
+    option_label_fr: coerceLocalizedText(row?.option_label_fr ?? legacy?.option_label_fr ?? '', ''),
+    quantity_options: quantity_options.length ? quantity_options : [2, 3, 4]
+  };
 }
 
 function encodeBundleMeta(row) {
@@ -173,7 +170,7 @@ export default async (request) => {
     }
 
     if (action === 'products' && request.method === 'GET') {
-      const rows = await supa('products?select=id,slot,name,name_de,name_fr,description_de,description_fr,price,price_chf,active,is_active,image_url,sort_order,stock_total,stock_current,stock_min&or=(is_active.eq.true,active.eq.true)&order=slot.asc');
+      const rows = await supa('products?select=id,slot,name,name_de,name_fr,description_de,description_fr,price,price_chf,active,is_active,image_url,sort_order,stock_total,stock_current,stock_min,slot_type,bundle_content_de,bundle_content_fr,option_label_de,option_label_fr,quantity_options&or=(is_active.eq.true,active.eq.true)&order=slot.asc');
       return json(200, { success: true, products: Array.isArray(rows) ? rows.map(normalizeProductRow) : [] });
     }
     return json(405, { success: false, error: 'Methode/Aktion nicht erlaubt' });
