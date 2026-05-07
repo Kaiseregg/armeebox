@@ -1468,26 +1468,26 @@ function downloadCustomersCsv(){
 }
 
 function inventoryCsv(products){
-  const rows = [['Slot','Produkt','Preis CHF','Gesamt','Ist','Mindestbestand','Status','Lagerwert CHF']];
+  const rows = [['Slot','Produkt','Preis CHF','Gesamtbestand','Ist-Bestand','Mindestbestand','Status','Wert CHF']];
   const list = Array.isArray(products) ? [...products] : [];
-  list
-    .sort((a,b)=>Number(a.slotNumber || a.slot || 0)-Number(b.slotNumber || b.slot || 0))
-    .forEach(product => {
-      const stock = productStock(product);
-      const name = product?.name?.de || product?.name_de || product?.name || `Slot ${product?.slotNumber || product?.slot || ''}`;
-      const price = Number(product?.price || product?.price_chf || 0);
-      rows.push([
-        product?.slotNumber || product?.slot || '',
-        name,
-        price.toFixed(2),
-        stock.total,
-        stock.current,
-        stock.min,
-        stockStatusText(product),
-        (stock.current * price).toFixed(2)
-      ]);
-    });
-  return rows.map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
+  list.sort((a,b)=>Number(a.slotNumber || a.slot || 0)-Number(b.slotNumber || b.slot || 0));
+  for(const product of list){
+    const stock = productStock(product);
+    const name = product?.name?.de || product?.name_de || product?.name || `Slot ${product?.slotNumber || product?.slot || ''}`;
+    const slot = product?.slotNumber || product?.slot || '';
+    const price = Number(product?.price || product?.price_chf || 0);
+    rows.push([
+      String(slot).padStart(2,'0'),
+      name,
+      price.toFixed(2),
+      stock.total,
+      stock.current,
+      stock.min,
+      stockStatusText(product),
+      (stock.current * price).toFixed(2)
+    ]);
+  }
+  return '\ufeff' + rows.map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
 }
 function downloadInventoryCsv(){
   const csv = inventoryCsv(adminProductsList());
@@ -1500,6 +1500,18 @@ function downloadInventoryCsv(){
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+function printInventoryOverview(){
+  const table = document.querySelector('.inventory-overview-table')?.innerHTML || '';
+  const summary = document.querySelector('.inventory-mini-summary')?.innerText || '';
+  const win = window.open('', '_blank', 'width=1100,height=800');
+  if(!win){ window.print(); return; }
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>ARMEEBOX Lagerübersicht</title><style>
+    body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{font-size:22px;margin:0 0 6px}p{margin:0 0 18px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #bbb;padding:7px;text-align:left}th{background:#eee}.inventory-pill{font-weight:700}
+  </style></head><body><h1>ARMEEBOX Lagerübersicht</h1><p>${escapeHtml(summary)}</p>${table}</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>{ win.print(); win.close(); }, 250);
 }
 function copyCustomerEmails(){
   const emails = filteredAdminCustomers().map(c=>c.email).filter(Boolean).join(', ');
@@ -3056,8 +3068,10 @@ function renderInventoryOverview(products){
           <h3>Gesamtübersicht Ware</h3>
           <div class="note">Interne Lagerübersicht: effektiver Bestand, Mindestbestand und Lagerwert.</div>
         </div>
-        <div class="inventory-overview-actions">
-          <div class="inventory-mini-summary"><strong>${totalCurrent}</strong> Stück · <strong>${money(totalValue)}</strong></div>
+      </div>
+      <div class="inventory-action-row" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:12px 0 10px;">
+        <div class="inventory-mini-summary"><strong>${totalCurrent}</strong> Stück · <strong>${money(totalValue)}</strong></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="back-btn" type="button" id="inventoryPrintBtn">Drucken</button>
           <button class="back-btn" type="button" id="inventoryExportBtn">CSV Export</button>
         </div>
@@ -3346,7 +3360,7 @@ function bindAdminProducts(){
   document.querySelectorAll('[data-stock-set]').forEach(btn => btn.onclick = () => adjustAdminStock(Number(btn.getAttribute('data-stock-set')), 'set'));
 
   const inventoryPrintBtn = document.getElementById('inventoryPrintBtn');
-  if(inventoryPrintBtn) inventoryPrintBtn.onclick = () => window.print();
+  if(inventoryPrintBtn) inventoryPrintBtn.onclick = () => printInventoryOverview();
   const inventoryExportBtn = document.getElementById('inventoryExportBtn');
   if(inventoryExportBtn) inventoryExportBtn.onclick = () => downloadInventoryCsv();
 
