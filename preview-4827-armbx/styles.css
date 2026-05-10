@@ -760,3 +760,43 @@ button[data-action="bundle-info"] {
 .cms-page-preview-content{border:1px dashed rgba(150,190,255,.28);border-radius:14px;padding:14px;background:rgba(0,0,0,.18);}
 .cms-page-preview-content .content-card{margin:0 0 12px 0;}
 .cms-page-preview-content .pb-block{margin-left:0;margin-right:0;}
+
+/* STEP 14.3 CMS Builder Komfort */
+.cms-block-head-tools{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.cms-inline-check{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  border:1px solid rgba(148,190,255,.35);
+  border-radius:999px;
+  padding:8px 12px;
+  font-size:12px;
+  font-weight:800;
+  color:#eef6ff;
+  background:rgba(5,18,34,.55);
+  white-space:nowrap;
+}
+.cms-inline-check input{ width:auto; accent-color:#65a832; }
+.cms-block-editor.is-collapsed{
+  background:rgba(5,18,34,.54);
+}
+.cms-block-editor.is-disabled{
+  opacity:.62;
+  border-style:dashed;
+}
+.cms-collapsed-note{
+  margin-top:10px;
+  border:1px dashed rgba(148,190,255,.35);
+  border-radius:14px;
+  padding:12px;
+}
+@media(max-width:760px){
+  .cms-block-head-tools{justify-content:flex-start;width:100%;}
+  .cms-inline-check{padding:7px 10px;}
+}

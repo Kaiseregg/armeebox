@@ -2663,6 +2663,30 @@ function deletePageBlock(pageIndex, blockIndex){
   blocks.splice(blockIndex, 1);
   save(); render();
 }
+function duplicatePageBlock(pageIndex, blockIndex){
+  const page = state.admin.pages?.[pageIndex];
+  if(!page) return;
+  const blocks = ensurePageMeta(page).blocks;
+  const source = blocks?.[blockIndex];
+  if(!source) return;
+  const copy = JSON.parse(JSON.stringify(source));
+  copy.id = `blk_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  copy.collapsed = false;
+  blocks.splice(blockIndex + 1, 0, copy);
+  save(); render();
+}
+function togglePageBlockCollapsed(pageIndex, blockIndex){
+  const page = state.admin.pages?.[pageIndex];
+  const block = page ? ensurePageMeta(page).blocks?.[blockIndex] : null;
+  if(!block) return;
+  block.collapsed = !block.collapsed;
+  save(); render();
+}
+function updateCmsPagePreview(pageIndex){
+  const target = document.querySelector(`[data-cms-page-preview="${pageIndex}"]`);
+  const page = state.admin.pages?.[Number(pageIndex)];
+  if(target && page) target.innerHTML = renderPageContent(page);
+}
 async function uploadCmsBlockImage(pageIndex, blockIndex, file){
   if(!file) return;
   const page = state.admin.pages?.[pageIndex];
@@ -2780,10 +2804,12 @@ function bindAdminDesign(){
   document.querySelectorAll('[data-page-up]').forEach(btn=>btn.onclick=()=>moveAdminPage(Number(btn.getAttribute('data-page-up')),-1));
   document.querySelectorAll('[data-page-down]').forEach(btn=>btn.onclick=()=>moveAdminPage(Number(btn.getAttribute('data-page-down')),1));
   document.querySelectorAll('[data-add-block]').forEach(btn=>btn.onclick=()=>addPageBlock(Number(btn.getAttribute('data-page-index')), btn.getAttribute('data-add-block')));
-  document.querySelectorAll('[data-block-field]').forEach(el=>el.oninput=()=>{ const pi=Number(el.getAttribute('data-page-index')); const bi=Number(el.getAttribute('data-block-index')); const f=el.getAttribute('data-block-field'); const page=state.admin.pages?.[pi]; const block=page ? ensurePageMeta(page).blocks?.[bi] : null; if(block){ block[f]=el.value; save(); } });
+  document.querySelectorAll('[data-block-field]').forEach(el=>el.oninput=()=>{ const pi=Number(el.getAttribute('data-page-index')); const bi=Number(el.getAttribute('data-block-index')); const f=el.getAttribute('data-block-field'); const page=state.admin.pages?.[pi]; const block=page ? ensurePageMeta(page).blocks?.[bi] : null; if(block){ block[f]=el.type === 'checkbox' ? el.checked : el.value; save(); updateCmsPagePreview(pi); } });
   document.querySelectorAll('[data-block-up]').forEach(btn=>btn.onclick=()=>movePageBlock(Number(btn.getAttribute('data-page-index')), Number(btn.getAttribute('data-block-index')), -1));
   document.querySelectorAll('[data-block-down]').forEach(btn=>btn.onclick=()=>movePageBlock(Number(btn.getAttribute('data-page-index')), Number(btn.getAttribute('data-block-index')), 1));
   document.querySelectorAll('[data-block-delete]').forEach(btn=>btn.onclick=()=>deletePageBlock(Number(btn.getAttribute('data-page-index')), Number(btn.getAttribute('data-block-index'))));
+  document.querySelectorAll('[data-block-duplicate]').forEach(btn=>btn.onclick=()=>duplicatePageBlock(Number(btn.getAttribute('data-page-index')), Number(btn.getAttribute('data-block-index'))));
+  document.querySelectorAll('[data-block-collapse]').forEach(btn=>btn.onclick=()=>togglePageBlockCollapsed(Number(btn.getAttribute('data-page-index')), Number(btn.getAttribute('data-block-index'))));
   document.querySelectorAll('[data-block-upload]').forEach(input=>input.onchange=()=>uploadCmsBlockImage(Number(input.getAttribute('data-page-index')), Number(input.getAttribute('data-block-index')), input.files?.[0]));
   document.querySelectorAll('[data-block-bg-upload]').forEach(input=>input.onchange=()=>uploadCmsBlockBackgroundImage(Number(input.getAttribute('data-page-index')), Number(input.getAttribute('data-block-index')), input.files?.[0]));
   document.querySelectorAll('[data-design-upload]').forEach(input=>input.onchange=()=>uploadCmsDesignImage(input.getAttribute('data-design-upload'), input.files?.[0]));
@@ -2864,6 +2890,7 @@ function blockOuterStyle(block, align='left'){
   return styles.join(';');
 }
 function renderPageBlock(block){
+  if(block?.active === false) return '';
   const type = block?.type || 'text';
   const align = ['left','center','right'].includes(block?.align) ? block.align : 'left';
   const style = blockOuterStyle(block, align);
@@ -2932,7 +2959,7 @@ function renderPageContent(page){
   return parts.join('');
 }
 function newPageBlock(type='text'){
-  const base = { id: `blk_${Date.now()}_${Math.random().toString(16).slice(2)}`, type, align:'left', bgColor:'', textColor:'', padding:'', radius:'', maxWidth:'', marginTop:'', marginBottom:'', bgImage:'', bgSize:'cover', bgPosition:'center center' };
+  const base = { id: `blk_${Date.now()}_${Math.random().toString(16).slice(2)}`, type, active:true, collapsed:false, align:'left', bgColor:'', textColor:'', padding:'', radius:'', maxWidth:'', marginTop:'', marginBottom:'', bgImage:'', bgSize:'cover', bgPosition:'center center' };
   if(type === 'heading') return { ...base, title_de:'Neue Überschrift', title_fr:'Nouveau titre' };
   if(type === 'image') return { ...base, image_url:'', alt_de:'Bild', alt_fr:'Image', imageWidth:'100%', imageRadius:'12px', offsetX:'', offsetY:'' };
   if(type === 'button') return { ...base, label_de:'Button', label_fr:'Bouton', url:'#shop', align:'center', buttonBg:'', buttonTextColor:'', buttonRadius:'999px', buttonPadding:'' };
@@ -2954,7 +2981,10 @@ function renderBlockEditor(block, pageIndex, blockIndex){
   else if(type === 'columns') body = `<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Spalte links DE</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="left_de">${escapeHtml(block.left_de || '')}</textarea></div><div class="field"><label>Spalte links FR</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="left_fr">${escapeHtml(block.left_fr || '')}</textarea></div></div><div class="admin-product-row admin-product-row-equal"><div class="field"><label>Spalte rechts DE</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="right_de">${escapeHtml(block.right_de || '')}</textarea></div><div class="field"><label>Spalte rechts FR</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="right_fr">${escapeHtml(block.right_fr || '')}</textarea></div></div>`;
   else if(type === 'divider') body = `<div class="note">Trennlinie ohne Inhalt. Du kannst sie hoch/runter verschieben.</div>`;
   else body = `<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Text DE</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="text_de">${escapeHtml(block.text_de || '')}</textarea></div><div class="field"><label>Text FR</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="text_fr">${escapeHtml(block.text_fr || '')}</textarea></div></div>`;
-  return `<div class="cms-block-editor" draggable="true" data-cms-block-drag ${baseAttrs}><div class="cms-block-head"><strong><span class="cms-drag-handle" title="Ziehen zum Verschieben">☰</span> ${blockIndex+1}. ${blockLabel(type)}</strong><div class="cms-page-actions"><button class="back-btn" type="button" ${baseAttrs} data-block-up>Hoch</button><button class="back-btn" type="button" ${baseAttrs} data-block-down>Runter</button><button class="back-btn danger" type="button" ${baseAttrs} data-block-delete>Löschen</button></div></div>${body}${type !== 'divider' ? styleFields : ''}</div>`;
+  const collapsed = block.collapsed === true;
+  const activeChecked = block.active !== false ? 'checked' : '';
+  const editorBody = collapsed ? '<div class="note cms-collapsed-note">Block ist eingeklappt. Inhalt bleibt gespeichert und sichtbar, wenn Aktiv eingeschaltet ist.</div>' : `${body}${type !== 'divider' ? styleFields : ''}`;
+  return `<div class="cms-block-editor ${collapsed ? 'is-collapsed' : ''} ${block.active === false ? 'is-disabled' : ''}" draggable="true" data-cms-block-drag ${baseAttrs}><div class="cms-block-head"><strong><span class="cms-drag-handle" title="Ziehen zum Verschieben">☰</span> ${blockIndex+1}. ${blockLabel(type)}</strong><div class="cms-block-head-tools"><label class="cms-inline-check"><input type="checkbox" ${baseAttrs} data-block-field="active" ${activeChecked}> Aktiv</label><button class="back-btn" type="button" ${baseAttrs} data-block-collapse>${collapsed ? 'Aufklappen' : 'Einklappen'}</button><button class="back-btn" type="button" ${baseAttrs} data-block-duplicate>Duplizieren</button><button class="back-btn" type="button" ${baseAttrs} data-block-up>Hoch</button><button class="back-btn" type="button" ${baseAttrs} data-block-down>Runter</button><button class="back-btn danger" type="button" ${baseAttrs} data-block-delete>Löschen</button></div></div>${editorBody}</div>`;
 }
 
 function renderContentPage(){
@@ -3167,7 +3197,7 @@ function renderAdminDesign(){
           <button type="button" class="back-btn" data-add-block="divider" data-page-index="${i}">+ Linie</button>
         </div></div>
         <div class="cms-block-list">${(pageBlocks(p).length ? pageBlocks(p) : []).map((b,bi)=>renderBlockEditor(b,i,bi)).join('') || '<div class="note">Noch keine Module. Füge oben einen Block hinzu.</div>'}</div>
-        <div class="cms-page-preview-box"><div class="cms-page-preview-title">Seitenvorschau</div><div class="cms-page-preview-content">${renderPageContent(p)}</div></div>
+        <div class="cms-page-preview-box"><div class="cms-page-preview-title">Seitenvorschau</div><div class="cms-page-preview-content" data-cms-page-preview="${i}">${renderPageContent(p)}</div></div>
       </div>
     </div>`).join('')}</div>
     <div class="admin-primary-row sticky-save"><button class="cta primary" id="adminSaveDesignBtn">${t('adminDesignSave')}</button></div>
