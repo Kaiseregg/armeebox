@@ -159,7 +159,7 @@ export default async (request) => {
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      payment_method_types: ['card', 'twint'],
+      payment_method_types: ['card'],
       customer_email: payload.customer_email,
       line_items: lineItems,
       success_url: `${siteUrl}/#confirmation?session_id={CHECKOUT_SESSION_ID}`,
