@@ -749,3 +749,14 @@ button[data-action="bundle-info"] {
     font-size: 11px !important;
   }
 }
+
+/* STEP 14.2 CMS Builder Professional */
+.cms-block-editor[draggable="true"]{cursor:grab;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease,opacity .15s ease;}
+.cms-block-editor.is-dragging{opacity:.55;cursor:grabbing;transform:scale(.995);}
+.cms-block-editor.is-drag-over{border-color:#65a832!important;box-shadow:0 0 0 2px rgba(101,168,50,.35),0 0 18px rgba(101,168,50,.25);}
+.cms-drag-handle{display:inline-flex;align-items:center;justify-content:center;margin-right:8px;color:#9fc7ff;font-weight:900;cursor:grab;user-select:none;}
+.cms-page-preview-box{margin-top:16px;border:1px solid rgba(150,190,255,.28);border-radius:18px;padding:14px;background:rgba(3,15,31,.45);}
+.cms-page-preview-title{font-weight:900;margin-bottom:10px;color:#dcecff;}
+.cms-page-preview-content{border:1px dashed rgba(150,190,255,.28);border-radius:14px;padding:14px;background:rgba(0,0,0,.18);}
+.cms-page-preview-content .content-card{margin:0 0 12px 0;}
+.cms-page-preview-content .pb-block{margin-left:0;margin-right:0;}

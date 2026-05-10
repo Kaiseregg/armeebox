@@ -2646,6 +2646,16 @@ function movePageBlock(pageIndex, blockIndex, delta){
   [blocks[blockIndex], blocks[j]] = [blocks[j], blocks[blockIndex]];
   save(); render();
 }
+function movePageBlockTo(pageIndex, fromIndex, toIndex){
+  const page = state.admin.pages?.[pageIndex];
+  if(!page) return;
+  const blocks = ensurePageMeta(page).blocks;
+  if(fromIndex === toIndex) return;
+  if(fromIndex < 0 || toIndex < 0 || fromIndex >= blocks.length || toIndex >= blocks.length) return;
+  const [item] = blocks.splice(fromIndex, 1);
+  blocks.splice(toIndex, 0, item);
+  save(); render();
+}
 function deletePageBlock(pageIndex, blockIndex){
   const page = state.admin.pages?.[pageIndex];
   if(!page) return;
@@ -2721,6 +2731,46 @@ async function uploadCmsBlockBackgroundImage(pageIndex, blockIndex, file){
   }catch(error){ state.admin.loginError = error.message || 'Upload fehlgeschlagen'; save(); render(); }
 }
 
+function bindCmsBlockDragDrop(){
+  let dragData = null;
+  document.querySelectorAll('[data-cms-block-drag]').forEach(card => {
+    card.addEventListener('dragstart', (event) => {
+      const pageIndex = Number(card.getAttribute('data-page-index'));
+      const blockIndex = Number(card.getAttribute('data-block-index'));
+      dragData = { pageIndex, blockIndex };
+      card.classList.add('is-dragging');
+      if(event.dataTransfer){
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', JSON.stringify(dragData));
+      }
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('is-dragging');
+      document.querySelectorAll('[data-cms-block-drag]').forEach(el => el.classList.remove('is-drag-over'));
+      dragData = null;
+    });
+    card.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      if(event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      card.classList.add('is-drag-over');
+    });
+    card.addEventListener('dragleave', () => card.classList.remove('is-drag-over'));
+    card.addEventListener('drop', (event) => {
+      event.preventDefault();
+      card.classList.remove('is-drag-over');
+      let data = dragData;
+      try{
+        const raw = event.dataTransfer?.getData('text/plain');
+        if(raw) data = JSON.parse(raw);
+      }catch(_){ }
+      const toPageIndex = Number(card.getAttribute('data-page-index'));
+      const toBlockIndex = Number(card.getAttribute('data-block-index'));
+      if(!data || Number(data.pageIndex) !== toPageIndex) return;
+      movePageBlockTo(toPageIndex, Number(data.blockIndex), toBlockIndex);
+    });
+  });
+}
+
 function bindAdminDesign(){
   const back=document.getElementById('adminDesignBackBtn'); if(back) back.onclick=()=>{ history.replaceState(null,'','#admin-orders'); state.route='admin-orders'; loadAdminOrders(); };
   const logout=document.getElementById('adminLogoutBtn'); if(logout) logout.onclick=()=>doAdminLogout();
@@ -2737,6 +2787,7 @@ function bindAdminDesign(){
   document.querySelectorAll('[data-block-upload]').forEach(input=>input.onchange=()=>uploadCmsBlockImage(Number(input.getAttribute('data-page-index')), Number(input.getAttribute('data-block-index')), input.files?.[0]));
   document.querySelectorAll('[data-block-bg-upload]').forEach(input=>input.onchange=()=>uploadCmsBlockBackgroundImage(Number(input.getAttribute('data-page-index')), Number(input.getAttribute('data-block-index')), input.files?.[0]));
   document.querySelectorAll('[data-design-upload]').forEach(input=>input.onchange=()=>uploadCmsDesignImage(input.getAttribute('data-design-upload'), input.files?.[0]));
+  bindCmsBlockDragDrop();
   const add=document.getElementById('adminAddPageBtn'); if(add) add.onclick=()=>addAdminPage();
   const saveBtn=document.getElementById('adminSaveDesignBtn'); if(saveBtn) saveBtn.onclick=()=>saveAdminDesign();
 }
@@ -2903,7 +2954,7 @@ function renderBlockEditor(block, pageIndex, blockIndex){
   else if(type === 'columns') body = `<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Spalte links DE</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="left_de">${escapeHtml(block.left_de || '')}</textarea></div><div class="field"><label>Spalte links FR</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="left_fr">${escapeHtml(block.left_fr || '')}</textarea></div></div><div class="admin-product-row admin-product-row-equal"><div class="field"><label>Spalte rechts DE</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="right_de">${escapeHtml(block.right_de || '')}</textarea></div><div class="field"><label>Spalte rechts FR</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="right_fr">${escapeHtml(block.right_fr || '')}</textarea></div></div>`;
   else if(type === 'divider') body = `<div class="note">Trennlinie ohne Inhalt. Du kannst sie hoch/runter verschieben.</div>`;
   else body = `<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Text DE</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="text_de">${escapeHtml(block.text_de || '')}</textarea></div><div class="field"><label>Text FR</label><textarea class="cms-editor small" ${baseAttrs} data-block-field="text_fr">${escapeHtml(block.text_fr || '')}</textarea></div></div>`;
-  return `<div class="cms-block-editor"><div class="cms-block-head"><strong>${blockIndex+1}. ${blockLabel(type)}</strong><div class="cms-page-actions"><button class="back-btn" type="button" ${baseAttrs} data-block-up>Hoch</button><button class="back-btn" type="button" ${baseAttrs} data-block-down>Runter</button><button class="back-btn danger" type="button" ${baseAttrs} data-block-delete>Löschen</button></div></div>${body}${type !== 'divider' ? styleFields : ''}</div>`;
+  return `<div class="cms-block-editor" draggable="true" data-cms-block-drag ${baseAttrs}><div class="cms-block-head"><strong><span class="cms-drag-handle" title="Ziehen zum Verschieben">☰</span> ${blockIndex+1}. ${blockLabel(type)}</strong><div class="cms-page-actions"><button class="back-btn" type="button" ${baseAttrs} data-block-up>Hoch</button><button class="back-btn" type="button" ${baseAttrs} data-block-down>Runter</button><button class="back-btn danger" type="button" ${baseAttrs} data-block-delete>Löschen</button></div></div>${body}${type !== 'divider' ? styleFields : ''}</div>`;
 }
 
 function renderContentPage(){
@@ -3116,6 +3167,7 @@ function renderAdminDesign(){
           <button type="button" class="back-btn" data-add-block="divider" data-page-index="${i}">+ Linie</button>
         </div></div>
         <div class="cms-block-list">${(pageBlocks(p).length ? pageBlocks(p) : []).map((b,bi)=>renderBlockEditor(b,i,bi)).join('') || '<div class="note">Noch keine Module. Füge oben einen Block hinzu.</div>'}</div>
+        <div class="cms-page-preview-box"><div class="cms-page-preview-title">Seitenvorschau</div><div class="cms-page-preview-content">${renderPageContent(p)}</div></div>
       </div>
     </div>`).join('')}</div>
     <div class="admin-primary-row sticky-save"><button class="cta primary" id="adminSaveDesignBtn">${t('adminDesignSave')}</button></div>
