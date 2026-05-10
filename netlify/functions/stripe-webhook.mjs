@@ -15,77 +15,36 @@ function requireEnv(name) {
   return value;
 }
 
-async function supabaseRequest(path, options = {}) {
+async function supabasePatchOrderById(orderId, patch) {
+  if (!orderId) return { skipped: true, reason: 'missing_order_id' };
+
   const supabaseUrl = requireEnv('SUPABASE_URL');
   const serviceRoleKey = requireEnv('SUPABASE_SERVICE_ROLE_KEY');
 
-  const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: serviceRoleKey,
-      Authorization: `Bearer ${serviceRoleKey}`,
-      ...(options.headers || {})
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        Prefer: 'return=minimal'
+      },
+      body: JSON.stringify(patch)
     }
-  });
+  );
 
   const text = await response.text();
-  let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-
   if (!response.ok) {
-    const message =
-      (data && typeof data === 'object' && (data.message || data.error || data.details)) ||
-      `Supabase request failed: ${response.status}`;
-    throw new Error(message);
+    throw new Error(text || `Supabase update failed: ${response.status}`);
   }
 
-  return data;
-}
-
-async function markOrderPaid(session) {
-  const orderId = session?.metadata?.order_id;
-  if (!orderId) return { skipped: true, reason: 'missing_order_id' };
-
-  const patch = {
-    status: 'paid',
-    order_status: 'paid',
-    payment_status: 'paid',
-    paid_at: new Date().toISOString(),
-    stripe_checkout_session_id: session.id || null,
-    stripe_payment_intent_id:
-      typeof session.payment_intent === 'string' ? session.payment_intent : null,
-    stripe_payment_method: Array.isArray(session.payment_method_types)
-      ? session.payment_method_types.join(',')
-      : null
-  };
-
-  await supabaseRequest(`orders?id=eq.${encodeURIComponent(orderId)}`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify(patch)
-  });
-
   return { updated: true, order_id: orderId };
 }
 
-async function markOrderCancelled(session) {
-  const orderId = session?.metadata?.order_id;
-  if (!orderId) return { skipped: true, reason: 'missing_order_id' };
-
-  await supabaseRequest(`orders?id=eq.${encodeURIComponent(orderId)}`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({
-      payment_status: 'cancelled'
-    })
-  });
-
-  return { updated: true, order_id: orderId };
+function orderIdFromSession(session) {
+  return session?.metadata?.order_id || null;
 }
 
 export default async (request) => {
@@ -93,37 +52,56 @@ export default async (request) => {
     return json(405, { received: false, error: 'Method not allowed' });
   }
 
+  let event;
   try {
     const stripe = new Stripe(requireEnv('STRIPE_SECRET_KEY'));
     const signature = request.headers.get('stripe-signature');
-
-    if (!signature) {
-      return json(400, { received: false, error: 'Missing stripe-signature header' });
-    }
+    if (!signature) return json(400, { received: false, error: 'Missing stripe-signature header' });
 
     const rawBody = await request.text();
-    const event = stripe.webhooks.constructEvent(
-      rawBody,
-      signature,
-      requireEnv('STRIPE_WEBHOOK_SECRET')
-    );
+    event = stripe.webhooks.constructEvent(rawBody, signature, requireEnv('STRIPE_WEBHOOK_SECRET'));
+  } catch (error) {
+    console.error('stripe-webhook signature failed', error);
+    return json(400, { received: false, error: error?.message || 'Invalid Stripe signature' });
+  }
 
-    let result = { ignored: true, type: event.type };
-
+  try {
     if (event.type === 'checkout.session.completed') {
-      result = await markOrderPaid(event.data.object);
+      const session = event.data.object;
+      const result = await supabasePatchOrderById(orderIdFromSession(session), {
+        payment_status: 'paid',
+        paid_at: new Date().toISOString(),
+        stripe_checkout_session_id: session.id || null,
+        stripe_payment_intent_id:
+          typeof session.payment_intent === 'string' ? session.payment_intent : null,
+        stripe_payment_method: Array.isArray(session.payment_method_types)
+          ? session.payment_method_types.join(',')
+          : null
+      });
+      return json(200, { received: true, type: event.type, result });
     }
 
     if (event.type === 'checkout.session.expired') {
-      result = await markOrderCancelled(event.data.object);
+      const session = event.data.object;
+      const result = await supabasePatchOrderById(orderIdFromSession(session), {
+        payment_status: 'cancelled'
+      });
+      return json(200, { received: true, type: event.type, result });
     }
 
-    return json(200, { received: true, type: event.type, result });
+    if (event.type === 'payment_intent.payment_failed') {
+      return json(200, { received: true, type: event.type, ignored: true });
+    }
+
+    return json(200, { received: true, type: event.type, ignored: true });
   } catch (error) {
-    console.error('stripe-webhook failed', error);
-    return json(400, {
-      received: false,
-      error: error?.message || 'Webhook error'
+    // Stripe soll nicht endlos wiederholen, wenn nur das interne DB-Update temporär scheitert.
+    // Der Fehler steht trotzdem in Netlify Logs und in der Stripe Response.
+    console.error('stripe-webhook db update failed', error);
+    return json(200, {
+      received: true,
+      type: event.type,
+      db_warning: error?.message || 'DB update failed'
     });
   }
 };
