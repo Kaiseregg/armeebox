@@ -524,16 +524,17 @@ const texts = {
     reviewTitle: 'Bestellung prüfen',
     backMachine: 'Zurück zum Automaten',
     backForm: 'Zurück zum Formular',
-    sendOrder: 'Bestellung abschicken',
-    sendingOrder: 'Bestellung wird gesendet …',
+    sendOrder: 'Jetzt bezahlen',
+    sendingOrder: 'Zahlung wird vorbereitet …',
+    paymentHint: 'Sichere Online-Zahlung mit TWINT, Debitkarte oder Kreditkarte über Stripe.',
     adminProductsSaving: 'Produkte werden gespeichert …',
     summary: 'Bestellübersicht',
     subtotal: 'Zwischentotal',
     shipping: 'Versand',
     total: 'Gesamt',
     note: '',
-    confirmTitle: 'Bestellung erfolgreich eingegangen',
-    confirmCopy: 'Deine Bestellung wurde gespeichert. Erst jetzt wurden Warenkorb und Formular zurückgesetzt.',
+    confirmTitle: 'Zahlung erfolgreich',
+    confirmCopy: 'Danke. Deine Zahlung wurde bestätigt und deine Bestellung wurde erfolgreich eingereicht.',
     confirmOrderNo: 'Bestellnummer',
     confirmEmail: 'Bestätigung an',
     newOrder: 'Neue Bestellung',
@@ -546,8 +547,8 @@ const texts = {
     validationSoldierName: 'Bitte Vorname und Name des Soldaten eingeben.',
     validationSender: 'Bitte Absender komplett ausfüllen.',
     validationPrivateAddress: 'Bitte Privatadresse vollständig ausfüllen.',
-    submitError: 'Die Bestellung konnte nicht gespeichert werden. Bitte erneut versuchen.',
-    orderSavedAdmin: 'Die Bestellung ist für den Admin-Bereich vorbereitet.',
+    submitError: 'Die Zahlung konnte nicht gestartet werden. Bitte erneut versuchen.',
+    orderSavedAdmin: 'Die Bestellung wird im Admin-Bereich als bezahlte Bestellung verarbeitet.',
     formErrorTitle: 'Bitte prüfen',
     shippingMode: 'Versandart',
     orderDate: 'Bestellt am',
@@ -709,16 +710,17 @@ const texts = {
     reviewTitle: 'Vérifier la commande',
     backMachine: 'Retour à l’automate',
     backForm: 'Retour au formulaire',
-    sendOrder: 'Envoyer la commande',
-    sendingOrder: 'Envoi de la commande …',
+    sendOrder: 'Payer maintenant',
+    sendingOrder: 'Préparation du paiement …',
+    paymentHint: 'Paiement en ligne sécurisé avec TWINT, carte de débit ou carte de crédit via Stripe.',
     adminProductsSaving: 'Enregistrement des produits …',
     summary: 'Résumé de commande',
     subtotal: 'Sous-total',
     shipping: 'Envoi',
     total: 'Total',
     note: 'La commande est enregistrée, signalée à order@armeebox.ch et le client reçoit une confirmation par e-mail.',
-    confirmTitle: 'Commande reçue avec succès',
-    confirmCopy: 'Votre commande a été enregistrée. Le panier et le formulaire n’ont été vidés qu’après la commande finale.',
+    confirmTitle: 'Paiement réussi',
+    confirmCopy: 'Merci. Votre paiement a été confirmé et votre commande a été transmise avec succès.',
     confirmOrderNo: 'N° de commande',
     confirmEmail: 'Confirmation envoyée à',
     newOrder: 'Nouvelle commande',
@@ -731,8 +733,8 @@ const texts = {
     validationSoldierName: 'Veuillez saisir le prénom et le nom du soldat.',
     validationSender: 'Veuillez compléter les données expéditeur.',
     validationPrivateAddress: 'Veuillez compléter l’adresse privée.',
-    submitError: 'La commande n’a pas pu être enregistrée. Veuillez réessayer.',
-    orderSavedAdmin: 'La commande est prête pour la zone admin.',
+    submitError: 'Le paiement n’a pas pu être lancé. Veuillez réessayer.',
+    orderSavedAdmin: 'La commande sera traitée dans l’administration comme commande payée.',
     formErrorTitle: 'À vérifier',
     shippingMode: 'Mode d’envoi',
     orderDate: 'Commandé le',
@@ -2206,6 +2208,7 @@ function renderReview(){
           <div class="summary-line"><span>${t('subtotal')}</span><strong>${money(subtotal())}</strong></div>
           <div class="summary-line"><span>${t('shipping')}</span><strong>${money(shippingCost())}</strong></div>
           <div class="summary-line"><span>${t('total')}</span><strong>${money(total())}</strong></div>
+          <div class="note" style="margin-top:12px">${t('paymentHint')}</div>
           <div class="review-actions" style="margin-top:18px">
             <button class="back-btn" id="reviewBackMachine">← ${t('backMachine')}</button>
             <button class="back-btn" id="reviewBackForm">← ${t('backForm')}</button>
@@ -2571,29 +2574,47 @@ async function submitOrder(){
   save();
   render();
   try{
-    const response = await fetch('/.netlify/functions/submit-order', {
+    const response = await fetch('/.netlify/functions/create-checkout-session', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(buildOrderPayload())
     });
     const result = await response.json().catch(()=>({}));
-    if(!response.ok || !result.success){
+    if(!response.ok || !result.success || !result.checkout_url){
       throw new Error(result.error || t('submitError'));
     }
-    state.lastOrder = {
-      order_number: result.order?.order_number || result.order_number || '-',
+    state.pendingStripeOrder = {
+      order_number: result.order?.order_number || '-',
       customer_email: result.order?.customer_email || getCustomerEmail(),
       created_at_label: new Date().toLocaleString(state.lang === 'fr' ? 'fr-CH' : 'de-CH')
     };
-    resetOrderData();
-    state.route = 'confirmation';
+    state.submitting = false;
+    save();
+    window.location.href = result.checkout_url;
   }catch(error){
     state.submitError = error?.message || t('submitError');
-  }finally{
     state.submitting = false;
     save();
     render();
   }
+}
+
+function handleStripeReturnFromHash(){
+  const hash = String(location.hash || '');
+  if(!hash.startsWith('#confirmation') || !hash.includes('session_id=')) return;
+  const params = new URLSearchParams(hash.split('?')[1] || '');
+  const sessionId = params.get('session_id');
+  if(!sessionId) return;
+  if(state.lastStripeSessionId === sessionId) return;
+  state.lastStripeSessionId = sessionId;
+  state.lastOrder = state.pendingStripeOrder || {
+    order_number: '-',
+    customer_email: getCustomerEmail(),
+    created_at_label: new Date().toLocaleString(state.lang === 'fr' ? 'fr-CH' : 'de-CH')
+  };
+  state.pendingStripeOrder = null;
+  resetOrderData();
+  save();
 }
 
 function bindReview(){
@@ -3618,5 +3639,6 @@ if(['language','intro','shop','order','review','confirmation','admin-login','adm
       return;
     }
   }
+  handleStripeReturnFromHash();
   render();
 })();
