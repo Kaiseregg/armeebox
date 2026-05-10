@@ -2623,8 +2623,15 @@ function bindReview(){
   document.getElementById('submitOrderBtn').onclick=()=>submitOrder();
 }
 function bindConfirm(){
-  document.getElementById('confirmBackMachine').onclick=()=>setRoute('shop');
-  document.getElementById('newOrderBtn').onclick=()=>setRoute('shop');
+  const goFreshShop = () => {
+    // Nach erfolgreicher Stripe-Zahlung muss der nächste Besuch im Automaten leer starten.
+    state.pendingStripeOrder = null;
+    resetOrderData();
+    save();
+    setRoute('shop');
+  };
+  document.getElementById('confirmBackMachine').onclick=goFreshShop;
+  document.getElementById('newOrderBtn').onclick=goFreshShop;
 }
 
 
