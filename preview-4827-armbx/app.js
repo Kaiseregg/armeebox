@@ -1927,7 +1927,16 @@ function cartGrouped(){
 function subtotal(){ return cartItemsDetailed().reduce((a,p)=>a+Number(p.price || 0),0); }
 function shippingCost(){ return state.shipping==='private' ? 9 : 0; }
 function total(){ return subtotal()+shippingCost(); }
-function setRoute(route){ state.route=route; state.submitError=''; save(); render(); }
+function setRoute(route){
+  if(route !== 'page' || state.currentPageSlug !== 'kontakt'){
+    state.contact.status='';
+    state.contact.error='';
+  }
+  state.route=route;
+  state.submitError='';
+  save();
+  render();
+}
 
 async function goAdminRoute(route){
   state.admin.loginError = '';
@@ -2098,7 +2107,7 @@ function renderMachine(){
         </div></div>
         <aside class="side">
           <div class="led">
-            <div class="line"><span class="currency">Fr.</span><span class="amount">${total()}</span></div>
+            <div class="line"><span class="currency">Fr.</span><span class="amount">${Number(total()).toFixed(2)}</span></div>
             <div class="line"><span class="small">${t('total')}:</span><span class="small">${state.cart.length}</span></div>
           </div>
           <div class="cartbox cartbox-compact">
@@ -2128,7 +2137,7 @@ function renderForm(){
   ${topbar()}
   <div class="page">
     <div class="shell">
-      <div class="order-top-actions"><button class="back-btn" id="backMachineBtn">← ${t('backMachine')}</button><button class="back-btn" id="openAdminBtn">Admin</button></div>
+      <div class="order-top-actions"><button class="back-btn" id="backMachineBtn">← ${t('backMachine')}</button></div>
       ${renderAlerts()}
       <div class="form-layout">
         <div class="card">
@@ -2653,7 +2662,12 @@ async function submitContact(){
 function bindContact(){
   ['Name','Email','Subject','Message'].forEach(key=>{
     const el=document.getElementById('contact'+key); if(!el) return;
-    el.oninput=()=>{ state.contact[key.toLowerCase()] = el.value; save(); };
+    el.oninput=()=>{
+      state.contact[key.toLowerCase()] = el.value;
+      state.contact.status='';
+      state.contact.error='';
+      save();
+    };
   });
   const btn=document.getElementById('contactSendBtn'); if(btn) btn.onclick=()=>submitContact();
 }
