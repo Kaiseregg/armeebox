@@ -1774,6 +1774,14 @@ async function uploadAdminProductImage(index, file){
     const fresh = adminProductsList();
     if(fresh[index]) fresh[index].image_url = data.publicUrl;
     state.admin.products = fresh;
+
+    // Wichtig: saveAdminProducts() liest die Werte direkt aus den sichtbaren Admin-Feldern.
+    // Nach dem Upload war das Feld noch leer, deshalb wurde die neue Bild-URL sofort wieder
+    // mit leerem Wert überschrieben. Wir setzen das Feld vor dem Speichern explizit auf die
+    // neue Supabase-URL, damit Upload + Speichern atomar zusammenpassen.
+    const imageInput = document.querySelector(`[data-product-index="${index}"][data-product-field="image_url"]`);
+    if(imageInput) imageInput.value = data.publicUrl;
+
     state.admin.productsMessage = t('adminImageUploaded');
     save();
     await saveAdminProducts();
