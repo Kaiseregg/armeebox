@@ -1771,20 +1771,12 @@ async function uploadAdminProductImage(index, file){
     if(!response.ok || data.success === false || !data.publicUrl){
       throw new Error(data.error || 'Upload fehlgeschlagen');
     }
-    const fresh = adminProductsList();
+    const fresh = readAdminProductRowsDirectFromDom();
     if(fresh[index]) fresh[index].image_url = data.publicUrl;
     state.admin.products = fresh;
-
-    // Wichtig: saveAdminProducts() liest die Werte direkt aus den sichtbaren Admin-Feldern.
-    // Nach dem Upload war das Feld noch leer, deshalb wurde die neue Bild-URL sofort wieder
-    // mit leerem Wert überschrieben. Wir setzen das Feld vor dem Speichern explizit auf die
-    // neue Supabase-URL, damit Upload + Speichern atomar zusammenpassen.
-    const imageInput = document.querySelector(`[data-product-index="${index}"][data-product-field="image_url"]`);
-    if(imageInput) imageInput.value = data.publicUrl;
-
     state.admin.productsMessage = t('adminImageUploaded');
     save();
-    await saveAdminProducts();
+    await saveAdminProducts(fresh);
   }catch(error){
     state.admin.loginError = error.message || 'Upload fehlgeschlagen';
     save(); render();
@@ -1827,8 +1819,8 @@ function readAdminProductRowsDirectFromDom(){
   });
 }
 
-async function saveAdminProducts(){
-  const rows = readAdminProductRowsDirectFromDom();
+async function saveAdminProducts(forcedRows = null){
+  const rows = Array.isArray(forcedRows) ? forcedRows : readAdminProductRowsDirectFromDom();
   state.admin.productsSaving = true;
   state.admin.loginError = '';
   state.admin.productsMessage = '';
