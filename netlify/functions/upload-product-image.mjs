@@ -94,7 +94,8 @@ export default async (request) => {
     const serviceRoleKey = requireEnv('SUPABASE_SERVICE_ROLE_KEY');
     const ext = extensionFromMime(mimeType) || cleanName(file.name).split('.').pop() || 'png';
     const objectPath = `slots/${slot}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
-    const uploadUrl = `${supabaseUrl}/storage/v1/object/products/${objectPath}`;
+    const bucket = process.env.SUPABASE_PRODUCT_IMAGE_BUCKET || 'products';
+    const uploadUrl = `${supabaseUrl}/storage/v1/object/${bucket}/${objectPath}`;
 
     const uploadResponse = await fetch(uploadUrl, {
       method: 'PUT',
@@ -112,8 +113,8 @@ export default async (request) => {
       throw new Error(uploadData?.message || uploadData?.error || `Upload fehlgeschlagen (${uploadResponse.status})`);
     }
 
-    const publicUrl = `${supabaseUrl}/storage/v1/object/public/products/${objectPath}`;
-    return json(200, { success: true, path: objectPath, publicUrl });
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucket}/${objectPath}`;
+    return json(200, { success: true, bucket, path: objectPath, publicUrl });
   } catch (error) {
     console.error('upload-product-image failed', error);
     return json(500, { success: false, error: error.message || 'Upload fehlgeschlagen' });
