@@ -2107,7 +2107,7 @@ function renderMachine(){
         </div></div>
         <aside class="side">
           <div class="led">
-            <div class="line"><span class="currency">Fr.</span><span class="amount" style="font-size:${Number(total()) >= 100 ? '58px' : '72px'}">${Number(total()).toFixed(2)}</span></div>
+            <div class="line"><span class="currency">Fr.</span><span class="amount" style="font-size:${Number(total()) >= 1000 ? '38px' : Number(total()) >= 100 ? '44px' : '72px'};letter-spacing:${Number(total()) >= 100 ? '-3px' : '-2px'}">${Number(total()).toFixed(2)}</span></div>
             <div class="line"><span class="small">${t('total')}:</span><span class="small">${state.cart.length}</span></div>
           </div>
           <div class="cartbox cartbox-compact">
