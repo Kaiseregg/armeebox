@@ -1,0 +1,69 @@
+# ARMEEBOX – MINI PATCH (nur app.js)
+
+Datei:
+preview-4827-armbx/app.js
+
+==================================================
+FIX 1 — Display Preis immer 3.50
+==================================================
+
+Suche in buildOrderPayload():
+
+unit_price: item.price,
+total_price: item.price * item.qty
+
+Ersetzen mit:
+
+unit_price: 3.50,
+total_price: 3.50 * item.qty
+
+==================================================
+FIX 2 — Kontaktformular Meldung zurücksetzen
+==================================================
+
+Suche:
+
+function bindContact(){
+  ['Name','Email','Subject','Message'].forEach(key=>{
+    const el=document.getElementById('contact'+key); if(!el) return;
+    el.oninput=()=>{ state.contact[key.toLowerCase()] = el.value; save(); };
+  });
+
+Ersetzen mit:
+
+function bindContact(){
+  ['Name','Email','Subject','Message'].forEach(key=>{
+    const el=document.getElementById('contact'+key); if(!el) return;
+    el.oninput=()=>{
+      state.contact[key.toLowerCase()] = el.value;
+      state.contact.status='';
+      state.contact.error='';
+      save();
+    };
+  });
+
+==================================================
+FIX 3 — Admin Button im Bestellformular ausblenden
+==================================================
+
+Nur den sichtbaren HTML Adminbutton entfernen.
+
+WICHTIG:
+NICHT:
+- Loginlogik löschen
+- Adminroute löschen
+- Adminfunktionen löschen
+
+Admin bleibt erreichbar über:
+#admin-login
+
+==================================================
+ERWARTETES RESULTAT
+==================================================
+
+✅ Preisanzeige konstant 3.50
+✅ Kontaktmeldung resetet korrekt
+✅ Kein sichtbarer Adminbutton mehr
+✅ Keine Änderung an Speicherlogik
+✅ Keine Änderung an FR/DE Mapping
+✅ Keine Layoutänderung
