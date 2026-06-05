@@ -1922,7 +1922,17 @@ function readAdminProductRowsDirectFromDom(){
       return el ? !!el.checked : fallback;
     };
     const slotNumber = Math.max(1, Number(value('slotNumber', product.slotNumber || index + 1)) || (index + 1));
-    const qtyOptions = bundleOptionsFromInput(value('quantity_options', (product.quantity_options || [2,3,4]).join(',')));
+
+    // IMPORTANT: Variants are stored as localized labels + price factor.
+    // The old hidden numeric-only field was causing saved labels like
+    // "für 2 Wochen / pour 2 semaines" to be overwritten back to "2x, 3x, 4x".
+    // Read the visible DE/FR fields directly from the DOM so Save preserves labels.
+    const deVariantInput = get('quantity_options_de');
+    const frVariantInput = get('quantity_options_fr');
+    const qtyOptions = (deVariantInput || frVariantInput)
+      ? bundleOptionsFromDualInput(deVariantInput?.value || '', frVariantInput?.value || '')
+      : bundleOptionList(product);
+
     return {
       slot: slotNumber,
       name_de: value('name_de', product.name?.de || ''),
