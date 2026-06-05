@@ -1927,6 +1927,23 @@ function cartGrouped(){
 function subtotal(){ return cartItemsDetailed().reduce((a,p)=>a+Number(p.price || 0),0); }
 function shippingCost(){ return state.shipping==='private' ? 9 : 0; }
 function total(){ return subtotal()+shippingCost(); }
+
+const ARMEBOX_ADMIN_PATH = '/arbx-control';
+const ARMEBOX_ADMIN_ROUTES = ['admin-login','admin-orders','admin-order','admin-products','admin-design','admin-analytics','admin-customers'];
+function normalizePathForAdmin(path){ return String(path || '').replace(/\/+$/, '') || '/'; }
+function isArmeboxAdminEntry(){
+  return window.__ARMEBOX_ADMIN_ENTRY__ === true || normalizePathForAdmin(location.pathname) === ARMEBOX_ADMIN_PATH;
+}
+function isArmeboxAdminRoute(route){ return ARMEBOX_ADMIN_ROUTES.includes(route); }
+function blockPublicAdminRoute(){
+  if(!isArmeboxAdminEntry()){
+    state.route = 'language';
+    if(location.hash && String(location.hash).includes('admin')) history.replaceState(null,'','/');
+    return true;
+  }
+  return false;
+}
+
 function setRoute(route){
   if(route !== 'page' || state.currentPageSlug !== 'kontakt'){
     state.contact.status='';
@@ -1939,6 +1956,7 @@ function setRoute(route){
 }
 
 async function goAdminRoute(route){
+  if(isArmeboxAdminRoute(route) && blockPublicAdminRoute()) { save(); render(); return; }
   state.admin.loginError = '';
   state.route = route;
   history.replaceState(null,'',`#${route}`);
@@ -1988,6 +2006,13 @@ function resetOrderData(){
 window.addEventListener('hashchange',()=>{
   const h=location.hash.replace('#','').split('?')[0];
   if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products','admin-design','admin-analytics','admin-customers','page'].includes(h)){
+    if(isArmeboxAdminRoute(h) && !isArmeboxAdminEntry()){
+      history.replaceState(null,'','/');
+      state.route='language';
+      save();
+      render();
+      return;
+    }
     state.route=h;
     if(h==='admin-order'){
       const id = new URLSearchParams(location.hash.split('?')[1] || location.search).get('id');
@@ -3584,6 +3609,9 @@ function bindAdminProducts(){
   if(saveBtn) saveBtn.onclick = ()=>saveAdminProducts();
 }
 function render(){
+  if(isArmeboxAdminRoute(state.route) && blockPublicAdminRoute()){
+    updateHash();
+  }
   if((state.route==='admin-orders' || state.route==='admin-order' || state.route==='admin-products' || state.route==='admin-design' || state.route==='admin-analytics' || state.route==='admin-customers') && !state.admin.loggedIn){
     state.route = 'admin-login';
   }
@@ -3621,7 +3649,14 @@ function render(){
 }
 const initialHash = location.hash.replace('#','').split('?')[0];
 if(['language','intro','shop','order','review','confirmation','admin-login','admin-orders','admin-order','admin-products','admin-design','admin-analytics','admin-customers','page'].includes(initialHash)) {
-  state.route=initialHash;
+  if(isArmeboxAdminRoute(initialHash) && !isArmeboxAdminEntry()){
+    history.replaceState(null,'','/');
+    state.route='language';
+  } else {
+    state.route=initialHash;
+  }
+} else if(isArmeboxAdminEntry()) {
+  state.route='admin-login';
 } else if(['grundidee','kontakt','agb'].includes(initialHash)) {
   state.currentPageSlug=initialHash; state.route='page';
 } else if(!initialHash) {
