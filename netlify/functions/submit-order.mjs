@@ -413,9 +413,10 @@ export default async (request) => {
 
     const createdOrder = await insertOrder(orderRow, payload.items);
 
-    await reduceStockForOrder(payload.items, createdOrder.order_number).catch((error) => {
-      console.warn('stock reduction skipped', error?.message || error);
-    });
+    // STEP 19A: Lager darf hier NICHT reduziert werden.
+    // Eine Bestellung kann erstellt werden, bevor Stripe bezahlt ist.
+    // Die definitive Lagerreduktion passiert erst im Stripe Webhook bei
+    // checkout.session.completed und wird dort gegen Doppelbuchung geschützt.
 
     const orderForMail = {
       ...createdOrder,

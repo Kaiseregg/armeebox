@@ -79,6 +79,116 @@ async function patchOrder(orderId, patch) {
   });
 }
 
+
+async function logInventorySale(entry) {
+  try {
+    await supabaseRequest('inventory_movements', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        product_id: entry.product_id || null,
+        product_name: String(entry.product_name || ''),
+        movement_type: 'sale',
+        quantity: -Math.abs(Number(entry.quantity || 0)),
+        stock_before: Number(entry.stock_before || 0),
+        stock_after: Number(entry.stock_after || 0),
+        reason: entry.reason || 'Bezahlte Bestellung',
+        source: 'stripe_paid_order',
+        created_at: new Date().toISOString()
+      })
+    });
+  } catch (error) {
+    console.warn('inventory sale movement skipped', error?.message || error);
+  }
+}
+
+function normalizeOrderItemQuantity(item) {
+  return Math.max(0, Math.floor(Number(item?.quantity ?? 0) || 0));
+}
+
+async function findProductForOrderItem(item) {
+  const productId = String(item?.product_id || '').trim();
+  const slotNumber = Number(String(item?.slot_code || '').replace(/^0+/, '') || 0);
+
+  if (productId && productId !== 'null' && productId !== 'undefined' && productId !== 'NaN') {
+    const rows = await supabaseRequest(
+      `products?select=id,name,name_de,stock_current,stock_total&` +
+        `id=eq.${encodeURIComponent(productId)}&limit=1`
+    ).catch(() => []);
+    if (Array.isArray(rows) && rows[0]?.id) return rows[0];
+  }
+
+  if (Number.isFinite(slotNumber) && slotNumber > 0) {
+    const rows = await supabaseRequest(
+      `products?select=id,name,name_de,stock_current,stock_total&` +
+        `slot=eq.${encodeURIComponent(slotNumber)}&limit=1`
+    ).catch(() => []);
+    if (Array.isArray(rows) && rows[0]?.id) return rows[0];
+  }
+
+  return null;
+}
+
+async function reduceStockForPaidOrder(order) {
+  const meta = order?.order_meta || {};
+  if (meta.inventory_reduced_at) {
+    return { skipped: true, reason: 'already_reduced', at: meta.inventory_reduced_at };
+  }
+
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const reductions = [];
+
+  // Gleiche Produkte zusammenfassen, damit ein Produkt pro Bestellung nur einmal gepatcht wird.
+  const grouped = new Map();
+  for (const item of items) {
+    const quantity = normalizeOrderItemQuantity(item);
+    if (!quantity) continue;
+    const key = item?.product_id ? `id:${item.product_id}` : `slot:${item?.slot_code || ''}`;
+    const previous = grouped.get(key) || { item, quantity: 0 };
+    previous.quantity += quantity;
+    grouped.set(key, previous);
+  }
+
+  for (const groupedItem of grouped.values()) {
+    const product = await findProductForOrderItem(groupedItem.item);
+    if (!product?.id) {
+      reductions.push({ product_id: null, skipped: true, reason: 'product_not_found' });
+      continue;
+    }
+
+    const before = Math.max(0, Math.floor(Number(product.stock_current ?? product.stock_total ?? 0) || 0));
+    const after = Math.max(0, before - groupedItem.quantity);
+
+    await supabaseRequest(`products?id=eq.${encodeURIComponent(product.id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ stock_current: after, updated_at: new Date().toISOString() })
+    });
+
+    await logInventorySale({
+      product_id: product.id,
+      product_name: product.name_de || product.name || groupedItem.item?.product_name || '',
+      quantity: groupedItem.quantity,
+      stock_before: before,
+      stock_after: after,
+      reason: order?.order_number ? `Bezahlte Bestellung ${order.order_number}` : 'Bezahlte Bestellung'
+    });
+
+    reductions.push({ product_id: product.id, quantity: groupedItem.quantity, before, after });
+  }
+
+  const reducedAt = new Date().toISOString();
+  await patchOrder(order.id, {
+    order_meta: {
+      ...meta,
+      inventory_reduced_at: reducedAt,
+      inventory_reduction_count: reductions.filter((row) => !row.skipped).length
+    }
+  });
+
+  return { skipped: false, reduced_at: reducedAt, reductions };
+}
+
 function buildDeliveryText(order) {
   const meta = order.order_meta || {};
   const lines = [];
@@ -266,6 +376,9 @@ export default async (request) => {
           : null
       });
 
+      const orderForInventory = await fetchOrderWithItems(orderId);
+      const inventoryResult = await reduceStockForPaidOrder(orderForInventory);
+
       let emailResult = { skipped: true, reason: 'already_sent' };
       if (!alreadySent) {
         const orderAfter = await fetchOrderWithItems(orderId);
@@ -283,6 +396,7 @@ export default async (request) => {
         received: true,
         type: event.type,
         order_id: orderId,
+        inventory: inventoryResult,
         email: emailResult
       });
     }
