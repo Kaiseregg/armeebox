@@ -917,3 +917,10 @@ button[data-action="bundle-info"] {
   .slot-info-strip{font-size:10px!important;padding-left:4px!important;padding-right:4px!important}
   .product-info-list{font-size:15px;gap:7px}
 }
+.admin-help{
+  display:block;
+  margin-top:6px;
+  color:rgba(221,235,255,.68);
+  font-size:11px;
+  line-height:1.25;
+}
