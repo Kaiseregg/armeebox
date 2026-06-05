@@ -903,6 +903,8 @@ const state = {
     newsletterSending: false,
     newsletterResult: '',
     stockAdjustments: {},
+    inventoryFilter: 'all',
+    productsQuickFilter: 'all',
     search: '',
     filter: 'all',
     design: null,
@@ -1000,6 +1002,13 @@ async function loadSiteContent(){
   }catch(_){ }
 }
 function findSitePage(slug){ return (state.pages || []).find(p => p.slug === slug) || null; }
+
+function renderMaintenanceMode(){
+  return `<div class="maintenance-screen"><div class="maintenance-card"><img src="../public/logo.png" alt="ARMEEBOX"><h1>Under Construction</h1><p>Unsere Plattform ist kurz im Wartungsmodus. Wir sind bald wieder online.</p><span>ARMEEBOX.ch</span></div></div>`;
+}
+function maintenanceActiveForPublic(){
+  return !!state.settings?.maintenanceMode && !isArmeboxAdminEntry() && !isArmeboxAdminRoute(state.route);
+}
 
 function localizedAdminValue(value, fallback=''){
   if(value && typeof value === 'object') return String(value[state.lang] || value.de || value.fr || fallback || '');
@@ -2866,7 +2875,7 @@ function bindCmsBlockDragDrop(){
 function bindAdminDesign(){
   const back=document.getElementById('adminDesignBackBtn'); if(back) back.onclick=()=>{ history.replaceState(null,'','#admin-orders'); state.route='admin-orders'; loadAdminOrders(); };
   const logout=document.getElementById('adminLogoutBtn'); if(logout) logout.onclick=()=>doAdminLogout();
-  document.querySelectorAll('[data-design-field]').forEach(el=>el.oninput=()=>{ state.admin.design = state.admin.design || {}; state.admin.design[el.getAttribute('data-design-field')] = el.value; save(); renderDesignPreviewOnly(); });
+  document.querySelectorAll('[data-design-field]').forEach(el=>{ const handler=()=>{ state.admin.design = state.admin.design || {}; state.admin.design[el.getAttribute('data-design-field')] = el.type === 'checkbox' ? el.checked : el.value; save(); renderDesignPreviewOnly(); }; el.oninput=handler; el.onchange=handler; });
   document.querySelectorAll('[data-page-field]').forEach(el=>el.oninput=()=>{ const i=Number(el.getAttribute('data-page-index')); const f=el.getAttribute('data-page-field'); state.admin.pages = state.admin.pages || []; if(state.admin.pages[i]){ let v = el.type === 'checkbox' ? el.checked : el.value; if(f==='sort_order') v=Number(v||0); state.admin.pages[i][f]=v; save(); } });
   document.querySelectorAll('[data-page-delete]').forEach(btn=>btn.onclick=()=>{ const i=Number(btn.getAttribute('data-page-delete')); const p=state.admin.pages?.[i]; if(!p) return; if(confirm(`Seite wirklich löschen: ${p.slug}?`)){ state.admin.pages.splice(i,1); save(); render(); } });
   document.querySelectorAll('[data-page-up]').forEach(btn=>btn.onclick=()=>moveAdminPage(Number(btn.getAttribute('data-page-up')),-1));
@@ -3247,7 +3256,7 @@ function renderAdminDesign(){
     ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
     ${state.admin.productsMessage ? `<div class="note">${escapeHtml(state.admin.productsMessage)}</div>` : ''}
     <div class="cms-layout">
-      <div class="card cms-card"><h3>Design</h3>
+      <div class="card cms-card"><h3>Design</h3><div class="maintenance-admin-box"><label class="admin-toggle"><input data-design-field="maintenanceMode" type="checkbox" ${d.maintenanceMode ? 'checked' : ''}><span>Wartungsmodus / Under Construction aktivieren</span></label><div class="note">Wenn aktiv, sehen Besucher eine Wartungsseite. Admin bleibt über /arbx-control erreichbar.</div></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminTitleDe')}</label><input data-design-field="machineTitle_de" value="${escapeAttr(d.machineTitle_de || d.machineTitle || '')}" placeholder="Automat ARMEEBOX"></div><div class="field"><label>${t('adminTitleFr')}</label><input data-design-field="machineTitle_fr" value="${escapeAttr(d.machineTitle_fr || '')}" placeholder="Automate ARMEEBOX"></div></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminSloganDe')}</label><input data-design-field="machineInner_de" value="${escapeAttr(d.machineInner_de || d.machineInner || '')}" placeholder="Achtung, fertig, Fresspäckli"></div><div class="field"><label>${t('adminSloganFr')}</label><input data-design-field="machineInner_fr" value="${escapeAttr(d.machineInner_fr || '')}" placeholder="À vos marques, prêts, paquet du soldat"></div></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminButtonColor')}</label><input data-design-field="buttonColor" type="color" value="${escapeAttr(d.buttonColor || '#65a832')}"></div><div class="field"><label>${t('adminSlotColor')}</label><input data-design-field="slotColor" type="color" value="${escapeAttr(d.slotColor || '#3d5366')}"></div><div class="field"><label>${t('adminFrameColor')}</label><input data-design-field="frameColor" type="color" value="${escapeAttr(d.frameColor || '#b22b2b')}"></div><div class="field"><label>${t('adminBgColor')}</label><input data-design-field="bgColor" type="color" value="${escapeAttr(d.bgColor || '#061527')}"></div></div>
@@ -3279,6 +3288,46 @@ function renderAdminDesign(){
   </div></div>`;
 }
 
+
+function adminProductsFilteredList(){
+  const filter = state.admin.productsQuickFilter || 'all';
+  return adminProductsList().filter(p => {
+    if(filter === 'low') return isLowStock(p);
+    if(filter === 'out') return isSoldOut(p);
+    if(filter === 'active') return p.active !== false && p.is_active !== false;
+    if(filter === 'bundle') return p.slot_type === 'bundle';
+    if(filter === 'normal') return p.slot_type !== 'bundle';
+    return true;
+  });
+}
+function orderKpis(){
+  const orders = Array.isArray(state.admin.orders) ? state.admin.orders : [];
+  const today = new Date().toISOString().slice(0,10);
+  let todayRevenue = 0, open = 0, monthRevenue = 0;
+  const month = today.slice(0,7);
+  for(const o of orders){
+    const d = String(o.created_at || '').slice(0,10);
+    const amount = Number(o.total_amount ?? o.total ?? 0) || 0;
+    const status = String(o.status || '').toLowerCase();
+    if(d === today) todayRevenue += amount;
+    if(String(o.created_at || '').slice(0,7) === month) monthRevenue += amount;
+    if(!['done','completed','terminé','termine','archived','cancelled'].includes(status)) open += 1;
+  }
+  return { todayRevenue, monthRevenue, open };
+}
+function movementTypeLabel(type){
+  const v=String(type||'manual');
+  if(v==='sale') return 'Bestellung';
+  if(v==='restock') return 'Nachfüllung';
+  if(v==='set') return 'Bestand gesetzt';
+  return 'Korrektur';
+}
+function renderInventoryMovements(){
+  const filter = state.admin.inventoryFilter || 'all';
+  const movements = Array.isArray(state.admin.inventoryMovements) ? state.admin.inventoryMovements : [];
+  const list = movements.filter(m => filter === 'all' || String(m.movement_type || '') === filter).slice(0,50);
+  return `<div class="inventory-movements card"><div class="section-title-row"><div><h3>Lagerbewegungen</h3><div class="note">Verlauf von Bestellungen, Nachfüllungen und manuellen Korrekturen.</div></div><div class="inventory-filter-row"><button class="back-btn ${filter==='all'?'is-active':''}" data-inventory-filter="all">Alle</button><button class="back-btn ${filter==='sale'?'is-active':''}" data-inventory-filter="sale">Bestellungen</button><button class="back-btn ${filter==='restock'?'is-active':''}" data-inventory-filter="restock">Nachfüllung</button><button class="back-btn ${filter==='manual'?'is-active':''}" data-inventory-filter="manual">Korrektur</button><button class="back-btn ${filter==='set'?'is-active':''}" data-inventory-filter="set">Gesetzt</button></div></div><div class="inventory-overview-table"><table class="admin-table"><thead><tr><th>Datum</th><th>Produkt</th><th>Aktion</th><th>Menge</th><th>Vorher</th><th>Nachher</th><th>Grund</th></tr></thead><tbody>${list.map(m=>`<tr><td>${escapeHtml(new Date(m.created_at || Date.now()).toLocaleString('de-CH'))}</td><td>${escapeHtml(m.product_name || '')}</td><td><span class="inventory-pill movement-${escapeAttr(String(m.movement_type||'manual'))}">${escapeHtml(movementTypeLabel(m.movement_type))}</span></td><td><strong>${Number(m.quantity || 0)}</strong></td><td>${Number(m.stock_before || 0)}</td><td>${Number(m.stock_after || 0)}</td><td>${escapeHtml(m.reason || m.source || '')}</td></tr>`).join('') || '<tr><td colspan="7">Noch keine Lagerbewegungen vorhanden.</td></tr>'}</tbody></table></div></div>`;
+}
 function renderInventoryOverview(products){
   const list = Array.isArray(products) ? [...products] : [];
   const rows = list
@@ -3328,7 +3377,9 @@ function renderInventoryOverview(products){
 }
 
 function renderAdminProducts(){
-  const products = adminProductsList();
+  const allProducts = adminProductsList();
+  const products = adminProductsFilteredList();
+  const kpi = orderKpis();
   return `
   ${topbar()}
   <div class="page">
@@ -3347,12 +3398,16 @@ function renderAdminProducts(){
       </div>
       ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
       ${state.admin.productsMessage ? `<div class="note">${escapeHtml(state.admin.productsMessage)}</div>` : ''}
-      <div class="inventory-summary">
-        <div><strong>${products.length}</strong><span>Produkte</span></div>
-        <div><strong>${products.filter(p=>isLowStock(p)).length}</strong><span>${t('stockLow')}</span></div>
-        <div><strong>${products.filter(p=>isSoldOut(p)).length}</strong><span>${t('stockOut')}</span></div>
-        <div><strong>${money(products.reduce((sum,p)=>sum + productStock(p).current * Number(p.price || 0),0))}</strong><span>Lagerwert</span></div>
+      <div class="inventory-summary pro-kpis">
+        <div><strong>${allProducts.length}</strong><span>Produkte</span></div>
+        <div><strong>${allProducts.filter(p=>isLowStock(p)).length}</strong><span>${t('stockLow')}</span></div>
+        <div><strong>${allProducts.filter(p=>isSoldOut(p)).length}</strong><span>${t('stockOut')}</span></div>
+        <div><strong>${money(allProducts.reduce((sum,p)=>sum + productStock(p).current * Number(p.price || 0),0))}</strong><span>Lagerwert</span></div>
+        <div><strong>${money(kpi.todayRevenue)}</strong><span>Umsatz heute</span></div>
+        <div><strong>${money(kpi.monthRevenue)}</strong><span>Umsatz Monat</span></div>
+        <div><strong>${kpi.open}</strong><span>Offene Bestellungen</span></div>
       </div>
+      <div class="quick-filter-bar card"><strong>Schnellfilter</strong><button class="back-btn ${state.admin.productsQuickFilter==='all'?'is-active':''}" data-products-filter="all">Alle</button><button class="back-btn ${state.admin.productsQuickFilter==='low'?'is-active':''}" data-products-filter="low">Knapp</button><button class="back-btn ${state.admin.productsQuickFilter==='out'?'is-active':''}" data-products-filter="out">Leer</button><button class="back-btn ${state.admin.productsQuickFilter==='active'?'is-active':''}" data-products-filter="active">Aktiv</button><button class="back-btn ${state.admin.productsQuickFilter==='bundle'?'is-active':''}" data-products-filter="bundle">Boxen</button><button class="back-btn ${state.admin.productsQuickFilter==='normal'?'is-active':''}" data-products-filter="normal">Snacks/Getränke</button></div>
       <div class="admin-products-grid">
         ${products.length ? products.map((product, index) => `
           <div class="card admin-product-card" draggable="true" data-draggable-slot="${index}">
@@ -3606,6 +3661,8 @@ function bindAdminProducts(){
   const inventoryExportBtn = document.getElementById('inventoryExportBtn');
   if(inventoryExportBtn) inventoryExportBtn.onclick = () => downloadInventoryCsv();
 
+  document.querySelectorAll('[data-products-filter]').forEach(btn=>btn.onclick=()=>{ state.admin.productsQuickFilter = btn.getAttribute('data-products-filter') || 'all'; save(); render(); });
+  document.querySelectorAll('[data-inventory-filter]').forEach(btn=>btn.onclick=()=>{ state.admin.inventoryFilter = btn.getAttribute('data-inventory-filter') || 'all'; save(); render(); });
   const saveBtn = document.getElementById('adminSaveProductsBtn');
   if(saveBtn) saveBtn.onclick = ()=>saveAdminProducts();
 }
@@ -3617,6 +3674,7 @@ function render(){
     state.route = 'admin-login';
   }
   updateHash();
+  if(maintenanceActiveForPublic()){ app.innerHTML = renderMaintenanceMode(); return; }
   let html='';
   if(state.route==='language') html=renderLanguage();
   if(state.route==='intro') html=renderIntro();
