@@ -2108,8 +2108,9 @@ function renderMachine(){
             const currentMultiplier = isBundle ? selectedBundleMultiplier(p) : 1;
             const displayName = p.name[state.lang];
             const displayPriceValue = displayPrice(p);
+            const isSelected = state.cart.some((entry)=>String(cartEntryProductId(entry))===String(p.id));
             return `
-          <div class="slot ${isBundle ? 'slot-bundle' : ''} ${isSoldOut(p) ? 'is-sold-out' : ''}" data-id="${p.id}" role="button" tabindex="0" aria-label="${escapeAttr(displayName)}">
+          <div class="slot ${isBundle ? 'slot-bundle' : ''} ${isSoldOut(p) ? 'is-sold-out' : ''} ${isSelected ? 'selected' : ''}" data-id="${p.id}" role="button" tabindex="0" aria-label="${escapeAttr(displayName)}">
             ${isSoldOut(p) ? `<div class="soldout-ribbon">${t('stockOut')}</div>` : ''}
             <div class="slot-top">
               <div class="slot-image-frame">
