@@ -1,8 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /admin
-Disallow: /admin/
-Disallow: /arbx-control
-Disallow: /arbx-control/
-
-Sitemap: https://armeebox.ch/sitemap.xml
