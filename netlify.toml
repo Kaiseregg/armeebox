@@ -25,9 +25,3 @@
   to = "/"
   status = 302
   force = true
-
-[[redirects]]
-  from = "/arbx-control"
-  to = "/arbx-control/"
-  status = 301
-  force = true
