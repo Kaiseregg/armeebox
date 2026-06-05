@@ -55,6 +55,47 @@ function coerceLocalizedText(value, fallback = '') {
   return String(value ?? fallback ?? '');
 }
 
+
+function optionFactorFromLabel(label) {
+  const match = String(label || '').match(/(\d+(?:[.,]\d+)?)/);
+  const n = match ? Number(match[1].replace(',', '.')) : 1;
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+function normalizeBundleOption(option, index = 0) {
+  if (option && typeof option === 'object') {
+    const labelDe = String(option.label_de ?? option.label ?? option.de ?? option.value ?? '').trim();
+    const labelFr = String(option.label_fr ?? option.label ?? option.fr ?? option.value ?? '').trim();
+    const fallbackLabel = labelDe || labelFr || `${Number(option.factor || index + 2)}x`;
+    const factor = Number(option.factor ?? option.multiplier ?? option.qty ?? option.value ?? optionFactorFromLabel(fallbackLabel));
+    return {
+      label_de: labelDe || fallbackLabel,
+      label_fr: labelFr || labelDe || fallbackLabel,
+      factor: Number.isFinite(factor) && factor > 0 ? factor : optionFactorFromLabel(fallbackLabel)
+    };
+  }
+  const raw = String(option ?? '').trim();
+  if (!raw) return null;
+  const numeric = Number(raw.replace(/x/gi, '').trim());
+  const factor = Number.isFinite(numeric) && numeric > 0 ? numeric : optionFactorFromLabel(raw);
+  const label = Number.isFinite(numeric) && numeric > 0 ? `${numeric}x` : raw;
+  return { label_de: label, label_fr: label, factor };
+}
+
+function parseBundleOptions(value, fallback = [2, 3, 4]) {
+  let source = value;
+  if (typeof source === 'string') {
+    try { source = JSON.parse(source); } catch (_) { source = source.split(/[;,|\n]+/).map((item) => item.trim()).filter(Boolean); }
+  }
+  if (!Array.isArray(source) || !source.length) source = fallback;
+  const parsed = source.map((item, index) => normalizeBundleOption(item, index)).filter(Boolean);
+  return parsed.length ? parsed : [
+    { label_de: '2x', label_fr: '2x', factor: 2 },
+    { label_de: '3x', label_fr: '3x', factor: 3 },
+    { label_de: '4x', label_fr: '4x', factor: 4 }
+  ];
+}
+
 function parseBundleMeta(row) {
   const raw = String(row?.description_fr || '');
   const fallbackContent = coerceLocalizedText(row?.description_de || '', '');
@@ -62,9 +103,8 @@ function parseBundleMeta(row) {
   if (raw.startsWith(META_PREFIX)) {
     try { legacy = JSON.parse(raw.slice(META_PREFIX.length)) || {}; } catch (_) { legacy = {}; }
   }
-  const quantity_options = Array.isArray(row?.quantity_options)
-    ? row.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
-    : (Array.isArray(legacy?.quantity_options) ? legacy.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0) : [2, 3, 4]);
+  const bundle_options = parseBundleOptions(legacy?.bundle_options || legacy?.option_variants || row?.quantity_options || legacy?.quantity_options || [2, 3, 4]);
+  const quantity_options = bundle_options.map((option) => Number(option.factor)).filter((value) => Number.isFinite(value) && value > 0);
   const slotType = row?.slot_type === 'bundle' || legacy?.slot_type === 'bundle' ? 'bundle' : 'normal';
   const rawShowInfo = row?.show_info ?? row?.info_enabled ?? row?.has_info;
   const showInfo = typeof legacy?.show_info === 'boolean' ? legacy.show_info : (rawShowInfo === undefined || rawShowInfo === null ? slotType === 'bundle' : Boolean(rawShowInfo));
@@ -75,7 +115,8 @@ function parseBundleMeta(row) {
     bundle_content_fr: coerceLocalizedText(row?.bundle_content_fr ?? legacy?.content_fr ?? '', ''),
     option_label_de: coerceLocalizedText(row?.option_label_de ?? legacy?.option_label_de ?? '', ''),
     option_label_fr: coerceLocalizedText(row?.option_label_fr ?? legacy?.option_label_fr ?? '', ''),
-    quantity_options: quantity_options.length ? quantity_options : [2, 3, 4]
+    quantity_options: quantity_options.length ? quantity_options : [2, 3, 4],
+    bundle_options
   };
 }
 
@@ -87,7 +128,8 @@ function encodeBundleMeta(row) {
     content_fr: coerceLocalizedText(row?.bundle_content_fr || '', ''),
     option_label_de: coerceLocalizedText(row?.option_label_de || '', ''),
     option_label_fr: coerceLocalizedText(row?.option_label_fr || '', ''),
-    quantity_options: (Array.isArray(row?.quantity_options) ? row.quantity_options : []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+    quantity_options: parseBundleOptions(row?.bundle_options || row?.quantity_options || []).map((item) => Number(item.factor)).filter((value) => Number.isFinite(value) && value > 0),
+    bundle_options: parseBundleOptions(row?.bundle_options || row?.quantity_options || [])
   })}`;
 }
 
@@ -113,7 +155,8 @@ function normalizeProductRow(row) {
     bundle_content_fr: meta.bundle_content_fr || meta.bundle_content_de,
     option_label_de: meta.option_label_de,
     option_label_fr: meta.option_label_fr || meta.option_label_de,
-    quantity_options: meta.quantity_options
+    quantity_options: meta.quantity_options,
+    bundle_options: meta.bundle_options
   };
 }
 
