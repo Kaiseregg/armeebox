@@ -1123,17 +1123,46 @@ function normalizeBundleOption(option, index=0){
   const label = Number.isFinite(numeric) && numeric > 0 ? `${numeric}x` : raw;
   return { label_de: label, label_fr: label, factor };
 }
-function bundleOptionsFromInput(value){
-  const parts = String(value || '')
+function splitBundleOptionText(value){
+  return String(value || '')
     .split(/[;,|\n]+/)
     .map((part)=>part.trim())
     .filter(Boolean);
+}
+function bundleOptionsFromInput(value){
+  const parts = splitBundleOptionText(value);
   const options = parts.map((part, index)=>normalizeBundleOption(part, index)).filter(Boolean);
   return options.length ? options : [
     { label_de:'2x', label_fr:'2x', factor:2 },
     { label_de:'3x', label_fr:'3x', factor:3 },
     { label_de:'4x', label_fr:'4x', factor:4 }
   ];
+}
+function bundleOptionsFromDualInput(deValue, frValue){
+  const deParts = splitBundleOptionText(deValue);
+  const frParts = splitBundleOptionText(frValue);
+  const max = Math.max(deParts.length, frParts.length);
+  const options = [];
+  for(let i=0;i<max;i+=1){
+    const deRaw = deParts[i] || '';
+    const frRaw = frParts[i] || '';
+    const deOpt = deRaw ? normalizeBundleOption(deRaw, i) : null;
+    const frOpt = frRaw ? normalizeBundleOption(frRaw, i) : null;
+    const labelDe = String(deOpt?.label_de || deRaw || frOpt?.label_de || frRaw || '').trim();
+    const labelFr = String(frOpt?.label_fr || frRaw || deOpt?.label_fr || labelDe || '').trim();
+    const factor = Number(deOpt?.factor || frOpt?.factor || optionFactorFromLabel(labelDe) || optionFactorFromLabel(labelFr) || 1);
+    if(labelDe || labelFr){
+      options.push({
+        label_de: labelDe || labelFr,
+        label_fr: labelFr || labelDe,
+        factor: Number.isFinite(factor) && factor > 0 ? factor : 1
+      });
+    }
+  }
+  return options.length ? options : bundleOptionsFromInput('2x,3x,4x');
+}
+function bundleOptionInputValue(product, lang){
+  return bundleOptionList(product).map((opt)=>String(lang === 'fr' ? (opt.label_fr || opt.label_de || '') : (opt.label_de || opt.label_fr || '')).trim()).filter(Boolean).join(', ');
 }
 function bundleOptionList(product){
   const source = Array.isArray(product?.bundle_options) && product.bundle_options.length
@@ -3543,7 +3572,11 @@ function renderAdminProducts(){
               <div class="field"><label>Text auf Info-Button DE</label><input data-product-field="option_label_de" data-product-index="${index}" placeholder="Inhalt ansehen" value="${escapeAttr(product.option_label?.de || '')}"></div>
               <div class="field"><label>Text auf Info-Button FR</label><input data-product-field="option_label_fr" data-product-index="${index}" placeholder="Voir contenu" value="${escapeAttr(product.option_label?.fr || '')}"></div>
             </div>
-            <div class="field bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}"><label>${t('adminBundleOptions')}</label><input data-product-field="quantity_options" data-product-index="${index}" value="${escapeAttr(bundleOptionList(product).map((opt)=>bundleOptionLabel(opt)).join(', '))}"><small class="admin-help">Beispiele: für 2 Wochen, für 3 Wochen, S, M, L, XL. Preisfaktor wird aus der Zahl gelesen, sonst 1.</small></div>
+            <div class="admin-product-row admin-product-row-equal bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}">
+              <div class="field"><label>Optionen / Varianten DE</label><input data-product-field="quantity_options_de" data-product-index="${index}" value="${escapeAttr(bundleOptionInputValue(product, 'de'))}" placeholder="für 2 Wochen, für 3 Wochen, S, M, L"></div>
+              <div class="field"><label>Optionen / Varianten FR</label><input data-product-field="quantity_options_fr" data-product-index="${index}" value="${escapeAttr(bundleOptionInputValue(product, 'fr'))}" placeholder="pour 2 semaines, pour 3 semaines, S, M, L"></div>
+              <small class="admin-help admin-help-wide">Beispiele DE: für 2 Wochen, für 3 Wochen. FR: pour 2 semaines, pour 3 semaines. Preisfaktor wird aus der Zahl gelesen, sonst 1.</small>
+            </div>
             <div class="field"><label>${t('adminImageUrl')}</label><input data-product-field="image_url" data-product-index="${index}" placeholder="https://.../bild.png" value="${escapeAttr(product.image_url || '')}"></div>
             <div class="admin-image-upload" data-image-drop-index="${index}">
               <input class="admin-file-input" id="productImageInput-${index}" type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-image-upload-index="${index}">
@@ -3660,6 +3693,13 @@ function bindAdminProducts(){
       else if(field === 'option_label_de') product.option_label = { ...(product.option_label || {}), de: input.value, fr: product.option_label?.fr || '' };
       else if(field === 'option_label_fr') product.option_label = { ...(product.option_label || {}), de: product.option_label?.de || '', fr: input.value };
       else if(field === 'quantity_options') { product.quantity_options = bundleOptionsFromInput(input.value); product.bundle_options = product.quantity_options; }
+      else if(field === 'quantity_options_de' || field === 'quantity_options_fr') {
+        const card = input.closest('.admin-product-card') || document;
+        const deInput = card.querySelector(`[data-product-field="quantity_options_de"][data-product-index="${index}"]`);
+        const frInput = card.querySelector(`[data-product-field="quantity_options_fr"][data-product-index="${index}"]`);
+        product.quantity_options = bundleOptionsFromDualInput(deInput?.value || '', frInput?.value || '');
+        product.bundle_options = product.quantity_options;
+      }
       else if(field === 'slotNumber') {
         const desired = Math.max(1, Number(input.value || product.slotNumber || 1));
         const currentIndex = index;
