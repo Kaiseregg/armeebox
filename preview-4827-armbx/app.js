@@ -1019,8 +1019,11 @@ function parseBundleMeta(row){
   const directOptions = Array.isArray(row?.quantity_options)
     ? row.quantity_options.map((value)=>Number(value)).filter((value)=>Number.isFinite(value) && value > 0)
     : [];
+  const rawShowInfo = row?.show_info ?? row?.info_enabled ?? row?.has_info;
+  const baseSlotType = row?.slot_type === 'bundle' ? 'bundle' : 'normal';
   const base = {
-    slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
+    slot_type: baseSlotType,
+    show_info: rawShowInfo === undefined || rawShowInfo === null ? baseSlotType === 'bundle' : Boolean(rawShowInfo),
     content_de: localizedAdminValue(row?.bundle_content_de ?? row?.bundle_content ?? row?.description_de ?? '', row?.description_de ?? ''),
     content_fr: localizedAdminValue(row?.bundle_content_fr ?? '', ''),
     option_label_de: localizedAdminValue(row?.option_label_de ?? row?.option_label?.de ?? '', ''),
@@ -1032,8 +1035,10 @@ function parseBundleMeta(row){
     try{
       const meta = JSON.parse(raw.slice(META_PREFIX.length));
       const options = Array.isArray(meta?.quantity_options) ? meta.quantity_options.map((value)=>Number(value)).filter((value)=>Number.isFinite(value) && value > 0) : base.quantity_options;
+      const slotType = row?.slot_type === 'bundle' || meta?.slot_type === 'bundle' ? 'bundle' : 'normal';
       return {
-        slot_type: row?.slot_type === 'bundle' || meta?.slot_type === 'bundle' ? 'bundle' : 'normal',
+        slot_type: slotType,
+        show_info: typeof meta?.show_info === 'boolean' ? meta.show_info : (rawShowInfo === undefined || rawShowInfo === null ? slotType === 'bundle' : Boolean(rawShowInfo)),
         content_de: localizedAdminValue(row?.bundle_content_de ?? row?.bundle_content ?? meta?.content_de ?? meta?.content ?? base.content_de ?? '', base.content_de ?? ''),
         content_fr: localizedAdminValue(row?.bundle_content_fr ?? meta?.content_fr ?? base.content_fr ?? '', base.content_fr ?? ''),
         option_label_de: localizedAdminValue(row?.option_label_de ?? row?.option_label?.de ?? meta?.option_label_de ?? base.option_label_de ?? '', base.option_label_de ?? ''),
@@ -1047,6 +1052,7 @@ function parseBundleMeta(row){
 function encodeBundleMeta(product){
   return `${META_PREFIX}${JSON.stringify({
     slot_type: product.slot_type === 'bundle' ? 'bundle' : 'normal',
+    show_info: Boolean(product.show_info || product.slot_type === 'bundle'),
     content_de: String(product.bundle_content?.de || product.bundle_content || ''),
     content_fr: String(product.bundle_content?.fr || ''),
     option_label_de: String(product.option_label?.de || ''),
@@ -1068,6 +1074,24 @@ function localizedBundleLabel(product){
     if(direct) return direct;
   }
   return t('slotWeeklyChoice');
+}
+function productShowsInfo(product){
+  return Boolean(product?.show_info || product?.slot_type === 'bundle');
+}
+function formatProductInfoLines(product){
+  const raw = localizedBundleContent(product);
+  return String(raw || '')
+    .split(/\r?\n|[•]+/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => line.replace(/(\d+)\s*\*\s*(\d+)/g, '$1×$2').replace(/\s{2,}/g, ' '));
+}
+function renderProductInfoContent(product){
+  const lines = formatProductInfoLines(product);
+  if(lines.length){
+    return `<ul class="product-info-list">${lines.map(line=>`<li>${escapeHtml(line)}</li>`).join('')}</ul>`;
+  }
+  return `<div class="note">${escapeHtml(state.lang === 'fr' ? 'Aucune information enregistrée.' : 'Keine Information hinterlegt.')}</div>`;
 }
 
 function bundleOptionsFromInput(value){
@@ -1189,6 +1213,7 @@ function normalizeCatalogProduct(row, index){
     stock_current: stockValue(row?.stock_current ?? row?.current_stock ?? row?.stock_total ?? row?.initial_stock ?? 0, 0),
     stock_min: stockValue(row?.stock_min ?? row?.minimum_stock ?? 0, 0),
     slot_type: meta.slot_type,
+    show_info: Boolean(meta.show_info || meta.slot_type === 'bundle'),
     bundle_content: { de: meta.content_de, fr: meta.content_fr || meta.content_de },
     option_label: { de: meta.option_label_de, fr: meta.option_label_fr || meta.option_label_de },
     quantity_options: meta.quantity_options
@@ -1243,6 +1268,7 @@ function addAdminSlot(){
     image_url: '',
     sort_order: 0,
     slot_type: 'normal',
+    show_info: false,
     bundle_content: { de: '', fr: '' },
     option_label: { de: '', fr: '' },
     quantity_options: [2,3,4]
@@ -1819,6 +1845,7 @@ function readAdminProductRowsDirectFromDom(){
       stock_current: stockValue(value('stock_current', productStock(product).current), 0),
       stock_min: stockValue(value('stock_min', productStock(product).min), 0),
       slot_type: value('slot_type', product.slot_type || 'normal') === 'bundle' ? 'bundle' : 'normal',
+      show_info: checked('show_info', productShowsInfo(product)),
       bundle_content_de: value('bundle_content_de', product.bundle_content?.de || ''),
       bundle_content_fr: value('bundle_content_fr', product.bundle_content?.fr || ''),
       option_label_de: value('option_label_de', product.option_label?.de || ''),
@@ -2131,7 +2158,7 @@ function renderMachine(){
             <div class="namebar ${isBundle ? 'namebar-bundle' : ''}" title="${escapeAttr(displayName)}">
               <span class="namebar-text">${escapeHtml(displayName)}</span>
             </div>
-            ${isBundle ? `<button class="slot-info-strip" type="button" data-slot-info="${p.id}">${escapeHtml(t('slotWeeklyChoice'))}</button>` : ''}
+            ${productShowsInfo(p) ? `<button class="slot-info-strip" type="button" data-slot-info="${p.id}">${escapeHtml(localizedBundleLabel(p))}</button>` : ''}
             <div class="select-light ${isBundle ? 'select-light-bundle' : ''}">
               ${isBundle ? `<select class="slot-bundle-select" data-slot-option-select="${p.id}" aria-label="${t('slotChooseOption')}">
                 ${(Array.isArray(p.quantity_options)&&p.quantity_options.length?p.quantity_options:[2,3,4]).map((opt)=>`<option value="${opt}" ${Number(opt)===Number(currentMultiplier)?'selected':''}>${opt}x</option>`).join('')}
@@ -3442,13 +3469,14 @@ function renderAdminProducts(){
               <button class="cta tiny" data-stock-add="${index}" type="button">+ ${t('adminStockAdd')}</button>
               <button class="cta tiny" data-stock-set="${index}" type="button">${t('adminStockSet')}</button>
             </div>
-            <div class="admin-product-row admin-product-row-equal bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}">
-              <div class="field"><label>${t('adminBundleContentDe')}</label><textarea data-product-field="bundle_content_de" data-product-index="${index}">${escapeHtml(product.bundle_content?.de || '')}</textarea></div>
-              <div class="field"><label>${t('adminBundleContentFr')}</label><textarea data-product-field="bundle_content_fr" data-product-index="${index}">${escapeHtml(product.bundle_content?.fr || '')}</textarea></div>
+            <div class="field admin-info-toggle-field"><label>Inhalt/Beschrieb anzeigen</label><label class="admin-toggle"><input data-product-field="show_info" data-product-index="${index}" type="checkbox" ${productShowsInfo(product) ? 'checked' : ''}><span>${productShowsInfo(product) ? 'On' : 'Off'}</span></label></div>
+            <div class="admin-product-row admin-product-row-equal">
+              <div class="field"><label>${t('adminBundleContentDe')}</label><textarea data-product-field="bundle_content_de" data-product-index="${index}" placeholder="z.B. Coca Cola 50cl&#10;gekühlt&#10;Einzelflasche">${escapeHtml(product.bundle_content?.de || '')}</textarea></div>
+              <div class="field"><label>${t('adminBundleContentFr')}</label><textarea data-product-field="bundle_content_fr" data-product-index="${index}" placeholder="z.B. Coca Cola 50cl&#10;réfrigéré&#10;bouteille individuelle">${escapeHtml(product.bundle_content?.fr || '')}</textarea></div>
             </div>
-            <div class="admin-product-row admin-product-row-equal bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}">
-              <div class="field"><label>Text auf Info-Button DE</label><input data-product-field="option_label_de" data-product-index="${index}" value="${escapeAttr(product.option_label?.de || '')}"></div>
-              <div class="field"><label>Text auf Info-Button FR</label><input data-product-field="option_label_fr" data-product-index="${index}" value="${escapeAttr(product.option_label?.fr || '')}"></div>
+            <div class="admin-product-row admin-product-row-equal">
+              <div class="field"><label>Text auf Info-Button DE</label><input data-product-field="option_label_de" data-product-index="${index}" placeholder="Inhalt ansehen" value="${escapeAttr(product.option_label?.de || '')}"></div>
+              <div class="field"><label>Text auf Info-Button FR</label><input data-product-field="option_label_fr" data-product-index="${index}" placeholder="Voir contenu" value="${escapeAttr(product.option_label?.fr || '')}"></div>
             </div>
             <div class="field bundle-only ${product.slot_type === 'bundle' ? '' : 'is-hidden'}"><label>${t('adminBundleOptions')}</label><input data-product-field="quantity_options" data-product-index="${index}" value="${escapeAttr((product.quantity_options || [2,3,4]).join(','))}"></div>
             <div class="field"><label>${t('adminImageUrl')}</label><input data-product-field="image_url" data-product-index="${index}" placeholder="https://.../bild.png" value="${escapeAttr(product.image_url || '')}"></div>
@@ -3561,6 +3589,7 @@ function bindAdminProducts(){
       if(field === 'active') product.active = !!input.checked;
       else if(field === 'price') product.price = Number(input.value || 0);
       else if(field === 'slot_type') product.slot_type = input.value === 'bundle' ? 'bundle' : 'normal';
+      else if(field === 'show_info') product.show_info = !!input.checked;
       else if(field === 'bundle_content_de') product.bundle_content = { ...(product.bundle_content || {}), de: input.value, fr: product.bundle_content?.fr || '' };
       else if(field === 'bundle_content_fr') product.bundle_content = { ...(product.bundle_content || {}), de: product.bundle_content?.de || '', fr: input.value };
       else if(field === 'option_label_de') product.option_label = { ...(product.option_label || {}), de: input.value, fr: product.option_label?.fr || '' };
@@ -3580,7 +3609,7 @@ function bindAdminProducts(){
       state.admin.products = field === 'slotNumber' ? products : products;
       state.admin.productsMessage = '';
       save();
-      if(field === 'slotNumber' || field === 'slot_type') render();
+      if(field === 'slotNumber' || field === 'slot_type' || field === 'show_info') render();
     };
   });
   document.querySelectorAll('[data-image-upload-index]').forEach(input => {
