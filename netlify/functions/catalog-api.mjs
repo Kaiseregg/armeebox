@@ -65,8 +65,12 @@ function parseBundleMeta(row) {
   const quantity_options = Array.isArray(row?.quantity_options)
     ? row.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
     : (Array.isArray(legacy?.quantity_options) ? legacy.quantity_options.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0) : [2, 3, 4]);
+  const slotType = row?.slot_type === 'bundle' || legacy?.slot_type === 'bundle' ? 'bundle' : 'normal';
+  const rawShowInfo = row?.show_info ?? row?.info_enabled ?? row?.has_info;
+  const showInfo = typeof legacy?.show_info === 'boolean' ? legacy.show_info : (rawShowInfo === undefined || rawShowInfo === null ? slotType === 'bundle' : Boolean(rawShowInfo));
   return {
-    slot_type: row?.slot_type === 'bundle' || legacy?.slot_type === 'bundle' ? 'bundle' : 'normal',
+    slot_type: slotType,
+    show_info: showInfo,
     bundle_content_de: coerceLocalizedText(row?.bundle_content_de ?? fallbackContent ?? legacy?.content_de ?? legacy?.content ?? '', fallbackContent),
     bundle_content_fr: coerceLocalizedText(row?.bundle_content_fr ?? legacy?.content_fr ?? '', ''),
     option_label_de: coerceLocalizedText(row?.option_label_de ?? legacy?.option_label_de ?? '', ''),
@@ -78,6 +82,7 @@ function parseBundleMeta(row) {
 function encodeBundleMeta(row) {
   return `${META_PREFIX}${JSON.stringify({
     slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
+    show_info: Boolean(row?.show_info || row?.slot_type === 'bundle'),
     content_de: coerceLocalizedText(row?.bundle_content_de || row?.bundle_content || row?.description_de || '', row?.description_de || ''),
     content_fr: coerceLocalizedText(row?.bundle_content_fr || '', ''),
     option_label_de: coerceLocalizedText(row?.option_label_de || '', ''),
@@ -103,6 +108,7 @@ function normalizeProductRow(row) {
     stock_current: Number(row?.stock_current ?? row?.current_stock ?? row?.stock_total ?? row?.initial_stock ?? 0),
     stock_min: Number(row?.stock_min ?? row?.minimum_stock ?? 0),
     slot_type: meta.slot_type,
+    show_info: Boolean(meta.show_info || meta.slot_type === 'bundle'),
     bundle_content_de: meta.bundle_content_de,
     bundle_content_fr: meta.bundle_content_fr || meta.bundle_content_de,
     option_label_de: meta.option_label_de,
