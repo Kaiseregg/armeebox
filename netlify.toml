@@ -13,3 +13,21 @@
   from = "/preview-4827-armbx"
   to = "/preview-4827-armbx/"
   status = 301
+
+[[redirects]]
+  from = "/admin"
+  to = "/"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/admin/*"
+  to = "/"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/arbx-control"
+  to = "/arbx-control/"
+  status = 301
+  force = true
