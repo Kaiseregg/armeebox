@@ -877,7 +877,11 @@ function getBundleInfoButtonText() {
   return currentLang === 'fr' ? 'Voir contenu' : 'Info Inhalt';
 }
 
-const MIN_ORDER_AMOUNT_CHF = 15;
+const DEFAULT_MIN_ORDER_AMOUNT_CHF = 15;
+function minOrderAmount(){
+  const n = Number(state.settings?.minimumOrderChf ?? state.settings?.minOrderAmount ?? DEFAULT_MIN_ORDER_AMOUNT_CHF);
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_MIN_ORDER_AMOUNT_CHF;
+}
 
 const state = {
   lang: 'de',
@@ -938,7 +942,9 @@ const state = {
     bgColor: '#061527',
     bgImage: '',
     bgSize: 'cover',
-    bgPosition: 'center center'
+    bgPosition: 'center center',
+    logoUrl: '',
+    minimumOrderChf: 15
   },
   pages: [],
   currentPageSlug: '',
@@ -990,10 +996,13 @@ function localizedSetting(baseKey, fallback=''){
 function pageIsActive(page){ return page?.is_active !== false && page?.active !== false; }
 function pageInMenu(page){ return pageIsActive(page) && page?.show_in_menu !== false; }
 function sortedPages(){ return [...(state.pages || [])].sort((a,b)=>Number(a.sort_order ?? 999)-Number(b.sort_order ?? 999) || String(a.slug||'').localeCompare(String(b.slug||''))); }
+function siteLogoUrl(){
+  return String(state.settings?.logoUrl || '../public/logo.png');
+}
 function topbar(){
   const pageButtons = sortedPages().filter(pageInMenu).map(p=>`<button data-nav-page="${escapeAttr(p.slug)}">${escapeHtml(pageTitle(p))}</button>`).join('');
   const menuLabel = state.lang === 'fr' ? 'Menu' : 'Menü';
-  return `<div class="topbar"><img src="../public/logo.png" alt="ARMEEBOX"><div class="nav-dropdown"><button class="menu-toggle" id="mainMenuToggle" type="button">${menuLabel}</button><nav class="main-nav" id="mainNav"><button data-nav="shop">${t('menuMachine')}</button>${pageButtons}</nav></div></div>`;
+  return `<div class="topbar"><img src="${escapeAttr(siteLogoUrl())}" alt="ARMEEBOX"><div class="nav-dropdown"><button class="menu-toggle" id="mainMenuToggle" type="button">${menuLabel}</button><nav class="main-nav" id="mainNav"><button data-nav="shop">${t('menuMachine')}</button>${pageButtons}</nav></div></div>`;
 }
 function pageTitle(page){ return state.lang === 'fr' ? (page.title_fr || page.title_de || page.slug) : (page.title_de || page.title_fr || page.slug); }
 function pageContent(page){ return state.lang === 'fr' ? (page.content_fr || page.content_de || '') : (page.content_de || page.content_fr || ''); }
@@ -1010,7 +1019,7 @@ async function loadSiteContent(){
 function findSitePage(slug){ return (state.pages || []).find(p => p.slug === slug) || null; }
 
 function renderMaintenanceMode(){
-  return `<div class="maintenance-screen"><div class="maintenance-card"><img src="../public/logo.png" alt="ARMEEBOX"><h1>Under Construction</h1><p>Unsere Plattform ist kurz im Wartungsmodus. Wir sind bald wieder online.</p><span>ARMEEBOX.ch</span></div></div>`;
+  return `<div class="maintenance-screen"><div class="maintenance-card"><img src="${escapeAttr(siteLogoUrl())}" alt="ARMEEBOX"><h1>Under Construction</h1><p>Unsere Plattform ist kurz im Wartungsmodus. Wir sind bald wieder online.</p><span>ARMEEBOX.ch</span></div></div>`;
 }
 function maintenanceActiveForPublic(){
   return !!state.settings?.maintenanceMode && !isArmeboxAdminEntry() && !isArmeboxAdminRoute(state.route);
@@ -2171,8 +2180,8 @@ function cartGrouped(){
 function subtotal(){ return cartItemsDetailed().reduce((a,p)=>a+Number(p.price || 0),0); }
 function shippingCost(){ return state.shipping==='private' ? 9 : 0; }
 function total(){ return subtotal()+shippingCost(); }
-function minOrderMissing(){ return Math.max(0, MIN_ORDER_AMOUNT_CHF - subtotal()); }
-function minOrderMessage(){ return t('validationMinOrder').replace('{amount}', minOrderMissing().toFixed(2)); }
+function minOrderMissing(){ return Math.max(0, minOrderAmount() - subtotal()); }
+function minOrderMessage(){ return t('validationMinOrder').replace('15', minOrderAmount().toFixed(0)).replace('{amount}', minOrderMissing().toFixed(2)); }
 
 const ARMEBOX_ADMIN_PATH = '/arbx-control';
 const ARMEBOX_ADMIN_ROUTES = ['admin-login','admin-orders','admin-order','admin-products','admin-design','admin-analytics','admin-customers'];
@@ -2395,8 +2404,8 @@ function renderMachine(){
                 <button class="remove-btn" data-remove="${item.groupKey}" aria-label="${t('remove')}">×</button>
               </div>`).join('') : `<div class="note">${t('empty')}</div>`}
             </div>
-            <div class="min-order-note ${subtotal() >= MIN_ORDER_AMOUNT_CHF ? 'ok' : 'warn'}">${subtotal() >= MIN_ORDER_AMOUNT_CHF ? t('minOrderHint') : minOrderMessage()}</div>
-            <button class="order-btn order-btn-inline" id="goOrderBtn" ${subtotal() >= MIN_ORDER_AMOUNT_CHF ? '' : 'disabled'}>${t('order')}</button>
+            <div class="min-order-note ${subtotal() >= minOrderAmount() ? 'ok' : 'warn'}">${subtotal() >= minOrderAmount() ? `${t('minOrderHint').replace('15', minOrderAmount().toFixed(0))}` : minOrderMessage()}</div>
+            <button class="order-btn order-btn-inline" id="goOrderBtn" ${subtotal() >= minOrderAmount() ? '' : 'disabled'}>${t('order')}</button>
           </div>
           <div class="dots"><span class="dot"></span><span class="dot green"></span></div>
         </aside>
@@ -2756,7 +2765,7 @@ function bindMachine(){
     ['mousedown','click','keydown'].forEach(evt=>el.addEventListener(evt,(e)=>e.stopPropagation()));
     el.onchange=(e)=>{ e.stopPropagation(); setBundleOption(el.getAttribute('data-slot-option-select'), el.value); };
   });
-  const orderBtn=document.getElementById('goOrderBtn'); if(orderBtn) orderBtn.onclick=()=>{ if(subtotal() < MIN_ORDER_AMOUNT_CHF){ state.validationErrors=[minOrderMessage()]; save(); render(); return; } setRoute('order'); };
+  const orderBtn=document.getElementById('goOrderBtn'); if(orderBtn) orderBtn.onclick=()=>{ if(subtotal() < minOrderAmount()){ state.validationErrors=[minOrderMessage()]; save(); render(); return; } setRoute('order'); };
   const closeInfo=document.getElementById('closeSlotInfoBtn'); if(closeInfo) closeInfo.onclick=()=>closeSlotInfo();
   const backdrop=document.getElementById('slotInfoBackdrop'); if(backdrop) backdrop.onclick=(e)=>{ if(e.target===backdrop) closeSlotInfo(); };
 }
@@ -2798,7 +2807,7 @@ function syncFormFields(){
 function validateOrder(){
   const errors = [];
   if(!state.cart.length) errors.push(t('validationCart'));
-  else if(subtotal() < MIN_ORDER_AMOUNT_CHF) errors.push(minOrderMessage());
+  else if(subtotal() < minOrderAmount()) errors.push(minOrderMessage());
   if(state.shipping === 'barracks'){
     if(!state.form.soldierFirstName.trim() || !state.form.soldierLastName.trim()) errors.push(t('validationSoldierName'));
     if(!state.form.senderName.trim() || !state.form.senderStreet.trim() || !state.form.senderZip.trim()) errors.push(t('validationSender'));
@@ -3508,13 +3517,13 @@ function renderAdminDesign(){
     ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
     ${state.admin.productsMessage ? `<div class="note">${escapeHtml(state.admin.productsMessage)}</div>` : ''}
     <div class="cms-layout">
-      <div class="card cms-card"><h3>Design</h3><div class="maintenance-admin-box"><label class="admin-toggle"><input data-design-field="maintenanceMode" type="checkbox" ${d.maintenanceMode ? 'checked' : ''}><span>Wartungsmodus / Under Construction aktivieren</span></label><div class="note">Wenn aktiv, sehen Besucher eine Wartungsseite. Admin bleibt über /arbx-control erreichbar.</div></div>
+      <div class="card cms-card"><h3>Design</h3><div class="maintenance-admin-box"><label class="admin-toggle"><input data-design-field="maintenanceMode" type="checkbox" ${d.maintenanceMode ? 'checked' : ''}><span>Wartungsmodus / Under Construction aktivieren</span></label><div class="note">Wenn aktiv, sehen Besucher eine Wartungsseite. Admin bleibt über /arbx-control erreichbar.</div></div><div class="admin-product-row admin-product-row-equal"><div class="field"><label>Mindestbestellwert CHF</label><input data-design-field="minimumOrderChf" type="number" min="0" step="0.05" value="${escapeAttr(String(d.minimumOrderChf ?? 15))}" placeholder="15"><div class="note">Wird im Warenkorb und serverseitig geprüft.</div></div><div class="field"><label>Logo URL</label><input data-design-field="logoUrl" value="${escapeAttr(d.logoUrl || '')}" placeholder="leer = Standardlogo"><div class="cms-image-upload-row"><input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-design-upload="logoUrl"><span>Logo hochladen oder URL einfügen</span></div>${d.logoUrl ? `<div class="cms-block-image-preview cms-logo-preview"><img src="${escapeAttr(d.logoUrl)}" alt="Logo"></div>` : ''}</div></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminTitleDe')}</label><input data-design-field="machineTitle_de" value="${escapeAttr(d.machineTitle_de || d.machineTitle || '')}" placeholder="Automat ARMEEBOX"></div><div class="field"><label>${t('adminTitleFr')}</label><input data-design-field="machineTitle_fr" value="${escapeAttr(d.machineTitle_fr || '')}" placeholder="Automate ARMEEBOX"></div></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminSloganDe')}</label><input data-design-field="machineInner_de" value="${escapeAttr(d.machineInner_de || d.machineInner || '')}" placeholder="Achtung, fertig, Fresspäckli"></div><div class="field"><label>${t('adminSloganFr')}</label><input data-design-field="machineInner_fr" value="${escapeAttr(d.machineInner_fr || '')}" placeholder="À vos marques, prêts, paquet du soldat"></div></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminButtonColor')}</label><input data-design-field="buttonColor" type="color" value="${escapeAttr(d.buttonColor || '#65a832')}"></div><div class="field"><label>${t('adminSlotColor')}</label><input data-design-field="slotColor" type="color" value="${escapeAttr(d.slotColor || '#3d5366')}"></div><div class="field"><label>${t('adminFrameColor')}</label><input data-design-field="frameColor" type="color" value="${escapeAttr(d.frameColor || '#b22b2b')}"></div><div class="field"><label>${t('adminBgColor')}</label><input data-design-field="bgColor" type="color" value="${escapeAttr(d.bgColor || '#061527')}"></div></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>Website Hintergrundbild URL</label><input data-design-field="bgImage" value="${escapeAttr(d.bgImage || '')}" placeholder="optional https://.../hintergrund.jpg"><div class="cms-image-upload-row"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-design-upload="bgImage"><span>Hintergrundbild hochladen oder URL einfügen</span></div>${d.bgImage ? `<div class="cms-block-image-preview"><img src="${escapeAttr(d.bgImage)}" alt=""></div>` : ''}</div><div class="field"><label>Hintergrund-Grösse</label><select data-design-field="bgSize"><option value="cover" ${(d.bgSize || 'cover') === 'cover' ? 'selected' : ''}>Cover</option><option value="contain" ${d.bgSize === 'contain' ? 'selected' : ''}>Contain</option></select></div><div class="field"><label>Hintergrund-Position</label><input data-design-field="bgPosition" value="${escapeAttr(d.bgPosition || 'center center')}" placeholder="center center"></div></div>
       </div>
-      <div class="card cms-preview" id="designLivePreview" style="${previewStyle}"><h3>Live Preview</h3><div class="mini-machine"><div class="mini-frame"><div class="mini-title">${escapeHtml(d.machineTitle_de || d.machineTitle || t('machineTitle'))}</div><div class="mini-inner">${escapeHtml(d.machineInner_de || d.machineInner || t('machineInner'))}</div><div class="mini-slot">Slot</div><button>Button</button></div></div></div>
+      <div class="card cms-preview" id="designLivePreview" style="${previewStyle}"><h3>Live Preview</h3><div class="mini-machine"><div class="mini-frame">${d.logoUrl ? `<img class="mini-logo-preview" src="${escapeAttr(d.logoUrl)}" alt="Logo">` : ''}<div class="mini-title">${escapeHtml(d.machineTitle_de || d.machineTitle || t('machineTitle'))}</div><div class="mini-inner">${escapeHtml(d.machineInner_de || d.machineInner || t('machineInner'))}</div><div class="mini-slot">Slot</div><button>Button</button></div></div></div>
     </div>
     <div class="admin-head cms-subhead"><div><h2>${t('adminPagesTitle')}</h2><div class="note">${t('adminBigEditor')}</div></div><button class="cta primary" id="adminAddPageBtn">+ ${t('adminAddPage')}</button></div>
     <div class="cms-pages-list">${pages.map((p,i)=>`<div class="card cms-page-card ${p.is_active===false ? 'is-inactive' : ''}">
