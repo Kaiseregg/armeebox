@@ -1,5 +1,7 @@
 import Stripe from 'stripe';
 
+const MIN_ORDER_AMOUNT_CHF = 15;
+
 const json = (statusCode, body) =>
   new Response(JSON.stringify(body), {
     status: statusCode,
@@ -151,6 +153,10 @@ export default async (request) => {
     const payload = await request.json().catch(() => ({}));
     if (!Array.isArray(payload.items) || payload.items.length === 0) return json(400, { success: false, error: 'Cart is empty' });
     if (!isEmail(payload.customer_email)) return json(400, { success: false, error: 'Invalid customer email' });
+    const subtotal = Number(payload.subtotal || 0);
+    if (!Number.isFinite(subtotal) || subtotal < MIN_ORDER_AMOUNT_CHF) {
+      return json(400, { success: false, error: 'Mindestbestellwert CHF 15.–' });
+    }
 
     const stripe = new Stripe(requireEnv('STRIPE_SECRET_KEY'));
     const siteUrl = requireEnv('SITE_URL').replace(/\/$/, '');

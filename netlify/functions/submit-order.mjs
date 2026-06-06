@@ -1,5 +1,7 @@
 import nodemailer from 'nodemailer';
 
+const MIN_ORDER_AMOUNT_CHF = 15;
+
 const json = (statusCode, body) =>
   new Response(JSON.stringify(body), {
     status: statusCode,
@@ -387,6 +389,11 @@ export default async (request) => {
 
     if (!isEmail(payload.customer_email)) {
       return json(400, { success: false, error: 'Invalid customer email' });
+    }
+
+    const subtotal = Number(payload.subtotal || 0);
+    if (!Number.isFinite(subtotal) || subtotal < MIN_ORDER_AMOUNT_CHF) {
+      return json(400, { success: false, error: 'Mindestbestellwert CHF 15.–' });
     }
 
    const orderRow = {
