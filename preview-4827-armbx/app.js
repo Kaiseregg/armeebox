@@ -1185,7 +1185,7 @@ function parseBundleMeta(row){
 function encodeBundleMeta(product){
   return `${META_PREFIX}${JSON.stringify({
     slot_type: product.slot_type === 'bundle' ? 'bundle' : 'normal',
-    show_info: Boolean(product.show_info || product.slot_type === 'bundle'),
+    show_info: Boolean(product.show_info),
     content_de: String(product.bundle_content?.de || product.bundle_content || ''),
     content_fr: String(product.bundle_content?.fr || ''),
     option_label_de: String(product.option_label?.de || ''),
@@ -1212,7 +1212,7 @@ function localizedBundleLabel(product){
   return t('slotWeeklyChoice');
 }
 function productShowsInfo(product){
-  return Boolean(product?.show_info || product?.slot_type === 'bundle');
+  return Boolean(product?.show_info);
 }
 function formatProductInfoLines(product){
   const raw = localizedBundleContent(product);
@@ -1461,7 +1461,7 @@ function normalizeCatalogProduct(row, index){
     stock_current: stockValue(row?.stock_current ?? row?.current_stock ?? row?.stock_total ?? row?.initial_stock ?? 0, 0),
     stock_min: stockValue(row?.stock_min ?? row?.minimum_stock ?? 0, 0),
     slot_type: meta.slot_type,
-    show_info: Boolean(meta.show_info || meta.slot_type === 'bundle'),
+    show_info: Boolean(meta.show_info),
     bundle_content: { de: meta.content_de, fr: meta.content_fr || meta.content_de },
     option_label: { de: meta.option_label_de, fr: meta.option_label_fr || meta.option_label_de },
     quantity_options: meta.quantity_options,
@@ -2425,12 +2425,15 @@ function renderIntro(){
 function renderSlotInfoModal(){
   const product = currentProducts().find((item)=>String(item.id)===String(state.ui.slotInfoProductId || ''));
   if(!product || !state.ui.slotInfoProductId) return '';
+  const modalTitle = product.slot_type === 'bundle'
+    ? t('slotInfoTitle')
+    : (state.lang === 'fr' ? 'Informations produit' : 'Produktinformationen');
   return `
     <div class="modal-backdrop" id="slotInfoBackdrop">
       <div class="modal-card">
-        <div class="modal-head"><h3>${t('slotInfoTitle')}</h3><button class="back-btn" id="closeSlotInfoBtn">${t('close')}</button></div>
+        <div class="modal-head"><h3>${escapeHtml(modalTitle)}</h3><button class="back-btn" id="closeSlotInfoBtn">${t('close')}</button></div>
         <div class="modal-title">${escapeHtml(product.name[state.lang])}</div>
-        <div class="modal-content">${escapeHtml(localizedBundleContent(product)).replace(/\n/g,'<br>')}</div>
+        <div class="modal-content">${renderProductInfoContent(product)}</div>
       </div>
     </div>`;
 }
