@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 
-const MIN_ORDER_AMOUNT_CHF = 15;
+const DEFAULT_MIN_ORDER_AMOUNT_CHF = 15;
 
 const json = (statusCode, body) =>
   new Response(JSON.stringify(body), {
@@ -130,6 +130,18 @@ async function supabaseRequest(path, options = {}) {
   const data = await response.json().catch(() => null);
   if (!response.ok) throw new Error(data?.message || data?.error || `Supabase request failed: ${response.status}`);
   return data;
+}
+
+async function getMinimumOrderAmount() {
+  try {
+    const rows = await supabaseRequest('site_settings?select=cms_settings,settings,design_settings&limit=1');
+    const row = Array.isArray(rows) ? rows[0] : null;
+    const design = row?.cms_settings?.design || row?.design_settings || row?.settings || {};
+    const value = Number(design.minimumOrderChf ?? design.minOrderAmount ?? DEFAULT_MIN_ORDER_AMOUNT_CHF);
+    return Number.isFinite(value) && value >= 0 ? value : DEFAULT_MIN_ORDER_AMOUNT_CHF;
+  } catch (_) {
+    return DEFAULT_MIN_ORDER_AMOUNT_CHF;
+  }
 }
 
 async function logInventorySale(entry) {
@@ -392,8 +404,9 @@ export default async (request) => {
     }
 
     const subtotal = Number(payload.subtotal || 0);
-    if (!Number.isFinite(subtotal) || subtotal < MIN_ORDER_AMOUNT_CHF) {
-      return json(400, { success: false, error: 'Mindestbestellwert CHF 15.–' });
+    const minOrderAmount = await getMinimumOrderAmount();
+    if (!Number.isFinite(subtotal) || subtotal < minOrderAmount) {
+      return json(400, { success: false, error: `Mindestbestellwert CHF ${minOrderAmount.toFixed(0)}.–` });
     }
 
    const orderRow = {

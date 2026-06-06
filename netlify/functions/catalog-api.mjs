@@ -195,7 +195,12 @@ const DEFAULT_DESIGN_SETTINGS = {
   buttonColor: '#65a832',
   slotColor: '#3d5366',
   frameColor: '#b22b2b',
-  bgColor: '#061527'
+  bgColor: '#061527',
+  bgImage: '',
+  bgSize: 'cover',
+  bgPosition: 'center center',
+  logoUrl: '',
+  minimumOrderChf: 15
 };
 
 async function getDesignSettings() {
