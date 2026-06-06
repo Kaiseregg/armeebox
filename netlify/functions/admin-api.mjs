@@ -215,7 +215,7 @@ function parseBundleMeta(row) {
 function encodeBundleMeta(row) {
   return `${META_PREFIX}${JSON.stringify({
     slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
-    show_info: Boolean(row?.show_info || row?.slot_type === 'bundle'),
+    show_info: Boolean(row?.show_info),
     image_popup_enabled: Boolean(row?.image_popup_enabled),
     additional_images: parseImageGallery(row?.additional_images || row?.gallery_images || row?.image_gallery || []),
     content_de: coerceLocalizedText(row?.bundle_content_de || row?.bundle_content || row?.description_de || '', row?.description_de || ''),
@@ -244,7 +244,7 @@ function normalizeProductRow(row) {
     stock_current: Number(row?.stock_current ?? row?.current_stock ?? row?.stock_total ?? row?.initial_stock ?? 0),
     stock_min: Number(row?.stock_min ?? row?.minimum_stock ?? 0),
     slot_type: meta.slot_type,
-    show_info: Boolean(meta.show_info || meta.slot_type === 'bundle'),
+    show_info: Boolean(meta.show_info),
     image_popup_enabled: Boolean(meta.image_popup_enabled),
     additional_images: meta.additional_images || [],
     bundle_content_de: meta.bundle_content_de,
@@ -285,7 +285,7 @@ function normalizeIncomingProducts(body) {
         stock_current: Number(item?.stock_current ?? item?.current_stock ?? item?.stock_total ?? 0),
         stock_min: Number(item?.stock_min ?? item?.minimum_stock ?? 0),
         slot_type: item?.slot_type === 'bundle' ? 'bundle' : 'normal',
-        show_info: Boolean(item?.show_info || item?.slot_type === 'bundle'),
+        show_info: Boolean(item?.show_info),
         image_popup_enabled: Boolean(item?.image_popup_enabled ?? false),
         additional_images: parseImageGallery(item?.additional_images || item?.gallery_images || item?.image_gallery || []),
         bundle_content_de: coerceLocalizedText(item?.bundle_content_de ?? item?.bundle_content ?? item?.description_de ?? '', item?.description_de ?? '').trim(),

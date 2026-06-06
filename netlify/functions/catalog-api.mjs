@@ -142,7 +142,7 @@ function parseBundleMeta(row) {
 function encodeBundleMeta(row) {
   return `${META_PREFIX}${JSON.stringify({
     slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
-    show_info: Boolean(row?.show_info || row?.slot_type === 'bundle'),
+    show_info: Boolean(row?.show_info),
     image_popup_enabled: Boolean(row?.image_popup_enabled),
     additional_images: parseImageGallery(row?.additional_images || row?.gallery_images || row?.image_gallery || []),
     content_de: coerceLocalizedText(row?.bundle_content_de || row?.bundle_content || row?.description_de || '', row?.description_de || ''),
@@ -171,7 +171,7 @@ function normalizeProductRow(row) {
     stock_current: Number(row?.stock_current ?? row?.current_stock ?? row?.stock_total ?? row?.initial_stock ?? 0),
     stock_min: Number(row?.stock_min ?? row?.minimum_stock ?? 0),
     slot_type: meta.slot_type,
-    show_info: Boolean(meta.show_info || meta.slot_type === 'bundle'),
+    show_info: Boolean(meta.show_info),
     image_popup_enabled: Boolean(meta.image_popup_enabled),
     additional_images: meta.additional_images || [],
     bundle_content_de: meta.bundle_content_de,
