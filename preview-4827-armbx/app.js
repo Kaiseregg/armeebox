@@ -3542,37 +3542,69 @@ function renderAdminAnalytics(){
   const s = a.summary || {};
   const daily = Array.isArray(a.daily) ? a.daily : [];
   const top = Array.isArray(a.top_products) ? a.top_products : [];
+  const topRevenue = Array.isArray(a.top_revenue_products) ? a.top_revenue_products : [];
+  const lowStock = Array.isArray(a.low_stock) ? a.low_stock : [];
+  const emptyStock = Array.isArray(a.empty_stock) ? a.empty_stock : [];
+  const recentOrders = Array.isArray(a.recent_orders) ? a.recent_orders : [];
   const maxRevenue = Math.max(1, ...daily.map(row => Number(row.revenue || 0)));
+  const shippingCounts = s.shipping_counts || {};
+  const stockAlerts = [...emptyStock, ...lowStock].slice(0, 10);
+  const stockAlertRows = stockAlerts.map(p => `<div class="analytics-stock-row ${p.status === 'empty' ? 'is-empty' : 'is-low'}"><span>${String(p.slot || '').padStart(2,'0')}</span><strong>${escapeHtml(p.name || '-')}</strong><em>${Number(p.current || 0)} / Min. ${Number(p.min || 0)}</em><b>${p.status === 'empty' ? 'Leer' : 'Knapp'}</b></div>`).join('');
+  const orderRows = recentOrders.map(order => `<div class="analytics-order-row"><strong>${escapeHtml(order.order_number || '-')}</strong><span>${formatDate(order.created_at)}</span><em>${escapeHtml(shippingMethodText(order.shipping_method || 'barracks'))}</em><b>${money(order.total || 0)}</b><i>${escapeHtml(adminStatusText(order.status || 'new'))}</i></div>`).join('');
   return `
   ${topbar()}
-  <div class="page"><div class="shell admin-shell">
+  <div class="page"><div class="shell admin-shell analytics-pro-shell">
     <div class="admin-toolbar">
-      <div><h1 style="margin:0;font-size:44px">Statistik</h1><div class="note">Umsatz, Bestseller und Bestellentwicklung</div></div>
+      <div><h1 style="margin:0;font-size:44px">Statistik Pro</h1><div class="note">Umsatz, Bestseller, Lagerwarnungen und operative Übersicht</div></div>
       <div class="admin-actions"><button class="back-btn" id="adminAnalyticsBackBtn">${t('adminBackOrders')}</button><button class="back-btn" id="adminAnalyticsRefreshBtn">Aktualisieren</button><button class="back-btn" id="adminLogoutBtn">${t('adminLogout')}</button></div>
     </div>
     ${state.admin.loginError ? `<div class="alert error"><strong>${t('formErrorTitle')}</strong><ul><li>${escapeHtml(state.admin.loginError)}</li></ul></div>` : ''}
     ${state.admin.loading ? `<div class="note">Statistik wird geladen …</div>` : `
-      <div class="stats-grid">
+      <div class="stats-grid analytics-kpis">
         <div class="stat-card"><span>Heute</span><strong>${money(s.revenue_today || 0)}</strong><small>${Number(s.orders_today || 0)} Bestellungen</small></div>
         <div class="stat-card"><span>7 Tage</span><strong>${money(s.revenue_7d || 0)}</strong><small>${Number(s.orders_7d || 0)} Bestellungen</small></div>
         <div class="stat-card"><span>Monat</span><strong>${money(s.revenue_month || 0)}</strong><small>laufender Monat</small></div>
         <div class="stat-card"><span>Total</span><strong>${money(s.revenue_total || 0)}</strong><small>${Number(s.orders_total || 0)} Bestellungen</small></div>
         <div class="stat-card"><span>Ø Warenkorb</span><strong>${money(s.avg_order_value || 0)}</strong><small>Durchschnitt</small></div>
         <div class="stat-card"><span>Kunden</span><strong>${Number(s.customers_total || 0)}</strong><small>eindeutige E-Mails</small></div>
+        <div class="stat-card ${Number(s.products_low || 0) ? 'warn-card' : ''}"><span>Knapp</span><strong>${Number(s.products_low || 0)}</strong><small>Produkte unter Mindestbestand</small></div>
+        <div class="stat-card ${Number(s.products_empty || 0) ? 'danger-card' : ''}"><span>Leer</span><strong>${Number(s.products_empty || 0)}</strong><small>ausverkaufte Produkte</small></div>
+        <div class="stat-card"><span>Lagerwert</span><strong>${money(s.inventory_value || 0)}</strong><small>${Number(s.products_total || 0)} Produkte</small></div>
       </div>
-      <div class="analytics-grid">
+
+      <div class="analytics-grid analytics-grid-wide">
         <div class="card analytics-card"><h3>Umsatz letzte 14 Tage</h3>
           <div class="bar-chart">${daily.map(row => `<div class="bar-row"><span>${escapeHtml(String(row.date || '').slice(5))}</span><div><i style="width:${Math.max(4, Math.round((Number(row.revenue || 0) / maxRevenue) * 100))}%"></i></div><strong>${money(row.revenue || 0)}</strong></div>`).join('')}</div>
         </div>
-        <div class="card analytics-card"><h3>Bestseller</h3>
-          ${top.length ? `<div class="top-products">${top.map((p,idx)=>`<div class="top-product-row"><span>${idx+1}</span><strong>${escapeHtml(p.product_name || '-')}</strong><em>${Number(p.quantity || 0)} Stk.</em><b>${money(p.revenue || 0)}</b></div>`).join('')}</div>` : `<div class="note">Noch keine Artikelverkäufe vorhanden.</div>`}
+        <div class="card analytics-card"><h3>Lagerwarnungen</h3>
+          ${stockAlerts.length ? `<div class="analytics-stock-list">${stockAlertRows}</div>` : `<div class="note success-note">Alle Produkte sind über Mindestbestand.</div>`}
         </div>
       </div>
-      <div class="card analytics-card"><h3>Status Übersicht</h3><div class="status-overview">
-        <div><span>Neu</span><strong>${Number(s.status_counts?.new || 0)}</strong></div>
-        <div><span>In Bearbeitung</span><strong>${Number(s.status_counts?.in_progress || 0)}</strong></div>
-        <div><span>Erledigt</span><strong>${Number(s.status_counts?.done || 0)}</strong></div>
-      </div></div>
+
+      <div class="analytics-grid">
+        <div class="card analytics-card"><h3>Bestseller nach Menge</h3>
+          ${top.length ? `<div class="top-products">${top.map((p,idx)=>`<div class="top-product-row"><span>${idx+1}</span><strong>${escapeHtml(p.product_name || '-')}</strong><em>${Number(p.quantity || 0)} Stk.</em><b>${money(p.revenue || 0)}</b></div>`).join('')}</div>` : `<div class="note">Noch keine Artikelverkäufe vorhanden.</div>`}
+        </div>
+        <div class="card analytics-card"><h3>Bestseller nach Umsatz</h3>
+          ${topRevenue.length ? `<div class="top-products">${topRevenue.map((p,idx)=>`<div class="top-product-row"><span>${idx+1}</span><strong>${escapeHtml(p.product_name || '-')}</strong><em>${Number(p.quantity || 0)} Stk.</em><b>${money(p.revenue || 0)}</b></div>`).join('')}</div>` : `<div class="note">Noch keine Umsatzdaten vorhanden.</div>`}
+        </div>
+      </div>
+
+      <div class="analytics-grid">
+        <div class="card analytics-card"><h3>Letzte Bestellungen</h3>
+          ${recentOrders.length ? `<div class="analytics-order-list">${orderRows}</div>` : `<div class="note">Noch keine Bestellungen vorhanden.</div>`}
+        </div>
+        <div class="card analytics-card"><h3>Versand & Status</h3>
+          <div class="status-overview status-overview-pro">
+            <div><span>Kaserne</span><strong>${Number(shippingCounts.barracks || 0)}</strong></div>
+            <div><span>Privat</span><strong>${Number(shippingCounts.private || 0)}</strong></div>
+            <div><span>Neu</span><strong>${Number(s.status_counts?.new || 0)}</strong></div>
+            <div><span>In Bearbeitung</span><strong>${Number(s.status_counts?.in_progress || 0)}</strong></div>
+            <div><span>Versandt</span><strong>${Number(s.status_counts?.shipped || 0)}</strong></div>
+            <div><span>Erledigt</span><strong>${Number(s.status_counts?.done || 0)}</strong></div>
+          </div>
+        </div>
+      </div>
     `}
   </div></div>`;
 }

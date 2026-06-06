@@ -967,3 +967,86 @@ button[data-action="bundle-info"] {
 /* STEP 20B – CMS Pro Logo/Minimum Order Preview */
 .cms-logo-preview img{max-height:80px;object-fit:contain;background:#07131f;padding:10px;border-radius:10px;}
 .mini-logo-preview{display:block;max-width:150px;max-height:42px;object-fit:contain;margin:0 auto 8px;}
+
+/* STEP 20D - Statistik Pro */
+.analytics-pro-shell .analytics-kpis{
+  grid-template-columns:repeat(3,minmax(170px,1fr));
+}
+.stat-card.warn-card{
+  border-color:rgba(255,210,90,.6);
+  box-shadow:0 0 0 1px rgba(255,210,90,.18) inset;
+}
+.stat-card.warn-card strong{color:#ffd95c}
+.stat-card.danger-card{
+  border-color:rgba(255,91,122,.65);
+  box-shadow:0 0 0 1px rgba(255,91,122,.18) inset;
+}
+.stat-card.danger-card strong{color:#ff6b86}
+.analytics-grid-wide{
+  grid-template-columns:1.35fr .95fr;
+}
+.analytics-stock-list,.analytics-order-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.analytics-stock-row,.analytics-order-row{
+  display:grid;
+  gap:8px;
+  align-items:center;
+  padding:10px 12px;
+  border:1px solid rgba(126,169,214,.22);
+  border-radius:12px;
+  background:rgba(3,15,31,.34);
+  font-size:13px;
+}
+.analytics-stock-row{
+  grid-template-columns:42px 1fr 110px 64px;
+}
+.analytics-stock-row span{
+  color:#dbeafe;
+  font-weight:900;
+}
+.analytics-stock-row strong{color:#fff}
+.analytics-stock-row em{
+  font-style:normal;
+  color:#d7e8ff;
+  text-align:right;
+}
+.analytics-stock-row b{
+  text-align:center;
+  border-radius:999px;
+  padding:4px 7px;
+  color:#08111d;
+}
+.analytics-stock-row.is-low b{background:#ffd95c}
+.analytics-stock-row.is-empty b{background:#ff6b86;color:#fff}
+.analytics-order-row{
+  grid-template-columns:1.15fr 1fr .85fr .7fr .9fr;
+}
+.analytics-order-row strong{color:#fff}
+.analytics-order-row span,.analytics-order-row em,.analytics-order-row i{
+  color:#cfe3ff;
+  font-style:normal;
+}
+.analytics-order-row b{
+  color:#ffec6e;
+  text-align:right;
+}
+.status-overview-pro{
+  grid-template-columns:repeat(2,minmax(120px,1fr));
+}
+.success-note{
+  color:#7cff9f;
+  border:1px solid rgba(124,255,159,.2);
+  padding:12px;
+  border-radius:12px;
+  background:rgba(72,160,80,.08);
+}
+@media (max-width:900px){
+  .analytics-pro-shell .analytics-kpis,.analytics-grid-wide{grid-template-columns:1fr}
+  .analytics-stock-row{grid-template-columns:38px 1fr;}
+  .analytics-stock-row em,.analytics-stock-row b{text-align:left}
+  .analytics-order-row{grid-template-columns:1fr;}
+  .analytics-order-row b{text-align:left}
+}
