@@ -1050,3 +1050,62 @@ button[data-action="bundle-info"] {
   .analytics-order-row{grid-template-columns:1fr;}
   .analytics-order-row b{text-align:left}
 }
+
+/* STEP 20E – Automaten Design Control */
+.shop-design-page{
+  background:var(--shop-bg,#061527);
+  background-repeat:no-repeat;
+  transition:background .25s ease;
+}
+.shop-design-shell{
+  background:linear-gradient(180deg, rgba(10,30,63,.80), rgba(6,17,40,.92));
+  backdrop-filter:blur(1px);
+}
+.machine{
+  background:linear-gradient(180deg,color-mix(in srgb,var(--machine-body,#9ba0a4) 88%,#fff 12%),color-mix(in srgb,var(--machine-body,#9ba0a4) 72%,#000 28%)) !important;
+  box-shadow:inset 0 0 0 4px color-mix(in srgb,var(--machine-body,#9ba0a4) 70%,#fff 30%), inset 0 0 0 7px rgba(0,0,0,.32), 0 24px 60px rgba(0,0,0,.44) !important;
+}
+.machine-red{
+  background:linear-gradient(180deg,var(--admin-frame,#b22b2b),color-mix(in srgb,var(--admin-frame,#b22b2b) 70%,#000 30%)) !important;
+}
+.machine-inner{
+  background:linear-gradient(180deg,color-mix(in srgb,var(--machine-inner,#35414b) 88%,#fff 12%),color-mix(in srgb,var(--machine-inner,#35414b) 78%,#000 22%)) !important;
+}
+.machine-banner{
+  background:linear-gradient(90deg,color-mix(in srgb,var(--machine-banner,#111722) 82%,#000 18%),color-mix(in srgb,var(--machine-banner,#111722) 78%,#fff 22%),color-mix(in srgb,var(--machine-banner,#111722) 82%,#000 18%)) !important;
+}
+.slot{
+  background:linear-gradient(180deg,color-mix(in srgb,var(--admin-slot,#3d5366) 90%,#fff 10%),color-mix(in srgb,var(--admin-slot,#3d5366) 76%,#000 24%)) !important;
+}
+.namebar,
+.cta.primary,
+.order-btn{
+  background:linear-gradient(180deg,color-mix(in srgb,var(--admin-button,#65a832) 92%,#fff 8%),color-mix(in srgb,var(--admin-button,#65a832) 78%,#000 22%)) !important;
+}
+.price,
+.led .amount,
+.led .currency,
+.led .small{
+  color:var(--machine-price,#f4d870) !important;
+}
+.select-light span,
+.dot.green{
+  background:var(--machine-glow,#d7fb77) !important;
+  box-shadow:0 0 18px color-mix(in srgb,var(--machine-glow,#d7fb77) 70%,transparent) !important;
+}
+.cartbox,
+.led{
+  background:linear-gradient(180deg,color-mix(in srgb,var(--machine-panel,#34414a) 86%,#fff 9%),color-mix(in srgb,var(--machine-panel,#34414a) 82%,#000 18%)) !important;
+}
+.design-presets{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 14px}
+.design-presets .back-btn{font-size:13px;padding:10px 12px}
+.design-presets .back-btn.is-active{border-color:#d7fb77;box-shadow:0 0 0 2px rgba(215,251,119,.18);color:#efff87}
+.cms-preview{
+  background-color:var(--bg-color,#061527);
+  background-repeat:no-repeat;
+}
+.cms-preview .mini-machine{background:color-mix(in srgb,var(--machine-body,#9ba0a4) 86%,#fff 14%)}
+.cms-preview .mini-frame{background:color-mix(in srgb,var(--machine-inner,#35414b) 86%,#000 14%);border-color:var(--frame-color,#b22b2b)}
+.cms-preview .mini-inner{background:var(--machine-banner,#111722)}
+.cms-preview .mini-slot{background:var(--slot-color,#3d5366)}
+.cms-preview button{background:var(--button-color,#65a832)!important}

@@ -944,6 +944,13 @@ const state = {
     bgSize: 'cover',
     bgPosition: 'center center',
     logoUrl: '',
+    designPreset: 'classic',
+    machineBodyColor: '#9ba0a4',
+    machineInnerColor: '#35414b',
+    machinePanelColor: '#34414a',
+    machineBannerColor: '#111722',
+    machineGlowColor: '#d7fb77',
+    machinePriceColor: '#f4d870',
     minimumOrderChf: 15
   },
   pages: [],
@@ -2428,12 +2435,37 @@ function renderSlotInfoModal(){
     </div>`;
 }
 
+function shopPageStyle(){
+  const bgImage = settingValue('bgImage','');
+  const parts = [`--shop-bg:${escapeAttr(settingValue('bgColor', '#061527'))}`];
+  if(bgImage){
+    parts.push(`background-image:linear-gradient(rgba(3,10,20,.30),rgba(3,10,20,.42)),url('${escapeAttr(bgImage)}')`);
+    parts.push(`background-size:${escapeAttr(settingValue('bgSize','cover'))}`);
+    parts.push(`background-position:${escapeAttr(settingValue('bgPosition','center center'))}`);
+    parts.push('background-attachment:fixed');
+  }
+  return parts.join(';');
+}
+function shopShellStyle(){
+  return [
+    `--admin-bg:${escapeAttr(settingValue('bgColor', '#061527'))}`,
+    `--admin-frame:${escapeAttr(settingValue('frameColor', '#b22b2b'))}`,
+    `--admin-slot:${escapeAttr(settingValue('slotColor', '#3d5366'))}`,
+    `--admin-button:${escapeAttr(settingValue('buttonColor', '#65a832'))}`,
+    `--machine-body:${escapeAttr(settingValue('machineBodyColor', '#9ba0a4'))}`,
+    `--machine-inner:${escapeAttr(settingValue('machineInnerColor', '#35414b'))}`,
+    `--machine-panel:${escapeAttr(settingValue('machinePanelColor', '#34414a'))}`,
+    `--machine-banner:${escapeAttr(settingValue('machineBannerColor', '#111722'))}`,
+    `--machine-glow:${escapeAttr(settingValue('machineGlowColor', '#d7fb77'))}`,
+    `--machine-price:${escapeAttr(settingValue('machinePriceColor', '#f4d870'))}`
+  ].join(';');
+}
 function renderMachine(){
   const grouped=cartGrouped();
   return `
   ${topbar()}
-  <div class="page">
-    <div class="shell" style="--admin-bg:${escapeAttr(settingValue('bgColor', '#061527'))};--admin-frame:${escapeAttr(settingValue('frameColor', '#b22b2b'))};--admin-slot:${escapeAttr(settingValue('slotColor', '#3d5366'))};--admin-button:${escapeAttr(settingValue('buttonColor', '#65a832'))};${settingValue('bgImage','') ? `background-image:url('${escapeAttr(settingValue('bgImage',''))}');background-size:${escapeAttr(settingValue('bgSize','cover'))};background-position:${escapeAttr(settingValue('bgPosition','center center'))};` : ''}">
+  <div class="page shop-design-page" style="${shopPageStyle()}">
+    <div class="shell shop-design-shell" style="${shopShellStyle()}">
       <div class="header-row"><h1>${escapeHtml(localizedSetting('machineTitle', t('machineTitle')))}</h1></div>
       <div class="machine"><div class="machine-red"><div class="machine-inner">
         <div class="machine-banner">${escapeHtml(localizedSetting('machineInner', t('machineInner')))}</div>
@@ -3213,10 +3245,23 @@ function bindCmsBlockDragDrop(){
   });
 }
 
+function applyDesignPreset(name){
+  state.admin.design = state.admin.design || {};
+  const presets = {
+    classic: { designPreset:'classic', bgColor:'#061527', buttonColor:'#65a832', slotColor:'#3d5366', frameColor:'#b22b2b', machineBodyColor:'#9ba0a4', machineInnerColor:'#35414b', machinePanelColor:'#34414a', machineBannerColor:'#111722', machineGlowColor:'#d7fb77', machinePriceColor:'#f4d870' },
+    camo: { designPreset:'camo', bgColor:'#0b140c', buttonColor:'#607c25', slotColor:'#42513b', frameColor:'#7b2b25', machineBodyColor:'#4f563d', machineInnerColor:'#2f3a31', machinePanelColor:'#2f382f', machineBannerColor:'#111b13', machineGlowColor:'#d7fb77', machinePriceColor:'#f4d870' },
+    premium: { designPreset:'premium', bgColor:'#05070b', buttonColor:'#7b8e3c', slotColor:'#252b31', frameColor:'#8f1717', machineBodyColor:'#11161d', machineInnerColor:'#171f28', machinePanelColor:'#111820', machineBannerColor:'#070b10', machineGlowColor:'#dfff70', machinePriceColor:'#f7df63' },
+    swiss: { designPreset:'swiss', bgColor:'#07111e', buttonColor:'#5f8f2f', slotColor:'#334557', frameColor:'#c52828', machineBodyColor:'#b4b4b4', machineInnerColor:'#303b45', machinePanelColor:'#333d46', machineBannerColor:'#0d1420', machineGlowColor:'#d7fb77', machinePriceColor:'#f4d870' }
+  };
+  Object.assign(state.admin.design, presets[name] || presets.classic);
+  save();
+  render();
+}
 function bindAdminDesign(){
   const back=document.getElementById('adminDesignBackBtn'); if(back) back.onclick=()=>{ history.replaceState(null,'','#admin-orders'); state.route='admin-orders'; loadAdminOrders(); };
   const logout=document.getElementById('adminLogoutBtn'); if(logout) logout.onclick=()=>doAdminLogout();
   document.querySelectorAll('[data-design-field]').forEach(el=>{ const handler=()=>{ state.admin.design = state.admin.design || {}; state.admin.design[el.getAttribute('data-design-field')] = el.type === 'checkbox' ? el.checked : el.value; save(); renderDesignPreviewOnly(); }; el.oninput=handler; el.onchange=handler; });
+  document.querySelectorAll('[data-design-preset]').forEach(btn=>btn.onclick=()=>applyDesignPreset(btn.getAttribute('data-design-preset')));
   document.querySelectorAll('[data-page-field]').forEach(el=>el.oninput=()=>{ const i=Number(el.getAttribute('data-page-index')); const f=el.getAttribute('data-page-field'); state.admin.pages = state.admin.pages || []; if(state.admin.pages[i]){ let v = el.type === 'checkbox' ? el.checked : el.value; if(f==='sort_order') v=Number(v||0); state.admin.pages[i][f]=v; save(); } });
   document.querySelectorAll('[data-page-delete]').forEach(btn=>btn.onclick=()=>{ const i=Number(btn.getAttribute('data-page-delete')); const p=state.admin.pages?.[i]; if(!p) return; if(confirm(`Seite wirklich löschen: ${p.slug}?`)){ state.admin.pages.splice(i,1); save(); render(); } });
   document.querySelectorAll('[data-page-up]').forEach(btn=>btn.onclick=()=>moveAdminPage(Number(btn.getAttribute('data-page-up')),-1));
@@ -3239,7 +3284,8 @@ function renderDesignPreviewOnly(){
   const p=document.getElementById('designLivePreview'); if(!p) return;
   const d=state.admin.design || {};
   p.style.setProperty('--button-color', d.buttonColor || '#65a832'); p.style.setProperty('--slot-color', d.slotColor || '#3d5366'); p.style.setProperty('--frame-color', d.frameColor || '#b22b2b'); p.style.setProperty('--bg-color', d.bgColor || '#061527');
-  p.style.backgroundImage = d.bgImage ? `url('${d.bgImage}')` : ''; p.style.backgroundSize = d.bgSize || 'cover'; p.style.backgroundPosition = d.bgPosition || 'center center';
+  p.style.setProperty('--machine-body', d.machineBodyColor || '#9ba0a4'); p.style.setProperty('--machine-inner', d.machineInnerColor || '#35414b'); p.style.setProperty('--machine-panel', d.machinePanelColor || '#34414a'); p.style.setProperty('--machine-banner', d.machineBannerColor || '#111722'); p.style.setProperty('--machine-glow', d.machineGlowColor || '#d7fb77'); p.style.setProperty('--machine-price', d.machinePriceColor || '#f4d870');
+  p.style.backgroundImage = d.bgImage ? `linear-gradient(rgba(3,10,20,.25),rgba(3,10,20,.35)),url('${d.bgImage}')` : ''; p.style.backgroundSize = d.bgSize || 'cover'; p.style.backgroundPosition = d.bgPosition || 'center center';
 }
 function slugifyPage(value){ return String(value||'').toLowerCase().trim().replace(/[ä]/g,'ae').replace(/[ö]/g,'oe').replace(/[ü]/g,'ue').replace(/[éèê]/g,'e').replace(/[àâ]/g,'a').replace(/[ç]/g,'c').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || `seite-${Date.now()}`; }
 function addAdminPage(){ state.admin.pages = state.admin.pages || []; const base='neue-seite'; let slug=base; let n=2; const used=new Set(state.admin.pages.map(p=>p.slug)); while(used.has(slug)){ slug=`${base}-${n++}`; } state.admin.pages.push({ slug, title_de:'Neue Seite', title_fr:'Nouvelle page', content_de:'', content_fr:'', show_in_menu:true, is_active:true, sort_order: state.admin.pages.length+1 }); save(); render(); }
@@ -3621,7 +3667,7 @@ function renderAdminDesign(){
   const d = state.admin.design || state.settings || {};
   const pages = [...(state.admin.pages || state.pages || [])].sort((a,b)=>Number(a.sort_order ?? 999)-Number(b.sort_order ?? 999) || String(a.slug||'').localeCompare(String(b.slug||'')));
   state.admin.pages = pages;
-  const previewStyle = `--button-color:${escapeAttr(d.buttonColor || '#65a832')};--slot-color:${escapeAttr(d.slotColor || '#3d5366')};--frame-color:${escapeAttr(d.frameColor || '#b22b2b')};--bg-color:${escapeAttr(d.bgColor || '#061527')};${d.bgImage ? `background-image:url('${escapeAttr(d.bgImage)}');background-size:${escapeAttr(d.bgSize || 'cover')};background-position:${escapeAttr(d.bgPosition || 'center center')};` : ''}`;
+  const previewStyle = `--button-color:${escapeAttr(d.buttonColor || '#65a832')};--slot-color:${escapeAttr(d.slotColor || '#3d5366')};--frame-color:${escapeAttr(d.frameColor || '#b22b2b')};--bg-color:${escapeAttr(d.bgColor || '#061527')};--machine-body:${escapeAttr(d.machineBodyColor || '#9ba0a4')};--machine-inner:${escapeAttr(d.machineInnerColor || '#35414b')};--machine-panel:${escapeAttr(d.machinePanelColor || '#34414a')};--machine-banner:${escapeAttr(d.machineBannerColor || '#111722')};--machine-glow:${escapeAttr(d.machineGlowColor || '#d7fb77')};--machine-price:${escapeAttr(d.machinePriceColor || '#f4d870')};${d.bgImage ? `background-image:linear-gradient(rgba(3,10,20,.25),rgba(3,10,20,.35)),url('${escapeAttr(d.bgImage)}');background-size:${escapeAttr(d.bgSize || 'cover')};background-position:${escapeAttr(d.bgPosition || 'center center')};` : ''}`;
   return `
   ${topbar()}
   <div class="page"><div class="shell admin-shell cms-pro-shell">
@@ -3632,8 +3678,11 @@ function renderAdminDesign(){
       <div class="card cms-card"><h3>Design</h3><div class="maintenance-admin-box"><label class="admin-toggle"><input data-design-field="maintenanceMode" type="checkbox" ${d.maintenanceMode ? 'checked' : ''}><span>Wartungsmodus / Under Construction aktivieren</span></label><div class="note">Wenn aktiv, sehen Besucher eine Wartungsseite. Admin bleibt über /arbx-control erreichbar.</div></div><div class="admin-product-row admin-product-row-equal"><div class="field"><label>Mindestbestellwert CHF</label><input data-design-field="minimumOrderChf" type="number" min="0" step="0.05" value="${escapeAttr(String(d.minimumOrderChf ?? 15))}" placeholder="15"><div class="note">Wird im Warenkorb und serverseitig geprüft.</div></div><div class="field"><label>Logo URL</label><input data-design-field="logoUrl" value="${escapeAttr(d.logoUrl || '')}" placeholder="leer = Standardlogo"><div class="cms-image-upload-row"><input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-design-upload="logoUrl"><span>Logo hochladen oder URL einfügen</span></div>${d.logoUrl ? `<div class="cms-block-image-preview cms-logo-preview"><img src="${escapeAttr(d.logoUrl)}" alt="Logo"></div>` : ''}</div></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminTitleDe')}</label><input data-design-field="machineTitle_de" value="${escapeAttr(d.machineTitle_de || d.machineTitle || '')}" placeholder="Automat ARMEEBOX"></div><div class="field"><label>${t('adminTitleFr')}</label><input data-design-field="machineTitle_fr" value="${escapeAttr(d.machineTitle_fr || '')}" placeholder="Automate ARMEEBOX"></div></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminSloganDe')}</label><input data-design-field="machineInner_de" value="${escapeAttr(d.machineInner_de || d.machineInner || '')}" placeholder="Achtung, fertig, Fresspäckli"></div><div class="field"><label>${t('adminSloganFr')}</label><input data-design-field="machineInner_fr" value="${escapeAttr(d.machineInner_fr || '')}" placeholder="À vos marques, prêts, paquet du soldat"></div></div>
+        <div class="design-presets"><button class="back-btn ${(!d.designPreset || d.designPreset==='classic')?'is-active':''}" type="button" data-design-preset="classic">Standard</button><button class="back-btn ${d.designPreset==='camo'?'is-active':''}" type="button" data-design-preset="camo">Armee Tarnung</button><button class="back-btn ${d.designPreset==='premium'?'is-active':''}" type="button" data-design-preset="premium">Premium Schwarz</button><button class="back-btn ${d.designPreset==='swiss'?'is-active':''}" type="button" data-design-preset="swiss">Swiss Military</button></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminButtonColor')}</label><input data-design-field="buttonColor" type="color" value="${escapeAttr(d.buttonColor || '#65a832')}"></div><div class="field"><label>${t('adminSlotColor')}</label><input data-design-field="slotColor" type="color" value="${escapeAttr(d.slotColor || '#3d5366')}"></div><div class="field"><label>${t('adminFrameColor')}</label><input data-design-field="frameColor" type="color" value="${escapeAttr(d.frameColor || '#b22b2b')}"></div><div class="field"><label>${t('adminBgColor')}</label><input data-design-field="bgColor" type="color" value="${escapeAttr(d.bgColor || '#061527')}"></div></div>
-        <div class="admin-product-row admin-product-row-equal"><div class="field"><label>Website Hintergrundbild URL</label><input data-design-field="bgImage" value="${escapeAttr(d.bgImage || '')}" placeholder="optional https://.../hintergrund.jpg"><div class="cms-image-upload-row"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-design-upload="bgImage"><span>Hintergrundbild hochladen oder URL einfügen</span></div>${d.bgImage ? `<div class="cms-block-image-preview"><img src="${escapeAttr(d.bgImage)}" alt=""></div>` : ''}</div><div class="field"><label>Hintergrund-Grösse</label><select data-design-field="bgSize"><option value="cover" ${(d.bgSize || 'cover') === 'cover' ? 'selected' : ''}>Cover</option><option value="contain" ${d.bgSize === 'contain' ? 'selected' : ''}>Contain</option></select></div><div class="field"><label>Hintergrund-Position</label><input data-design-field="bgPosition" value="${escapeAttr(d.bgPosition || 'center center')}" placeholder="center center"></div></div>
+        <div class="admin-product-row admin-product-row-equal"><div class="field"><label>Automat Gehäuse</label><input data-design-field="machineBodyColor" type="color" value="${escapeAttr(d.machineBodyColor || '#9ba0a4')}"></div><div class="field"><label>Automat Innenfläche</label><input data-design-field="machineInnerColor" type="color" value="${escapeAttr(d.machineInnerColor || '#35414b')}"></div><div class="field"><label>Warenkorb / Seitenpanel</label><input data-design-field="machinePanelColor" type="color" value="${escapeAttr(d.machinePanelColor || '#34414a')}"></div><div class="field"><label>Display / Banner</label><input data-design-field="machineBannerColor" type="color" value="${escapeAttr(d.machineBannerColor || '#111722')}"></div></div>
+        <div class="admin-product-row admin-product-row-equal"><div class="field"><label>Leuchtfarbe</label><input data-design-field="machineGlowColor" type="color" value="${escapeAttr(d.machineGlowColor || '#d7fb77')}"></div><div class="field"><label>Preisfarbe</label><input data-design-field="machinePriceColor" type="color" value="${escapeAttr(d.machinePriceColor || '#f4d870')}"></div></div>
+        <div class="admin-product-row admin-product-row-equal"><div class="field"><label>Website Hintergrundbild URL</label><input data-design-field="bgImage" value="${escapeAttr(d.bgImage || '')}" placeholder="optional https://.../tarnmuster.jpg"><div class="cms-image-upload-row"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-design-upload="bgImage"><span>Tarn-/Hintergrundbild hochladen oder URL einfügen</span></div>${d.bgImage ? `<div class="cms-block-image-preview"><img src="${escapeAttr(d.bgImage)}" alt=""></div>` : ''}<div class="note">Dieses Bild liegt hinter dem Automaten und ersetzt den blauen Randbereich.</div></div><div class="field"><label>Hintergrund-Grösse</label><select data-design-field="bgSize"><option value="cover" ${(d.bgSize || 'cover') === 'cover' ? 'selected' : ''}>Cover</option><option value="contain" ${d.bgSize === 'contain' ? 'selected' : ''}>Contain</option></select></div><div class="field"><label>Hintergrund-Position</label><input data-design-field="bgPosition" value="${escapeAttr(d.bgPosition || 'center center')}" placeholder="center center"></div></div>
       </div>
       <div class="card cms-preview" id="designLivePreview" style="${previewStyle}"><h3>Live Preview</h3><div class="mini-machine"><div class="mini-frame">${d.logoUrl ? `<img class="mini-logo-preview" src="${escapeAttr(d.logoUrl)}" alt="Logo">` : ''}<div class="mini-title">${escapeHtml(d.machineTitle_de || d.machineTitle || t('machineTitle'))}</div><div class="mini-inner">${escapeHtml(d.machineInner_de || d.machineInner || t('machineInner'))}</div><div class="mini-slot">Slot</div><button>Button</button></div></div></div>
     </div>
