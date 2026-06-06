@@ -108,9 +108,11 @@ function parseBundleMeta(row) {
   const slotType = row?.slot_type === 'bundle' || legacy?.slot_type === 'bundle' ? 'bundle' : 'normal';
   const rawShowInfo = row?.show_info ?? row?.info_enabled ?? row?.has_info;
   const showInfo = typeof legacy?.show_info === 'boolean' ? legacy.show_info : (rawShowInfo === undefined || rawShowInfo === null ? slotType === 'bundle' : Boolean(rawShowInfo));
+  const imagePopupEnabled = typeof legacy?.image_popup_enabled === 'boolean' ? legacy.image_popup_enabled : Boolean(row?.image_popup_enabled ?? false);
   return {
     slot_type: slotType,
     show_info: showInfo,
+    image_popup_enabled: imagePopupEnabled,
     bundle_content_de: coerceLocalizedText(row?.bundle_content_de ?? fallbackContent ?? legacy?.content_de ?? legacy?.content ?? '', fallbackContent),
     bundle_content_fr: coerceLocalizedText(row?.bundle_content_fr ?? legacy?.content_fr ?? '', ''),
     option_label_de: coerceLocalizedText(row?.option_label_de ?? legacy?.option_label_de ?? '', ''),
@@ -124,6 +126,7 @@ function encodeBundleMeta(row) {
   return `${META_PREFIX}${JSON.stringify({
     slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
     show_info: Boolean(row?.show_info || row?.slot_type === 'bundle'),
+    image_popup_enabled: Boolean(row?.image_popup_enabled),
     content_de: coerceLocalizedText(row?.bundle_content_de || row?.bundle_content || row?.description_de || '', row?.description_de || ''),
     content_fr: coerceLocalizedText(row?.bundle_content_fr || '', ''),
     option_label_de: coerceLocalizedText(row?.option_label_de || '', ''),
@@ -151,6 +154,7 @@ function normalizeProductRow(row) {
     stock_min: Number(row?.stock_min ?? row?.minimum_stock ?? 0),
     slot_type: meta.slot_type,
     show_info: Boolean(meta.show_info || meta.slot_type === 'bundle'),
+    image_popup_enabled: Boolean(meta.image_popup_enabled),
     bundle_content_de: meta.bundle_content_de,
     bundle_content_fr: meta.bundle_content_fr || meta.bundle_content_de,
     option_label_de: meta.option_label_de,
