@@ -1036,7 +1036,8 @@ function parseBundleMeta(row){
     option_label_de: localizedAdminValue(row?.option_label_de ?? row?.option_label?.de ?? '', ''),
     option_label_fr: localizedAdminValue(row?.option_label_fr ?? row?.option_label?.fr ?? '', ''),
     quantity_options: directOptions.length ? directOptions : [2,3,4],
-    bundle_options: directBundleOptions.length ? directBundleOptions : [2,3,4]
+    bundle_options: directBundleOptions.length ? directBundleOptions : [2,3,4],
+    image_popup_enabled: Boolean(row?.image_popup_enabled ?? false)
   };
   const raw = String(row?.description_fr || '');
   if(raw.startsWith(META_PREFIX)){
@@ -1053,7 +1054,8 @@ function parseBundleMeta(row){
         option_label_de: localizedAdminValue(row?.option_label_de ?? row?.option_label?.de ?? meta?.option_label_de ?? base.option_label_de ?? '', base.option_label_de ?? ''),
         option_label_fr: localizedAdminValue(row?.option_label_fr ?? row?.option_label?.fr ?? meta?.option_label_fr ?? base.option_label_fr ?? '', base.option_label_fr ?? ''),
         quantity_options: directOptions.length ? directOptions : (options.length ? options : base.quantity_options),
-        bundle_options: directBundleOptions.length ? directBundleOptions : (bundleOptions.length ? bundleOptions : base.bundle_options)
+        bundle_options: directBundleOptions.length ? directBundleOptions : (bundleOptions.length ? bundleOptions : base.bundle_options),
+        image_popup_enabled: typeof meta?.image_popup_enabled === 'boolean' ? meta.image_popup_enabled : Boolean(row?.image_popup_enabled ?? base.image_popup_enabled)
       };
     }catch(_){ }
   }
@@ -1103,6 +1105,32 @@ function renderProductInfoContent(product){
     return `<ul class="product-info-list">${lines.map(line=>`<li>${escapeHtml(line)}</li>`).join('')}</ul>`;
   }
   return `<div class="note">${escapeHtml(state.lang === 'fr' ? 'Aucune information enregistrée.' : 'Keine Information hinterlegt.')}</div>`;
+}
+
+
+function renderImagePopupModal(){
+  const product = state.imagePopupProductId ? currentProducts().find(p=>String(p.id)===String(state.imagePopupProductId)) : null;
+  if(!product || !product.image_url) return '';
+  const name = product.name?.[state.lang] || product.name?.de || '';
+  return `<div class="modal-backdrop image-modal-backdrop" data-close-image-popup>
+    <div class="modal product-image-modal" role="dialog" aria-modal="true" aria-label="${escapeAttr(name)}">
+      <button class="modal-close" data-close-image-popup aria-label="Schliessen">×</button>
+      <h3>${escapeHtml(name)}</h3>
+      <div class="product-image-modal-frame"><img src="${escapeAttr(product.image_url)}" alt="${escapeAttr(name)}"></div>
+    </div>
+  </div>`;
+}
+function openImagePopup(productId){
+  const product = currentProducts().find(p=>String(p.id)===String(productId));
+  if(!product || !product.image_url || !product.image_popup_enabled) return;
+  state.imagePopupProductId = String(product.id);
+  render();
+}
+function closeImagePopup(){
+  if(state.imagePopupProductId){
+    state.imagePopupProductId = '';
+    render();
+  }
 }
 
 function optionFactorFromLabel(label){
@@ -1312,7 +1340,8 @@ function normalizeCatalogProduct(row, index){
     bundle_content: { de: meta.content_de, fr: meta.content_fr || meta.content_de },
     option_label: { de: meta.option_label_de, fr: meta.option_label_fr || meta.option_label_de },
     quantity_options: meta.quantity_options,
-    bundle_options: meta.bundle_options || meta.quantity_options
+    bundle_options: meta.bundle_options || meta.quantity_options,
+    image_popup_enabled: Boolean(meta.image_popup_enabled)
   };
 }
 function currentProducts(){
@@ -1952,6 +1981,7 @@ function readAdminProductRowsDirectFromDom(){
       stock_min: stockValue(value('stock_min', productStock(product).min), 0),
       slot_type: value('slot_type', product.slot_type || 'normal') === 'bundle' ? 'bundle' : 'normal',
       show_info: checked('show_info', productShowsInfo(product)),
+      image_popup_enabled: checked('image_popup_enabled', Boolean(product.image_popup_enabled)),
       bundle_content_de: value('bundle_content_de', product.bundle_content?.de || ''),
       bundle_content_fr: value('bundle_content_fr', product.bundle_content?.fr || ''),
       option_label_de: value('option_label_de', product.option_label?.de || ''),
@@ -2261,7 +2291,7 @@ function renderMachine(){
           <div class="slot ${isBundle ? 'slot-bundle' : ''} ${isSoldOut(p) ? 'is-sold-out' : ''} ${isSelected ? 'selected' : ''}" data-id="${p.id}" role="button" tabindex="0" aria-label="${escapeAttr(displayName)}">
             ${isSoldOut(p) ? `<div class="soldout-ribbon">${t('stockOut')}</div>` : ''}
             <div class="slot-top">
-              <div class="slot-image-frame">
+              <div class="slot-image-frame ${p.image_popup_enabled && p.image_url ? 'is-clickable' : ''}" ${p.image_popup_enabled && p.image_url ? `data-image-popup="${p.id}" title="${escapeAttr(displayName)}"` : ''}>
                 ${p.image_url ? `<img class="slot-product-img" src="${escapeAttr(p.image_url)}" alt="${escapeAttr(displayName)}" loading="lazy">` : `<div class="img-placeholder">SPÄTER BILD</div>`}
               </div>
               <div class="spirals">◜◜◜</div>
@@ -2302,7 +2332,8 @@ function renderMachine(){
       </div></div></div>
     </div>
   </div>
-  ${renderSlotInfoModal()}`;
+  ${renderSlotInfoModal()}
+  ${renderImagePopupModal()}`;
 }
 
 function renderForm(){
@@ -2635,11 +2666,13 @@ function bindCommon(){
 }
 function bindMachine(){
   document.querySelectorAll('.slot').forEach(el=>el.onclick=(e)=>{
-    if(e.target.closest('[data-slot-info], .slot-bundle-select, [data-remove]')) return;
+    if(e.target.closest('[data-slot-info], [data-image-popup], .slot-bundle-select, [data-remove]')) return;
     onSelectProduct(el.dataset.id);
   });
   document.querySelectorAll('[data-remove]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); removeOne(el.dataset.remove); });
   document.querySelectorAll('[data-slot-info]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); openSlotInfo(el.getAttribute('data-slot-info')); });
+  document.querySelectorAll('[data-image-popup]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); openImagePopup(el.getAttribute('data-image-popup')); });
+  document.querySelectorAll('[data-close-image-popup]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); closeImagePopup(); });
   document.querySelectorAll('[data-slot-option]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); cycleBundleOption(el.getAttribute('data-slot-option')); });
   document.querySelectorAll('[data-slot-option-select]').forEach(el=>{
     ['mousedown','click','keydown'].forEach(evt=>el.addEventListener(evt,(e)=>e.stopPropagation()));
@@ -3583,7 +3616,10 @@ function renderAdminProducts(){
               <button class="cta tiny" data-stock-add="${index}" type="button">+ ${t('adminStockAdd')}</button>
               <button class="cta tiny" data-stock-set="${index}" type="button">${t('adminStockSet')}</button>
             </div>
-            <div class="field admin-info-toggle-field"><label>Inhalt/Beschrieb anzeigen</label><label class="admin-toggle"><input data-product-field="show_info" data-product-index="${index}" type="checkbox" ${productShowsInfo(product) ? 'checked' : ''}><span>${productShowsInfo(product) ? 'On' : 'Off'}</span></label></div>
+            <div class="admin-product-row admin-product-row-equal admin-toggle-row">
+              <div class="field admin-info-toggle-field"><label>Inhalt/Beschrieb anzeigen</label><label class="admin-toggle"><input data-product-field="show_info" data-product-index="${index}" type="checkbox" ${productShowsInfo(product) ? 'checked' : ''}><span>${productShowsInfo(product) ? 'On' : 'Off'}</span></label></div>
+              <div class="field admin-info-toggle-field"><label>Bild-Popup aktivieren</label><label class="admin-toggle"><input data-product-field="image_popup_enabled" data-product-index="${index}" type="checkbox" ${product.image_popup_enabled ? 'checked' : ''}><span>${product.image_popup_enabled ? 'On' : 'Off'}</span></label></div>
+            </div>
             <div class="admin-product-row admin-product-row-equal">
               <div class="field"><label>${t('adminBundleContentDe')}</label><textarea data-product-field="bundle_content_de" data-product-index="${index}" placeholder="z.B. Coca Cola 50cl&#10;gekühlt&#10;Einzelflasche">${escapeHtml(product.bundle_content?.de || '')}</textarea></div>
               <div class="field"><label>${t('adminBundleContentFr')}</label><textarea data-product-field="bundle_content_fr" data-product-index="${index}" placeholder="z.B. Coca Cola 50cl&#10;réfrigéré&#10;bouteille individuelle">${escapeHtml(product.bundle_content?.fr || '')}</textarea></div>
@@ -3708,6 +3744,7 @@ function bindAdminProducts(){
       else if(field === 'price') product.price = Number(input.value || 0);
       else if(field === 'slot_type') product.slot_type = input.value === 'bundle' ? 'bundle' : 'normal';
       else if(field === 'show_info') product.show_info = !!input.checked;
+      else if(field === 'image_popup_enabled') product.image_popup_enabled = !!input.checked;
       else if(field === 'bundle_content_de') product.bundle_content = { ...(product.bundle_content || {}), de: input.value, fr: product.bundle_content?.fr || '' };
       else if(field === 'bundle_content_fr') product.bundle_content = { ...(product.bundle_content || {}), de: product.bundle_content?.de || '', fr: input.value };
       else if(field === 'option_label_de') product.option_label = { ...(product.option_label || {}), de: input.value, fr: product.option_label?.fr || '' };
@@ -3734,7 +3771,7 @@ function bindAdminProducts(){
       state.admin.products = field === 'slotNumber' ? products : products;
       state.admin.productsMessage = '';
       save();
-      if(field === 'slotNumber' || field === 'slot_type' || field === 'show_info') render();
+      if(field === 'slotNumber' || field === 'slot_type' || field === 'show_info' || field === 'image_popup_enabled') render();
     };
   });
   document.querySelectorAll('[data-image-upload-index]').forEach(input => {
