@@ -628,13 +628,15 @@ async function saveProducts(body) {
 }
 
 async function getAnalytics() {
-  const [ordersRaw, itemsRaw] = await Promise.all([
+  const [ordersRaw, itemsRaw, productsRaw] = await Promise.all([
     supa('orders?select=id,order_number,created_at,customer_email,shipping_method,total,total_chf,order_status,status&order=created_at.desc&limit=1000'),
-    supa('order_items?select=order_id,product_name,quantity,total_price,total_price_chf,line_total_chf,created_at&order=created_at.desc&limit=2000')
+    supa('order_items?select=order_id,product_name,quantity,total_price,total_price_chf,line_total_chf,created_at&order=created_at.desc&limit=2000'),
+    listProducts().catch(() => [])
   ]);
 
   const orders = Array.isArray(ordersRaw) ? ordersRaw.map(normalizeOrder) : [];
   const items = Array.isArray(itemsRaw) ? itemsRaw : [];
+  const products = Array.isArray(productsRaw) ? productsRaw : [];
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const start7 = new Date(startOfToday); start7.setDate(start7.getDate() - 6);
@@ -656,6 +658,26 @@ async function getAnalytics() {
     acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
+
+  const shippingCounts = orders.reduce((acc, order) => {
+    const key = String(order.shipping_method || 'unknown').trim() || 'unknown';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  const productStockRows = products.map((product) => {
+    const current = Number(product.currentStock ?? product.current_stock ?? product.stock_current ?? 0) || 0;
+    const min = Number(product.minStock ?? product.min_stock ?? product.stock_min ?? 0) || 0;
+    const total = Number(product.totalStock ?? product.total_stock ?? product.stock_total ?? current) || 0;
+    const price = Number(product.price ?? product.price_chf ?? 0) || 0;
+    const slot = Number(product.slotNumber ?? product.slot ?? 0) || 0;
+    const name = coerceNameValue(product?.name, product?.name_de || product?.name_fr || `Slot ${slot || ''}`);
+    const status = current <= 0 ? 'empty' : (current <= min ? 'low' : 'ok');
+    return { slot, name, current, min, total, price, value: current * price, status };
+  }).sort((a,b) => a.slot - b.slot || a.name.localeCompare(b.name));
+  const lowStock = productStockRows.filter((p) => p.status === 'low');
+  const emptyStock = productStockRows.filter((p) => p.status === 'empty');
+  const stockValue = productStockRows.reduce((sum, p) => sum + p.value, 0);
 
   const productMap = new Map();
   for (const item of items) {
@@ -695,10 +717,26 @@ async function getAnalytics() {
       revenue_month: sumOrders(monthOrders),
       avg_order_value: orders.length ? sumOrders(orders) / orders.length : 0,
       customers_total: uniqueCustomers.size,
-      status_counts: statusCounts
+      status_counts: statusCounts,
+      shipping_counts: shippingCounts,
+      products_total: productStockRows.length,
+      products_low: lowStock.length,
+      products_empty: emptyStock.length,
+      inventory_value: stockValue
     },
     top_products: Array.from(productMap.values()).sort((a,b) => b.quantity - a.quantity || b.revenue - a.revenue).slice(0, 12),
-    daily: Array.from(dailyMap.values())
+    top_revenue_products: Array.from(productMap.values()).sort((a,b) => b.revenue - a.revenue || b.quantity - a.quantity).slice(0, 8),
+    daily: Array.from(dailyMap.values()),
+    low_stock: lowStock.slice(0, 12),
+    empty_stock: emptyStock.slice(0, 12),
+    recent_orders: orders.slice(0, 8).map((order) => ({
+      order_number: order.order_number,
+      created_at: order.created_at,
+      customer_email: order.customer_email,
+      total: amount(order),
+      status: order.order_status || order.status || 'new',
+      shipping_method: order.shipping_method || ''
+    }))
   };
 }
 
