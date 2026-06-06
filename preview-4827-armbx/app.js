@@ -1056,6 +1056,83 @@ function imageGalleryTextareaValue(product){
   return normalizeImageGallery(product?.additional_images).join('\n');
 }
 
+function adminGalleryAllImages(product){
+  const main = String(product?.image_url || '').trim();
+  const rest = normalizeImageGallery(product?.additional_images).filter(url => url && url !== main);
+  return main ? [main, ...rest] : rest;
+}
+function setAdminGalleryTextarea(index, gallery){
+  const textarea = document.querySelector(`[data-product-index="${index}"][data-product-field="additional_images"]`);
+  if(textarea) textarea.value = normalizeImageGallery(gallery).join('\n');
+}
+function updateAdminProductGallery(index, updater, { rerender = true } = {}){
+  let products = adminProductsList();
+  const product = products[index];
+  if(!product) return;
+  const currentMain = String(product.image_url || '').trim();
+  const currentGallery = normalizeImageGallery(product.additional_images);
+  const result = updater({ main: currentMain, gallery: currentGallery, product }) || {};
+  const nextMain = String(result.main ?? currentMain ?? '').trim();
+  const nextGallery = normalizeImageGallery(result.gallery ?? currentGallery).filter(url => url && url !== nextMain);
+  product.image_url = nextMain;
+  product.additional_images = nextGallery;
+  products[index] = product;
+  state.admin.products = products;
+  setAdminGalleryTextarea(index, nextGallery);
+  state.admin.productsMessage = '';
+  save();
+  if(rerender) render();
+}
+function setAdminGalleryMain(index, url){
+  const target = String(url || '').trim();
+  if(!target) return;
+  updateAdminProductGallery(index, ({ main, gallery }) => {
+    const all = normalizeImageGallery([main, ...gallery]);
+    return { main: target, gallery: all.filter(item => item !== target) };
+  });
+}
+function removeAdminGalleryImage(index, url){
+  const target = String(url || '').trim();
+  if(!target) return;
+  updateAdminProductGallery(index, ({ main, gallery }) => {
+    if(target === main){
+      const remaining = gallery.filter(item => item !== target);
+      return { main: remaining[0] || '', gallery: remaining.slice(1) };
+    }
+    return { main, gallery: gallery.filter(item => item !== target) };
+  });
+}
+function moveAdminGalleryImage(index, url, direction){
+  const target = String(url || '').trim();
+  const dir = Number(direction || 0);
+  if(!target || !dir) return;
+  updateAdminProductGallery(index, ({ main, gallery }) => {
+    const all = normalizeImageGallery([main, ...gallery]);
+    const pos = all.indexOf(target);
+    const next = pos + dir;
+    if(pos < 0 || next < 0 || next >= all.length) return { main, gallery };
+    const copy = all.slice();
+    [copy[pos], copy[next]] = [copy[next], copy[pos]];
+    return { main: copy[0] || '', gallery: copy.slice(1) };
+  });
+}
+function renderAdminGalleryManager(product, index){
+  const all = adminGalleryAllImages(product);
+  if(!all.length) return `<div class="admin-gallery-empty">Noch keine Galeriebilder hinterlegt.</div>`;
+  const main = String(product.image_url || '').trim();
+  return `<div class="admin-gallery-manager">${all.map((url, idx)=>`
+    <div class="admin-gallery-item ${url === main ? 'is-main' : ''}">
+      <img src="${escapeAttr(url)}" alt="Galeriebild ${idx+1}" loading="lazy">
+      <div class="admin-gallery-item-actions">
+        <button type="button" class="tiny-ghost" data-gallery-main="${index}" data-gallery-url="${escapeAttr(url)}" ${url === main ? 'disabled' : ''}>Hauptbild</button>
+        <button type="button" class="tiny-ghost" data-gallery-move="${index}" data-gallery-url="${escapeAttr(url)}" data-gallery-direction="-1" ${idx === 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="tiny-ghost" data-gallery-move="${index}" data-gallery-url="${escapeAttr(url)}" data-gallery-direction="1" ${idx === all.length - 1 ? 'disabled' : ''}>↓</button>
+        <button type="button" class="tiny-danger" data-gallery-remove="${index}" data-gallery-url="${escapeAttr(url)}">Löschen</button>
+      </div>
+      ${url === main ? '<span class="admin-gallery-main-badge">Shopbild</span>' : ''}
+    </div>`).join('')}</div>`;
+}
+
 function parseBundleMeta(row){
   const directOptions = Array.isArray(row?.quantity_options)
     ? row.quantity_options.map((value)=>Number(value)).filter((value)=>Number.isFinite(value) && value > 0)
@@ -2011,7 +2088,10 @@ async function uploadAdminProductGalleryImages(index, files){
     }
     const fresh = readAdminProductRowsDirectFromDom();
     const current = normalizeImageGallery(fresh[index]?.additional_images || product.additional_images);
-    if(fresh[index]) fresh[index].additional_images = normalizeImageGallery([...current, ...uploaded]);
+    if(fresh[index]){
+      fresh[index].additional_images = normalizeImageGallery([...current, ...uploaded]);
+      if(!String(fresh[index].image_url || '').trim() && uploaded[0]) fresh[index].image_url = uploaded[0];
+    }
     state.admin.products = fresh;
     state.admin.productsMessage = 'Galeriebilder hochgeladen.';
     save();
@@ -3733,7 +3813,7 @@ function renderAdminProducts(){
                 <label class="admin-upload-label" for="productGalleryInput-${index}">Zusatzbilder hochladen</label>
                 <small>Für Galerie-Popup. Hauptbild bleibt oben separat.</small>
               </div>
-              ${normalizeImageGallery(product.additional_images).length ? `<div class="admin-gallery-preview">${normalizeImageGallery(product.additional_images).map(url=>`<img src="${escapeAttr(url)}" alt="Galeriebild" loading="lazy">`).join('')}</div>` : ''}
+              ${renderAdminGalleryManager(product, index)}
             </div>
           </div>
         `).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
@@ -3883,6 +3963,16 @@ function bindAdminProducts(){
       const index = Number(input.getAttribute('data-gallery-upload-index'));
       uploadAdminProductGalleryImages(index, input.files);
     };
+  });
+
+  document.querySelectorAll('[data-gallery-main]').forEach(btn => {
+    btn.onclick = () => setAdminGalleryMain(Number(btn.getAttribute('data-gallery-main')), btn.getAttribute('data-gallery-url'));
+  });
+  document.querySelectorAll('[data-gallery-remove]').forEach(btn => {
+    btn.onclick = () => removeAdminGalleryImage(Number(btn.getAttribute('data-gallery-remove')), btn.getAttribute('data-gallery-url'));
+  });
+  document.querySelectorAll('[data-gallery-move]').forEach(btn => {
+    btn.onclick = () => moveAdminGalleryImage(Number(btn.getAttribute('data-gallery-move')), btn.getAttribute('data-gallery-url'), Number(btn.getAttribute('data-gallery-direction')));
   });
   document.querySelectorAll('[data-image-drop-index]').forEach(zone => {
     zone.addEventListener('dragover', (event) => {

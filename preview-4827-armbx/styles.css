@@ -947,14 +947,22 @@ button[data-action="bundle-info"] {
 .admin-gallery-panel textarea{min-height:72px;resize:vertical}
 .admin-gallery-upload-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
 .admin-gallery-upload-row small{opacity:.78;font-size:.78rem}
-.admin-gallery-preview{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.admin-gallery-preview img{width:54px;height:54px;object-fit:contain;background:#fff;border:1px solid rgba(133,170,219,.45);border-radius:8px;padding:4px}
+.admin-gallery-manager{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:10px}
+.admin-gallery-item{position:relative;display:grid;grid-template-columns:58px 1fr;gap:8px;align-items:center;padding:8px;border:1px solid rgba(133,170,219,.35);border-radius:12px;background:rgba(7,18,38,.55)}
+.admin-gallery-item.is-main{border-color:rgba(79,255,126,.75);box-shadow:0 0 0 1px rgba(79,255,126,.18),0 0 18px rgba(79,255,126,.12)}
+.admin-gallery-item img{width:58px;height:58px;object-fit:contain;background:#fff;border:1px solid rgba(133,170,219,.45);border-radius:9px;padding:4px}
+.admin-gallery-item-actions{display:flex;gap:5px;flex-wrap:wrap}
+.tiny-ghost,.tiny-danger{border:1px solid rgba(133,170,219,.45);border-radius:999px;background:rgba(255,255,255,.06);color:#e8f0ff;padding:5px 8px;font-size:.72rem;cursor:pointer}
+.tiny-ghost:disabled,.tiny-danger:disabled{opacity:.35;cursor:not-allowed}
+.tiny-danger{border-color:rgba(255,94,94,.5);color:#ffd6d6}
+.admin-gallery-main-badge{position:absolute;top:6px;left:6px;border-radius:999px;padding:2px 7px;background:rgba(79,255,126,.92);color:#06121f;font-size:.68rem;font-weight:900}
+.admin-gallery-empty{margin-top:8px;padding:9px;border-radius:10px;background:rgba(255,255,255,.05);color:#b8c7df;font-size:.82rem}
 .product-image-gallery-thumbs{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px;max-width:min(88vw,720px)}
 .product-gallery-thumb{width:64px;height:52px;border:1px solid rgba(133,170,219,.55);border-radius:9px;background:rgba(5,17,34,.85);padding:4px;cursor:pointer;opacity:.78;transition:opacity .15s ease,transform .15s ease,border-color .15s ease}
 .product-gallery-thumb:hover,.product-gallery-thumb.is-active{opacity:1;transform:translateY(-1px);border-color:#c9ff5a}
 .product-gallery-thumb img{width:100%;height:100%;object-fit:contain;background:#fff;border-radius:5px}
 .product-image-modal-frame img{max-height:min(66vh,720px)}
-@media(max-width:760px){.product-gallery-thumb{width:56px;height:46px}.admin-gallery-preview img{width:48px;height:48px}}
+@media(max-width:760px){.product-gallery-thumb{width:56px;height:46px}.admin-gallery-manager{grid-template-columns:1fr}.admin-gallery-item{grid-template-columns:54px 1fr}.admin-gallery-item img{width:54px;height:54px}}
 
 /* STEP 20B – CMS Pro Logo/Minimum Order Preview */
 .cms-logo-preview img{max-height:80px;object-fit:contain;background:#07131f;padding:10px;border-radius:10px;}
