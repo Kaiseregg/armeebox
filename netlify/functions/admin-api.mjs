@@ -156,6 +156,22 @@ function parseBundleOptions(value, fallback = [2, 3, 4]) {
   ];
 }
 
+function parseImageGallery(value) {
+  let source = value;
+  if (typeof source === 'string') {
+    const trimmed = source.trim();
+    if (!trimmed) return [];
+    try { source = JSON.parse(trimmed); } catch (_) { source = trimmed.split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean); }
+  }
+  if (!Array.isArray(source)) return [];
+  return source
+    .map((item) => typeof item === 'string' ? item : (item?.url || item?.image_url || ''))
+    .map((url) => String(url || '').trim())
+    .filter(Boolean)
+    .filter((url, index, arr) => arr.indexOf(url) === index)
+    .slice(0, 8);
+}
+
 function parseBundleMeta(row) {
   const raw = String(row?.description_fr || '');
   const fallbackContentDe = String(row?.description_de || '');
@@ -186,6 +202,7 @@ function parseBundleMeta(row) {
     slot_type: slotType,
     show_info: showInfo,
     image_popup_enabled: imagePopupEnabled,
+    additional_images: parseImageGallery(legacy?.additional_images || legacy?.gallery_images || row?.additional_images || row?.gallery_images || row?.image_gallery || []),
     bundle_content_de: direct.bundle_content_de || coerceLocalizedText(legacy?.content_de ?? legacy?.content ?? '', fallbackContentDe),
     bundle_content_fr: direct.bundle_content_fr || coerceLocalizedText(legacy?.content_fr ?? '', ''),
     option_label_de: direct.option_label_de || coerceLocalizedText(legacy?.option_label_de ?? '', ''),
@@ -200,6 +217,7 @@ function encodeBundleMeta(row) {
     slot_type: row?.slot_type === 'bundle' ? 'bundle' : 'normal',
     show_info: Boolean(row?.show_info || row?.slot_type === 'bundle'),
     image_popup_enabled: Boolean(row?.image_popup_enabled),
+    additional_images: parseImageGallery(row?.additional_images || row?.gallery_images || row?.image_gallery || []),
     content_de: coerceLocalizedText(row?.bundle_content_de || row?.bundle_content || row?.description_de || '', row?.description_de || ''),
     content_fr: coerceLocalizedText(row?.bundle_content_fr || '', ''),
     option_label_de: coerceLocalizedText(row?.option_label_de || '', ''),
@@ -228,6 +246,7 @@ function normalizeProductRow(row) {
     slot_type: meta.slot_type,
     show_info: Boolean(meta.show_info || meta.slot_type === 'bundle'),
     image_popup_enabled: Boolean(meta.image_popup_enabled),
+    additional_images: meta.additional_images || [],
     bundle_content_de: meta.bundle_content_de,
     bundle_content_fr: meta.bundle_content_fr || meta.bundle_content_de,
     option_label_de: meta.option_label_de,
@@ -268,6 +287,7 @@ function normalizeIncomingProducts(body) {
         slot_type: item?.slot_type === 'bundle' ? 'bundle' : 'normal',
         show_info: Boolean(item?.show_info || item?.slot_type === 'bundle'),
         image_popup_enabled: Boolean(item?.image_popup_enabled ?? false),
+        additional_images: parseImageGallery(item?.additional_images || item?.gallery_images || item?.image_gallery || []),
         bundle_content_de: coerceLocalizedText(item?.bundle_content_de ?? item?.bundle_content ?? item?.description_de ?? '', item?.description_de ?? '').trim(),
         bundle_content_fr: coerceLocalizedText(item?.bundle_content_fr ?? item?.description_fr ?? '', '').trim(),
         option_label_de: coerceLocalizedText(item?.option_label_de ?? '', '').trim(),
