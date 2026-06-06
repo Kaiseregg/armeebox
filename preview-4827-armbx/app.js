@@ -1021,6 +1021,32 @@ function localizedAdminValue(value, fallback=''){
   return String(value ?? fallback ?? '');
 }
 
+function normalizeImageGallery(value){
+  let source = value;
+  if(typeof source === 'string'){
+    const trimmed = source.trim();
+    if(!trimmed) return [];
+    try{ source = JSON.parse(trimmed); }
+    catch(_){ source = trimmed.split(/[\n,;]+/).map(item => item.trim()).filter(Boolean); }
+  }
+  if(!Array.isArray(source)) return [];
+  return source
+    .map(item => typeof item === 'string' ? item : (item?.url || item?.image_url || ''))
+    .map(url => String(url || '').trim())
+    .filter(Boolean)
+    .filter((url, index, arr) => arr.indexOf(url) === index)
+    .slice(0, 8);
+}
+function productGalleryImages(product){
+  const urls = [];
+  if(product?.image_url) urls.push(String(product.image_url));
+  normalizeImageGallery(product?.additional_images).forEach(url => { if(url && !urls.includes(url)) urls.push(url); });
+  return urls.slice(0, 9);
+}
+function imageGalleryTextareaValue(product){
+  return normalizeImageGallery(product?.additional_images).join('\n');
+}
+
 function parseBundleMeta(row){
   const directOptions = Array.isArray(row?.quantity_options)
     ? row.quantity_options.map((value)=>Number(value)).filter((value)=>Number.isFinite(value) && value > 0)
@@ -1037,7 +1063,8 @@ function parseBundleMeta(row){
     option_label_fr: localizedAdminValue(row?.option_label_fr ?? row?.option_label?.fr ?? '', ''),
     quantity_options: directOptions.length ? directOptions : [2,3,4],
     bundle_options: directBundleOptions.length ? directBundleOptions : [2,3,4],
-    image_popup_enabled: Boolean(row?.image_popup_enabled ?? false)
+    image_popup_enabled: Boolean(row?.image_popup_enabled ?? false),
+    additional_images: normalizeImageGallery(row?.additional_images || row?.gallery_images || row?.image_gallery || [])
   };
   const raw = String(row?.description_fr || '');
   if(raw.startsWith(META_PREFIX)){
@@ -1055,7 +1082,8 @@ function parseBundleMeta(row){
         option_label_fr: localizedAdminValue(row?.option_label_fr ?? row?.option_label?.fr ?? meta?.option_label_fr ?? base.option_label_fr ?? '', base.option_label_fr ?? ''),
         quantity_options: directOptions.length ? directOptions : (options.length ? options : base.quantity_options),
         bundle_options: directBundleOptions.length ? directBundleOptions : (bundleOptions.length ? bundleOptions : base.bundle_options),
-        image_popup_enabled: typeof meta?.image_popup_enabled === 'boolean' ? meta.image_popup_enabled : Boolean(row?.image_popup_enabled ?? base.image_popup_enabled)
+        image_popup_enabled: typeof meta?.image_popup_enabled === 'boolean' ? meta.image_popup_enabled : Boolean(row?.image_popup_enabled ?? base.image_popup_enabled),
+        additional_images: normalizeImageGallery(meta?.additional_images || meta?.gallery_images || row?.additional_images || base.additional_images)
       };
     }catch(_){ }
   }
@@ -1069,6 +1097,8 @@ function encodeBundleMeta(product){
     content_fr: String(product.bundle_content?.fr || ''),
     option_label_de: String(product.option_label?.de || ''),
     option_label_fr: String(product.option_label?.fr || ''),
+    image_popup_enabled: Boolean(product.image_popup_enabled),
+    additional_images: normalizeImageGallery(product.additional_images),
     quantity_options: (Array.isArray(product.quantity_options) ? product.quantity_options : []).map((value)=>Number(value)).filter((value)=>Number.isFinite(value) && value > 0),
     bundle_options: bundleOptionList(product)
   })}`;
@@ -1110,19 +1140,21 @@ function renderProductInfoContent(product){
 
 function renderImagePopupModal(){
   const product = state.imagePopupProductId ? currentProducts().find(p=>String(p.id)===String(state.imagePopupProductId)) : null;
-  if(!product || !product.image_url) return '';
+  const images = productGalleryImages(product);
+  if(!product || !images.length) return '';
   const name = product.name?.[state.lang] || product.name?.de || '';
   return `<div class="modal-backdrop image-modal-backdrop" data-close-image-popup>
     <div class="modal product-image-modal" role="dialog" aria-modal="true" aria-label="${escapeAttr(name)}">
       <button class="modal-close" data-close-image-popup aria-label="Schliessen">×</button>
       <h3>${escapeHtml(name)}</h3>
-      <div class="product-image-modal-frame"><img src="${escapeAttr(product.image_url)}" alt="${escapeAttr(name)}"></div>
+      <div class="product-image-modal-frame"><img src="${escapeAttr(images[0])}" alt="${escapeAttr(name)}"></div>
+      ${images.length > 1 ? `<div class="product-image-gallery-thumbs">${images.map((url, idx)=>`<button type="button" class="product-gallery-thumb ${idx===0?'is-active':''}" data-gallery-image="${escapeAttr(url)}" aria-label="Bild ${idx+1}"><img src="${escapeAttr(url)}" alt=""></button>`).join('')}</div>` : ''}
     </div>
   </div>`;
 }
 function openImagePopup(productId){
   const product = currentProducts().find(p=>String(p.id)===String(productId));
-  if(!product || !product.image_url || !product.image_popup_enabled) return;
+  if(!product || !product.image_popup_enabled || !productGalleryImages(product).length) return;
   state.imagePopupProductId = String(product.id);
   render();
 }
@@ -1341,7 +1373,8 @@ function normalizeCatalogProduct(row, index){
     option_label: { de: meta.option_label_de, fr: meta.option_label_fr || meta.option_label_de },
     quantity_options: meta.quantity_options,
     bundle_options: meta.bundle_options || meta.quantity_options,
-    image_popup_enabled: Boolean(meta.image_popup_enabled)
+    image_popup_enabled: Boolean(meta.image_popup_enabled),
+    additional_images: normalizeImageGallery(meta.additional_images)
   };
 }
 function currentProducts(){
@@ -1944,6 +1977,43 @@ async function uploadAdminProductImage(index, file){
 }
 
 
+async function uploadAdminProductGalleryImages(index, files){
+  const list = Array.from(files || []).filter(Boolean);
+  if(!list.length) return;
+  const products = adminProductsList();
+  const product = products[index];
+  if(!product) return;
+  const allowed = ['image/jpeg','image/png','image/webp','image/gif'];
+  try{
+    state.admin.loginError = '';
+    state.admin.productsMessage = `Galeriebilder werden hochgeladen …`;
+    save(); render();
+    const uploaded = [];
+    for(const file of list.slice(0, 6)){
+      if(file.type && !allowed.includes(file.type)) throw new Error('Nur JPG, PNG, WebP oder GIF erlaubt');
+      if(file.size && file.size > 8 * 1024 * 1024) throw new Error('Bild ist zu gross. Maximum 8 MB.');
+      const form = new FormData();
+      form.append('file', file);
+      form.append('slot', `${product.slot || product.slotNumber || index + 1}-gallery`);
+      const response = await fetch('/.netlify/functions/upload-product-image', { method:'POST', body: form, credentials:'same-origin' });
+      const data = await response.json().catch(()=>({}));
+      if(!response.ok || data.success === false || !data.publicUrl) throw new Error(data.error || 'Upload fehlgeschlagen');
+      uploaded.push(data.publicUrl);
+    }
+    const fresh = readAdminProductRowsDirectFromDom();
+    const current = normalizeImageGallery(fresh[index]?.additional_images || product.additional_images);
+    if(fresh[index]) fresh[index].additional_images = normalizeImageGallery([...current, ...uploaded]);
+    state.admin.products = fresh;
+    state.admin.productsMessage = 'Galeriebilder hochgeladen.';
+    save();
+    await saveAdminProducts(fresh);
+  }catch(error){
+    state.admin.loginError = error.message || 'Galerie-Upload fehlgeschlagen';
+    save(); render();
+  }
+}
+
+
 function readAdminProductRowsDirectFromDom(){
   const products = adminProductsList();
   return products.map((product, index) => {
@@ -1975,6 +2045,7 @@ function readAdminProductRowsDirectFromDom(){
       price_chf: Number(value('price', product.price || 0) || 0),
       is_active: checked('active', product.active !== false),
       image_url: value('image_url', product.image_url || ''),
+      additional_images: normalizeImageGallery(value('additional_images', imageGalleryTextareaValue(product))),
       sort_order: Number(product.sort_order || 0),
       stock_total: stockValue(value('stock_total', productStock(product).total), 0),
       stock_current: stockValue(value('stock_current', productStock(product).current), 0),
@@ -2673,6 +2744,13 @@ function bindMachine(){
   document.querySelectorAll('[data-slot-info]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); openSlotInfo(el.getAttribute('data-slot-info')); });
   document.querySelectorAll('[data-image-popup]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); openImagePopup(el.getAttribute('data-image-popup')); });
   document.querySelectorAll('[data-close-image-popup]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); closeImagePopup(); });
+  document.querySelectorAll('[data-gallery-image]').forEach(btn=>btn.onclick=(e)=>{
+    e.stopPropagation();
+    const modal = btn.closest('.product-image-modal');
+    const img = modal?.querySelector('.product-image-modal-frame img');
+    const url = btn.getAttribute('data-gallery-image') || '';
+    if(img && url){ img.src = url; modal.querySelectorAll('.product-gallery-thumb').forEach(x=>x.classList.remove('is-active')); btn.classList.add('is-active'); }
+  });
   document.querySelectorAll('[data-slot-option]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); cycleBundleOption(el.getAttribute('data-slot-option')); });
   document.querySelectorAll('[data-slot-option-select]').forEach(el=>{
     ['mousedown','click','keydown'].forEach(evt=>el.addEventListener(evt,(e)=>e.stopPropagation()));
@@ -3639,6 +3717,15 @@ function renderAdminProducts(){
               <label class="admin-upload-label" for="productImageInput-${index}">${t('adminImageUpload')}</label>
               <div class="admin-image-preview">${product.image_url ? `<img src="${escapeAttr(product.image_url)}" alt="Produktbild Slot ${escapeAttr(product.slot)}" loading="lazy">` : `<span>Kein Bild hinterlegt</span>`}</div>
             </div>
+            <div class="admin-gallery-panel">
+              <div class="field"><label>Zusatzbilder / Galerie URLs</label><textarea data-product-field="additional_images" data-product-index="${index}" placeholder="https://.../bild-2.png&#10;https://.../bild-3.png">${escapeHtml(imageGalleryTextareaValue(product))}</textarea></div>
+              <div class="admin-gallery-upload-row">
+                <input class="admin-file-input" id="productGalleryInput-${index}" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple data-gallery-upload-index="${index}">
+                <label class="admin-upload-label" for="productGalleryInput-${index}">Zusatzbilder hochladen</label>
+                <small>Für Galerie-Popup. Hauptbild bleibt oben separat.</small>
+              </div>
+              ${normalizeImageGallery(product.additional_images).length ? `<div class="admin-gallery-preview">${normalizeImageGallery(product.additional_images).map(url=>`<img src="${escapeAttr(url)}" alt="Galeriebild" loading="lazy">`).join('')}</div>` : ''}
+            </div>
           </div>
         `).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
       </div>
@@ -3779,6 +3866,13 @@ function bindAdminProducts(){
       const index = Number(input.getAttribute('data-image-upload-index'));
       const file = input.files && input.files[0];
       uploadAdminProductImage(index, file);
+    };
+  });
+
+  document.querySelectorAll('[data-gallery-upload-index]').forEach(input => {
+    input.onchange = () => {
+      const index = Number(input.getAttribute('data-gallery-upload-index'));
+      uploadAdminProductGalleryImages(index, input.files);
     };
   });
   document.querySelectorAll('[data-image-drop-index]').forEach(zone => {
