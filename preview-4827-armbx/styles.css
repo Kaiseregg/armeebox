@@ -924,3 +924,9 @@ button[data-action="bundle-info"] {
   font-size:11px;
   line-height:1.25;
 }
+
+
+.order-btn:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.35)}
+.min-order-note{font-size:11px;line-height:1.25;margin:8px 0 4px;padding:7px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.18)}
+.min-order-note.warn{color:#ffe46a;border-color:rgba(255,228,106,.35)}
+.min-order-note.ok{color:#baff67;border-color:rgba(186,255,103,.28)}

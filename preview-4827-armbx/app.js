@@ -541,6 +541,8 @@ const texts = {
     remove: 'Entfernen',
     deliveryDetails: 'Lieferdetails',
     validationCart: 'Bitte mindestens ein Produkt wählen.',
+    validationMinOrder: 'Mindestbestellwert CHF 15.–. Bitte wähle noch Produkte im Wert von CHF {amount}.',
+    minOrderHint: 'Mindestbestellwert CHF 15.–',
     validationGeneric: 'Bitte alle Pflichtfelder korrekt ausfüllen.',
     validationEmail: 'Bitte eine gültige E-Mail-Adresse eingeben.',
     validationPrivatePhone: 'Bitte eine Telefonnummer eingeben.',
@@ -727,6 +729,8 @@ const texts = {
     remove: 'Retirer',
     deliveryDetails: 'Détails de livraison',
     validationCart: 'Veuillez choisir au moins un produit.',
+    validationMinOrder: 'Montant minimum CHF 15.–. Veuillez encore choisir des produits pour CHF {amount}.',
+    minOrderHint: 'Montant minimum CHF 15.–',
     validationGeneric: 'Veuillez remplir correctement tous les champs obligatoires.',
     validationEmail: 'Veuillez saisir une adresse e-mail valide.',
     validationPrivatePhone: 'Veuillez saisir un numéro de téléphone.',
@@ -872,6 +876,8 @@ const META_PREFIX = '__ARMBX_META__';
 function getBundleInfoButtonText() {
   return currentLang === 'fr' ? 'Voir contenu' : 'Info Inhalt';
 }
+
+const MIN_ORDER_AMOUNT_CHF = 15;
 
 const state = {
   lang: 'de',
@@ -2064,6 +2070,8 @@ function cartGrouped(){
 function subtotal(){ return cartItemsDetailed().reduce((a,p)=>a+Number(p.price || 0),0); }
 function shippingCost(){ return state.shipping==='private' ? 9 : 0; }
 function total(){ return subtotal()+shippingCost(); }
+function minOrderMissing(){ return Math.max(0, MIN_ORDER_AMOUNT_CHF - subtotal()); }
+function minOrderMessage(){ return t('validationMinOrder').replace('{amount}', minOrderMissing().toFixed(2)); }
 
 const ARMEBOX_ADMIN_PATH = '/arbx-control';
 const ARMEBOX_ADMIN_ROUTES = ['admin-login','admin-orders','admin-order','admin-products','admin-design','admin-analytics','admin-customers'];
@@ -2286,7 +2294,8 @@ function renderMachine(){
                 <button class="remove-btn" data-remove="${item.groupKey}" aria-label="${t('remove')}">×</button>
               </div>`).join('') : `<div class="note">${t('empty')}</div>`}
             </div>
-            <button class="order-btn order-btn-inline" id="goOrderBtn">${t('order')}</button>
+            <div class="min-order-note ${subtotal() >= MIN_ORDER_AMOUNT_CHF ? 'ok' : 'warn'}">${subtotal() >= MIN_ORDER_AMOUNT_CHF ? t('minOrderHint') : minOrderMessage()}</div>
+            <button class="order-btn order-btn-inline" id="goOrderBtn" ${subtotal() >= MIN_ORDER_AMOUNT_CHF ? '' : 'disabled'}>${t('order')}</button>
           </div>
           <div class="dots"><span class="dot"></span><span class="dot green"></span></div>
         </aside>
@@ -2636,7 +2645,7 @@ function bindMachine(){
     ['mousedown','click','keydown'].forEach(evt=>el.addEventListener(evt,(e)=>e.stopPropagation()));
     el.onchange=(e)=>{ e.stopPropagation(); setBundleOption(el.getAttribute('data-slot-option-select'), el.value); };
   });
-  const orderBtn=document.getElementById('goOrderBtn'); if(orderBtn) orderBtn.onclick=()=>setRoute('order');
+  const orderBtn=document.getElementById('goOrderBtn'); if(orderBtn) orderBtn.onclick=()=>{ if(subtotal() < MIN_ORDER_AMOUNT_CHF){ state.validationErrors=[minOrderMessage()]; save(); render(); return; } setRoute('order'); };
   const closeInfo=document.getElementById('closeSlotInfoBtn'); if(closeInfo) closeInfo.onclick=()=>closeSlotInfo();
   const backdrop=document.getElementById('slotInfoBackdrop'); if(backdrop) backdrop.onclick=(e)=>{ if(e.target===backdrop) closeSlotInfo(); };
 }
@@ -2678,6 +2687,7 @@ function syncFormFields(){
 function validateOrder(){
   const errors = [];
   if(!state.cart.length) errors.push(t('validationCart'));
+  else if(subtotal() < MIN_ORDER_AMOUNT_CHF) errors.push(minOrderMessage());
   if(state.shipping === 'barracks'){
     if(!state.form.soldierFirstName.trim() || !state.form.soldierLastName.trim()) errors.push(t('validationSoldierName'));
     if(!state.form.senderName.trim() || !state.form.senderStreet.trim() || !state.form.senderZip.trim()) errors.push(t('validationSender'));
