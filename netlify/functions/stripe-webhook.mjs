@@ -367,6 +367,8 @@ export default async (request) => {
 
       await patchOrder(orderId, {
         payment_status: 'paid',
+        order_status: 'new',
+        status: 'new',
         paid_at: new Date().toISOString(),
         stripe_checkout_session_id: session.id || null,
         stripe_payment_intent_id:
@@ -404,7 +406,7 @@ export default async (request) => {
     if (event.type === 'checkout.session.expired') {
       const session = event.data.object;
       const orderId = orderIdFromSession(session);
-      if (orderId) await patchOrder(orderId, { payment_status: 'cancelled' });
+      if (orderId) await patchOrder(orderId, { payment_status: 'cancelled', order_status: 'payment_cancelled', status: 'payment_cancelled' });
       return json(200, { received: true, type: event.type, order_id: orderId || null });
     }
 

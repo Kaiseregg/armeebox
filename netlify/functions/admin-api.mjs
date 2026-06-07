@@ -71,9 +71,18 @@ async function supa(path, options = {}) {
 }
 
 function normalizeOrder(row) {
+  const paymentStatus = String(row?.payment_status || '').toLowerCase();
+  const rawStatus = String(row?.order_status || row?.status || '').toLowerCase();
+  let status = row?.order_status || row?.status || 'new';
+
+  if (paymentStatus === 'pending' || rawStatus === 'payment_pending') status = 'payment_pending';
+  if (paymentStatus === 'cancelled' || paymentStatus === 'canceled' || rawStatus === 'payment_cancelled') status = 'payment_cancelled';
+  if (paymentStatus === 'paid' && rawStatus === 'payment_pending') status = 'new';
+
   return {
     ...row,
-    status: row?.order_status || row?.status || 'new'
+    status,
+    order_status: status
   };
 }
 
@@ -629,12 +638,12 @@ async function saveProducts(body) {
 
 async function getAnalytics() {
   const [ordersRaw, itemsRaw, productsRaw] = await Promise.all([
-    supa('orders?select=id,order_number,created_at,customer_email,shipping_method,total,total_chf,order_status,status&order=created_at.desc&limit=1000'),
+    supa('orders?select=id,order_number,created_at,customer_email,shipping_method,total,total_chf,order_status,status,payment_status&order=created_at.desc&limit=1000'),
     supa('order_items?select=order_id,product_name,quantity,total_price,total_price_chf,line_total_chf,created_at&order=created_at.desc&limit=2000'),
     listProducts().catch(() => [])
   ]);
 
-  const orders = Array.isArray(ordersRaw) ? ordersRaw.map(normalizeOrder) : [];
+  const orders = Array.isArray(ordersRaw) ? ordersRaw.map(normalizeOrder).filter((order) => !['payment_pending','payment_cancelled'].includes(order.status)) : [];
   const items = Array.isArray(itemsRaw) ? itemsRaw : [];
   const products = Array.isArray(productsRaw) ? productsRaw : [];
   const now = new Date();
@@ -863,7 +872,7 @@ export default async (request) => {
     }
 
     if (action === 'orders' && request.method === 'GET') {
-      const rows = await supa('orders?select=id,order_number,created_at,customer_email,shipping_method,total,total_chf,order_status,status,item_count&order=created_at.desc&limit=100');
+      const rows = await supa('orders?select=id,order_number,created_at,customer_email,shipping_method,total,total_chf,order_status,status,payment_status,item_count&order=created_at.desc&limit=100');
       return json(200, { success: true, orders: Array.isArray(rows) ? rows.map(normalizeOrder) : [] });
     }
 
