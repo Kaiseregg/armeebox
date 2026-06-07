@@ -575,6 +575,8 @@ const texts = {
     adminFilterDone: 'Erledigt',
     adminFilterShipped: 'Versandt',
     adminFilterArchived: 'Archiviert',
+    adminFilterPaymentPending: 'Zahlung offen',
+    adminFilterPaymentCancelled: 'Zahlung abgebrochen',
     adminNoResults: 'Keine Bestellungen für diese Suche / diesen Filter.',
     adminShippingBarracks: 'Versand Kaserne',
     adminShippingPrivate: 'Versand Privat',
@@ -583,6 +585,8 @@ const texts = {
     adminStatusDone: 'Erledigt',
     adminStatusShipped: 'Versandt',
     adminStatusArchived: 'Archiviert',
+    adminStatusPaymentPending: 'Zahlung offen',
+    adminStatusPaymentCancelled: 'Zahlung abgebrochen',
     adminListHint: 'Suche, Filter und Statusübersicht',
     adminOrderInfo: 'Bestellinfo',
     adminItems: 'Artikel',
@@ -763,6 +767,8 @@ const texts = {
     adminFilterDone: 'Terminé',
     adminFilterShipped: 'Expédié',
     adminFilterArchived: 'Archivé',
+    adminFilterPaymentPending: 'Paiement ouvert',
+    adminFilterPaymentCancelled: 'Paiement annulé',
     adminNoResults: 'Aucune commande pour cette recherche / ce filtre.',
     adminShippingBarracks: 'Envoi caserne',
     adminShippingPrivate: 'Envoi privé',
@@ -771,6 +777,8 @@ const texts = {
     adminStatusDone: 'Terminé',
     adminStatusShipped: 'Expédié',
     adminStatusArchived: 'Archivé',
+    adminStatusPaymentPending: 'Paiement ouvert',
+    adminStatusPaymentCancelled: 'Paiement annulé',
     adminListHint: 'Recherche, filtres et aperçu des statuts',
     adminOrderInfo: 'Infos commande',
     adminItems: 'Articles',
@@ -1542,14 +1550,19 @@ function formatDate(value){
   return d.toLocaleString(state.lang === 'fr' ? 'fr-CH' : 'de-CH');
 }
 function adminStatusLabel(value){
-  if(value==='in_progress') return 'in_progress';
-  if(value==='shipped') return 'shipped';
-  if(value==='done') return 'done';
-  if(value==='archived') return 'archived';
+  const v = String(value || '').toLowerCase();
+  if(v==='payment_pending' || v==='pending' || v==='open') return 'payment_pending';
+  if(v==='payment_cancelled' || v==='cancelled' || v==='canceled' || v==='expired') return 'payment_cancelled';
+  if(v==='in_progress') return 'in_progress';
+  if(v==='shipped') return 'shipped';
+  if(v==='done') return 'done';
+  if(v==='archived') return 'archived';
   return 'new';
 }
 function adminStatusText(value){
   const status = adminStatusLabel(value);
+  if(status==='payment_pending') return t('adminStatusPaymentPending');
+  if(status==='payment_cancelled') return t('adminStatusPaymentCancelled');
   if(status==='in_progress') return t('adminStatusInProgress');
   if(status==='shipped') return t('adminStatusShipped');
   if(status==='done') return t('adminStatusDone');
@@ -1632,7 +1645,7 @@ function filteredAdminOrders(){
   const filter = state.admin.filter || 'all';
   return (state.admin.orders || []).filter(order => {
     const status = adminStatusLabel(order.order_status || order.status);
-    if(filter === 'all' && status === 'archived') return false;
+    if(filter === 'all' && ['archived','payment_pending','payment_cancelled'].includes(status)) return false;
     if(filter !== 'all' && status !== filter) return false;
     if(!search) return true;
     const meta = order.order_meta || {};
@@ -2741,6 +2754,8 @@ function renderAdminOrders(){
           <label>${t('adminFilter')}</label>
           <select id="adminFilterSelect" class="form-select">
             <option value="all" ${state.admin.filter==='all'?'selected':''}>${t('adminFilterAll')}</option>
+            <option value="payment_pending" ${state.admin.filter==='payment_pending'?'selected':''}>${t('adminFilterPaymentPending')}</option>
+            <option value="payment_cancelled" ${state.admin.filter==='payment_cancelled'?'selected':''}>${t('adminFilterPaymentCancelled')}</option>
             <option value="new" ${state.admin.filter==='new'?'selected':''}>${t('adminFilterNew')}</option>
             <option value="in_progress" ${state.admin.filter==='in_progress'?'selected':''}>${t('adminFilterProgress')}</option>
             <option value="shipped" ${state.admin.filter==='shipped'?'selected':''}>${t('adminFilterShipped')}</option>
@@ -2801,13 +2816,19 @@ function renderAdminOrder(){
           <p><strong>${t('orderDate')}:</strong><br>${escapeHtml(formatDate(order.created_at))}</p>
           <p><strong>Kunden E-Mail:</strong><br>${escapeHtml(order.customer_email || '-')}</p>
           <p><strong>${t('shippingMode')}:</strong><br>${escapeHtml(shippingMethodText(order.shipping_method || '-'))}</p>
+          ${['payment_pending','payment_cancelled'].includes(adminStatusLabel(order.order_status || order.status)) ? `
+          <div class="field">
+            <label>${t('adminStatus')}</label>
+            <div class="admin-payment-note ${escapeAttr(adminStatusLabel(order.order_status || order.status))}">${escapeHtml(adminStatusText(order.order_status || order.status))}</div>
+            <div class="note">Diese Bestellung wird erst nach erfolgreicher Stripe/TWINT-Zahlung als echte Bestellung verarbeitet.</div>
+          </div>` : `
           <div class="field">
             <label>${t('adminStatus')}</label>
             <select id="adminStatusSelect" class="form-select">${ADMIN_STATUSES.map(status => `<option value="${status}" ${(order.order_status || order.status || 'new')===status ? 'selected' : ''}>${escapeHtml(adminStatusText(status))}</option>`).join('')}</select>
           </div>
           <div class="review-actions" style="justify-content:flex-start">
             <button class="cta primary" id="adminSaveStatusBtn" ${state.admin.statusSaving ? 'disabled' : ''}>${state.admin.statusSaving ? t('sendingOrder') : t('adminSaveStatus')}</button>
-          </div>
+          </div>`}
         </div>
       </div>
       <div class="admin-detail-grid" style="margin-top:18px">
@@ -3265,6 +3286,7 @@ function bindAdminDesign(){
   const logout=document.getElementById('adminLogoutBtn'); if(logout) logout.onclick=()=>doAdminLogout();
   document.querySelectorAll('[data-design-field]').forEach(el=>{ const handler=()=>{ state.admin.design = state.admin.design || {}; state.admin.design[el.getAttribute('data-design-field')] = el.type === 'checkbox' ? el.checked : el.value; save(); renderDesignPreviewOnly(); }; el.oninput=handler; el.onchange=handler; });
   document.querySelectorAll('[data-design-preset]').forEach(btn=>btn.onclick=()=>applyDesignPreset(btn.getAttribute('data-design-preset')));
+  document.querySelectorAll('[data-design-reset]').forEach(btn=>btn.onclick=()=>{ if(confirm('Design wirklich auf Standard zurücksetzen? Produkte, Bestellungen und Bilder bleiben erhalten.')) applyDesignPreset('classic'); });
   document.querySelectorAll('[data-page-field]').forEach(el=>el.oninput=()=>{ const i=Number(el.getAttribute('data-page-index')); const f=el.getAttribute('data-page-field'); state.admin.pages = state.admin.pages || []; if(state.admin.pages[i]){ let v = el.type === 'checkbox' ? el.checked : el.value; if(f==='sort_order') v=Number(v||0); state.admin.pages[i][f]=v; save(); } });
   document.querySelectorAll('[data-page-delete]').forEach(btn=>btn.onclick=()=>{ const i=Number(btn.getAttribute('data-page-delete')); const p=state.admin.pages?.[i]; if(!p) return; if(confirm(`Seite wirklich löschen: ${p.slug}?`)){ state.admin.pages.splice(i,1); save(); render(); } });
   document.querySelectorAll('[data-page-up]').forEach(btn=>btn.onclick=()=>moveAdminPage(Number(btn.getAttribute('data-page-up')),-1));
@@ -3446,7 +3468,7 @@ function blockLabel(type){ return ({heading:'Überschrift',text:'Text',image:'Bi
 function renderBlockEditor(block, pageIndex, blockIndex){
   const type = block?.type || 'text';
   const baseAttrs = `data-page-index="${pageIndex}" data-block-index="${blockIndex}"`;
-  const styleFields = `<div class="pb-admin-style-row"><div class="field"><label>Ausrichtung</label><select ${baseAttrs} data-block-field="align"><option value="left" ${block.align==='left'?'selected':''}>Links</option><option value="center" ${block.align==='center'?'selected':''}>Zentriert</option><option value="right" ${block.align==='right'?'selected':''}>Rechts</option></select></div><div class="field"><label>Textfarbe</label><input ${baseAttrs} data-block-field="textColor" type="color" value="${escapeAttr(block.textColor || '#ffffff')}"></div><div class="field"><label>Block-Hintergrund</label><input ${baseAttrs} data-block-field="bgColor" type="color" value="${escapeAttr(block.bgColor || '#071d36')}"></div><div class="field"><label>Breite</label><input ${baseAttrs} data-block-field="maxWidth" value="${escapeAttr(block.maxWidth || '')}" placeholder="z.B. 720px / 80%"></div><div class="field"><label>Abstand oben</label><input ${baseAttrs} data-block-field="marginTop" value="${escapeAttr(block.marginTop || '')}" placeholder="z.B. 20px"></div><div class="field"><label>Abstand unten</label><input ${baseAttrs} data-block-field="marginBottom" value="${escapeAttr(block.marginBottom || '')}" placeholder="z.B. 20px"></div><div class="field"><label>Innenabstand</label><input ${baseAttrs} data-block-field="padding" value="${escapeAttr(block.padding || '')}" placeholder="z.B. 18px"></div><div class="field"><label>Rundung</label><input ${baseAttrs} data-block-field="radius" value="${escapeAttr(block.radius || '')}" placeholder="z.B. 18px"></div><div class="field"><label>Schriftgrösse</label><input ${baseAttrs} data-block-field="fontSize" value="${escapeAttr(block.fontSize || '')}" placeholder="z.B. 18px / 1.2rem"></div><div class="field"><label>Schriftstärke</label><select ${baseAttrs} data-block-field="fontWeight"><option value="" ${!block.fontWeight?'selected':''}>Standard</option><option value="400" ${block.fontWeight==='400'?'selected':''}>Normal</option><option value="600" ${block.fontWeight==='600'?'selected':''}>Halbfett</option><option value="700" ${block.fontWeight==='700'?'selected':''}>Fett</option><option value="900" ${block.fontWeight==='900'?'selected':''}>Extra fett</option></select></div><div class="field"><label>Rahmenbreite</label><input ${baseAttrs} data-block-field="borderWidth" value="${escapeAttr(block.borderWidth || '')}" placeholder="z.B. 1px"></div><div class="field"><label>Rahmenfarbe</label><input ${baseAttrs} data-block-field="borderColor" type="color" value="${escapeAttr(block.borderColor || '#335a88')}"></div><div class="field"><label>Schatten</label><select ${baseAttrs} data-block-field="shadow"><option value="none" ${(block.shadow || 'none')==='none'?'selected':''}>Kein</option><option value="soft" ${block.shadow==='soft'?'selected':''}>Weich</option><option value="strong" ${block.shadow==='strong'?'selected':''}>Stark</option></select></div><div class="field"><label>Mindesthöhe</label><input ${baseAttrs} data-block-field="minHeight" value="${escapeAttr(block.minHeight || '')}" placeholder="z.B. 180px"></div></div><div class="pb-admin-style-row"><div class="field"><label>Block Hintergrundbild URL</label><input ${baseAttrs} data-block-field="bgImage" value="${escapeAttr(block.bgImage || '')}" placeholder="optional https://..."><div class="cms-image-upload-row"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" ${baseAttrs} data-block-bg-upload><span>Hintergrundbild hochladen oder URL einfügen</span></div>${block.bgImage ? `<div class="cms-block-image-preview"><img src="${escapeAttr(block.bgImage)}" alt=""></div>` : ''}</div><div class="field"><label>Hintergrund-Grösse</label><select ${baseAttrs} data-block-field="bgSize"><option value="cover" ${block.bgSize!=='contain'?'selected':''}>Cover</option><option value="contain" ${block.bgSize==='contain'?'selected':''}>Contain</option></select></div><div class="field"><label>Hintergrund-Position</label><input ${baseAttrs} data-block-field="bgPosition" value="${escapeAttr(block.bgPosition || 'center center')}" placeholder="center center"></div></div>`;
+  const styleFields = `<div class="pb-admin-style-row"><div class="field"><label>Ausrichtung</label><select ${baseAttrs} data-block-field="align"><option value="left" ${block.align==='left'?'selected':''}>Links</option><option value="center" ${block.align==='center'?'selected':''}>Zentriert</option><option value="right" ${block.align==='right'?'selected':''}>Rechts</option></select></div><div class="field"><label>Textfarbe</label><input ${baseAttrs} data-block-field="textColor" type="color" value="${escapeAttr(block.textColor || '#ffffff')}"></div><div class="field"><label>Block-Hintergrund</label><input ${baseAttrs} data-block-field="bgColor" type="color" value="${escapeAttr(block.bgColor || '#071d36')}"></div><div class="field"><label>Breite</label><input ${baseAttrs} data-block-field="maxWidth" value="${escapeAttr(block.maxWidth || '')}" placeholder="z.B. 720px / 80%"></div><div class="field"><label>Abstand oben</label><input ${baseAttrs} data-block-field="marginTop" value="${escapeAttr(block.marginTop || '')}" placeholder="z.B. 20px"></div><div class="field"><label>Abstand unten</label><input ${baseAttrs} data-block-field="marginBottom" value="${escapeAttr(block.marginBottom || '')}" placeholder="z.B. 20px"></div><div class="field"><label>Innenabstand</label><input ${baseAttrs} data-block-field="padding" value="${escapeAttr(block.padding || '')}" placeholder="z.B. 18px"></div><div class="field"><label>Rundung</label><input ${baseAttrs} data-block-field="radius" value="${escapeAttr(block.radius || '')}" placeholder="z.B. 18px"></div><div class="field"><label>Schriftgrösse</label><input ${baseAttrs} data-block-field="fontSize" value="${escapeAttr(block.fontSize || '')}" placeholder="z.B. 18px / 1.2rem"></div><div class="field"><label>Schriftstärke</label><select ${baseAttrs} data-block-field="fontWeight"><option value="" ${!block.fontWeight?'selected':''}>Standard</option><option value="400" ${block.fontWeight==='400'?'selected':''}>Normal</option><option value="600" ${block.fontWeight==='600'?'selected':''}>Halbfett</option><option value="700" ${block.fontWeight==='700'?'selected':''}>Fett</option><option value="900" ${block.fontWeight==='900'?'selected':''}>Extra fett</option></select></div><div class="field"><label>Rahmenbreite</label><input ${baseAttrs} data-block-field="borderWidth" value="${escapeAttr(block.borderWidth || '')}" placeholder="z.B. 1px"></div><div class="field"><label>Rahmenfarbe</label><input ${baseAttrs} data-block-field="borderColor" type="color" value="${escapeAttr(block.borderColor || '#335a88')}"></div><div class="field"><label>Schatten</label><select ${baseAttrs} data-block-field="shadow"><option value="none" ${(block.shadow || 'none')==='none'?'selected':''}>Kein</option><option value="soft" ${block.shadow==='soft'?'selected':''}>Weich</option><option value="strong" ${block.shadow==='strong'?'selected':''}>Stark</option></select></div><div class="field"><label>Mindesthöhe</label><input ${baseAttrs} data-block-field="minHeight" value="${escapeAttr(block.minHeight || '')}" placeholder="z.B. 180px"></div></div><div class="pb-admin-style-row"><div class="field"><label>Block Hintergrundbild URL</label><input ${baseAttrs} data-block-field="bgImage" value="${escapeAttr(block.bgImage || '')}" placeholder="optional https://..."><div class="cms-image-upload-row"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" ${baseAttrs} data-block-bg-upload><span>Hintergrundbild hochladen oder URL einfügen</span></div>${block.bgImage ? `<div class="cms-block-image-preview"><img src="${escapeAttr(block.bgImage)}" alt=""></div>` : ''}</div><div class="field"><label>Hintergrund-Grösse</label><select ${baseAttrs} data-block-field="bgSize"><option value="cover" ${block.bgSize!=='contain'?'selected':''}>Cover</option><option value="contain" ${block.bgSize==='contain'?'selected':''}>Contain</option></select></div><div class="field"><label>Hintergrund-Position</label><select ${baseAttrs} data-block-field="bgPosition"><option value="center center" ${(block.bgPosition||'center center')==='center center'?'selected':''}>Mitte</option><option value="top center" ${block.bgPosition==='top center'?'selected':''}>Oben Mitte</option><option value="bottom center" ${block.bgPosition==='bottom center'?'selected':''}>Unten Mitte</option><option value="center left" ${block.bgPosition==='center left'?'selected':''}>Mitte links</option><option value="center right" ${block.bgPosition==='center right'?'selected':''}>Mitte rechts</option></select></div></div>`;
   let body = '';
   if(type === 'heading') body = `<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Überschrift DE</label><input ${baseAttrs} data-block-field="title_de" value="${escapeAttr(block.title_de || '')}"></div><div class="field"><label>Überschrift FR</label><input ${baseAttrs} data-block-field="title_fr" value="${escapeAttr(block.title_fr || '')}"></div></div>`;
   else if(type === 'image') body = `<div class="field"><label>Bild / Logo URL</label><input ${baseAttrs} data-block-field="image_url" value="${escapeAttr(block.image_url || '')}" placeholder="https://.../bild.png"></div><div class="cms-image-upload-row"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" ${baseAttrs} data-block-upload><span>Bild hochladen oder URL einfügen</span></div>${block.image_url ? `<div class="cms-block-image-preview"><img src="${escapeAttr(block.image_url)}" alt=""></div>` : ''}<div class="admin-product-row admin-product-row-equal"><div class="field"><label>Alt Text DE</label><input ${baseAttrs} data-block-field="alt_de" value="${escapeAttr(block.alt_de || '')}"></div><div class="field"><label>Alt Text FR</label><input ${baseAttrs} data-block-field="alt_fr" value="${escapeAttr(block.alt_fr || '')}"></div></div><div class="admin-product-row admin-product-row-equal"><div class="field"><label>Bildbreite</label><input ${baseAttrs} data-block-field="imageWidth" value="${escapeAttr(block.imageWidth || '')}" placeholder="z.B. 320px / 60% / 100%"></div><div class="field"><label>Bild Rundung</label><input ${baseAttrs} data-block-field="imageRadius" value="${escapeAttr(block.imageRadius || '')}" placeholder="z.B. 14px"></div><div class="field"><label>Position X</label><input ${baseAttrs} data-block-field="offsetX" value="${escapeAttr(block.offsetX || '')}" placeholder="z.B. 20px / -10px"></div><div class="field"><label>Position Y</label><input ${baseAttrs} data-block-field="offsetY" value="${escapeAttr(block.offsetY || '')}" placeholder="z.B. 20px / -10px"></div></div>`;
@@ -3666,6 +3688,19 @@ function bindAdminAnalytics(){
   if(logout) logout.onclick = ()=>doAdminLogout();
 }
 
+
+function bgPositionSelect(name, value, attrs=''){
+  const current = value || 'center center';
+  const opts = [
+    ['center center','Mitte'], ['top center','Oben Mitte'], ['bottom center','Unten Mitte'],
+    ['center left','Mitte links'], ['center right','Mitte rechts'],
+    ['top left','Oben links'], ['top right','Oben rechts'],
+    ['bottom left','Unten links'], ['bottom right','Unten rechts'],
+    ['50% 20%','Fokus oben'], ['50% 80%','Fokus unten']
+  ];
+  return `<select ${attrs} ${name ? `data-design-field="${escapeAttr(name)}"` : ''}>${opts.map(([v,label])=>`<option value="${escapeAttr(v)}" ${current===v?'selected':''}>${escapeHtml(label)}</option>`).join('')}</select>`;
+}
+
 function renderAdminDesign(){
   const d = state.admin.design || state.settings || {};
   const pages = [...(state.admin.pages || state.pages || [])].sort((a,b)=>Number(a.sort_order ?? 999)-Number(b.sort_order ?? 999) || String(a.slug||'').localeCompare(String(b.slug||'')));
@@ -3681,11 +3716,11 @@ function renderAdminDesign(){
       <div class="card cms-card"><h3>Design</h3><div class="maintenance-admin-box"><label class="admin-toggle"><input data-design-field="maintenanceMode" type="checkbox" ${d.maintenanceMode ? 'checked' : ''}><span>Wartungsmodus / Under Construction aktivieren</span></label><div class="note">Wenn aktiv, sehen Besucher eine Wartungsseite. Admin bleibt über /arbx-control erreichbar.</div></div><div class="admin-product-row admin-product-row-equal"><div class="field"><label>Mindestbestellwert CHF</label><input data-design-field="minimumOrderChf" type="number" min="0" step="0.05" value="${escapeAttr(String(d.minimumOrderChf ?? 15))}" placeholder="15"><div class="note">Wird im Warenkorb und serverseitig geprüft.</div></div><div class="field"><label>Logo URL</label><input data-design-field="logoUrl" value="${escapeAttr(d.logoUrl || '')}" placeholder="leer = Standardlogo"><div class="cms-image-upload-row"><input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-design-upload="logoUrl"><span>Logo hochladen oder URL einfügen</span></div>${d.logoUrl ? `<div class="cms-block-image-preview cms-logo-preview"><img src="${escapeAttr(d.logoUrl)}" alt="Logo"></div>` : ''}</div></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminTitleDe')}</label><input data-design-field="machineTitle_de" value="${escapeAttr(d.machineTitle_de || d.machineTitle || '')}" placeholder="Automat ARMEEBOX"></div><div class="field"><label>${t('adminTitleFr')}</label><input data-design-field="machineTitle_fr" value="${escapeAttr(d.machineTitle_fr || '')}" placeholder="Automate ARMEEBOX"></div></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminSloganDe')}</label><input data-design-field="machineInner_de" value="${escapeAttr(d.machineInner_de || d.machineInner || '')}" placeholder="Achtung, fertig, Fresspäckli"></div><div class="field"><label>${t('adminSloganFr')}</label><input data-design-field="machineInner_fr" value="${escapeAttr(d.machineInner_fr || '')}" placeholder="À vos marques, prêts, paquet du soldat"></div></div>
-        <div class="design-presets"><button class="back-btn ${(!d.designPreset || d.designPreset==='classic')?'is-active':''}" type="button" data-design-preset="classic">Standard</button><button class="back-btn ${d.designPreset==='camo'?'is-active':''}" type="button" data-design-preset="camo">Armee Tarnung</button><button class="back-btn ${d.designPreset==='premium'?'is-active':''}" type="button" data-design-preset="premium">Premium Schwarz</button><button class="back-btn ${d.designPreset==='swiss'?'is-active':''}" type="button" data-design-preset="swiss">Swiss Military</button></div>
+        <div class="cms-design-section-title">Design-Preset wählen</div><div class="design-presets"><button class="back-btn ${(!d.designPreset || d.designPreset==='classic')?'is-active':''}" type="button" data-design-preset="classic">Standard</button><button class="back-btn ${d.designPreset==='camo'?'is-active':''}" type="button" data-design-preset="camo">Armee Tarnung</button><button class="back-btn ${d.designPreset==='premium'?'is-active':''}" type="button" data-design-preset="premium">Premium Schwarz</button><button class="back-btn ${d.designPreset==='swiss'?'is-active':''}" type="button" data-design-preset="swiss">Swiss Military</button><button class="back-btn" type="button" data-design-reset>Design zurücksetzen</button></div><div class="note">Presets setzen nur Farben/Automaten-Optik. Texte, Produkte und Bestellungen bleiben unverändert.</div><div class="cms-design-section-title">Farben & Automat</div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>${t('adminButtonColor')}</label><input data-design-field="buttonColor" type="color" value="${escapeAttr(d.buttonColor || '#65a832')}"></div><div class="field"><label>${t('adminSlotColor')}</label><input data-design-field="slotColor" type="color" value="${escapeAttr(d.slotColor || '#3d5366')}"></div><div class="field"><label>${t('adminFrameColor')}</label><input data-design-field="frameColor" type="color" value="${escapeAttr(d.frameColor || '#b22b2b')}"></div><div class="field"><label>${t('adminBgColor')}</label><input data-design-field="bgColor" type="color" value="${escapeAttr(d.bgColor || '#061527')}"></div></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>Automat Gehäuse</label><input data-design-field="machineBodyColor" type="color" value="${escapeAttr(d.machineBodyColor || '#9ba0a4')}"></div><div class="field"><label>Automat Innenfläche</label><input data-design-field="machineInnerColor" type="color" value="${escapeAttr(d.machineInnerColor || '#35414b')}"></div><div class="field"><label>Warenkorb / Seitenpanel</label><input data-design-field="machinePanelColor" type="color" value="${escapeAttr(d.machinePanelColor || '#34414a')}"></div><div class="field"><label>Display / Banner</label><input data-design-field="machineBannerColor" type="color" value="${escapeAttr(d.machineBannerColor || '#111722')}"></div></div>
         <div class="admin-product-row admin-product-row-equal"><div class="field"><label>Leuchtfarbe</label><input data-design-field="machineGlowColor" type="color" value="${escapeAttr(d.machineGlowColor || '#d7fb77')}"></div><div class="field"><label>Preisfarbe</label><input data-design-field="machinePriceColor" type="color" value="${escapeAttr(d.machinePriceColor || '#f4d870')}"></div></div>
-        <div class="admin-product-row admin-product-row-equal"><div class="field"><label>Website Hintergrundbild URL</label><input data-design-field="bgImage" value="${escapeAttr(d.bgImage || '')}" placeholder="optional https://.../tarnmuster.jpg"><div class="cms-image-upload-row"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-design-upload="bgImage"><span>Tarn-/Hintergrundbild hochladen oder URL einfügen</span></div>${d.bgImage ? `<div class="cms-block-image-preview"><img src="${escapeAttr(d.bgImage)}" alt=""></div>` : ''}<div class="note">Dieses Bild liegt hinter dem Automaten und ersetzt den blauen Randbereich.</div></div><div class="field"><label>Hintergrund-Grösse</label><select data-design-field="bgSize"><option value="cover" ${(d.bgSize || 'cover') === 'cover' ? 'selected' : ''}>Cover</option><option value="contain" ${d.bgSize === 'contain' ? 'selected' : ''}>Contain</option></select></div><div class="field"><label>Hintergrund-Position</label><input data-design-field="bgPosition" value="${escapeAttr(d.bgPosition || 'center center')}" placeholder="center center"></div></div>
+        <div class="cms-design-section-title">Hintergrundbild</div><div class="admin-product-row admin-product-row-equal"><div class="field"><label>Website Hintergrundbild URL</label><input data-design-field="bgImage" value="${escapeAttr(d.bgImage || '')}" placeholder="optional https://.../tarnmuster.jpg"><div class="cms-image-upload-row"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-design-upload="bgImage"><span>Tarn-/Hintergrundbild hochladen oder URL einfügen</span></div>${d.bgImage ? `<div class="cms-block-image-preview"><img src="${escapeAttr(d.bgImage)}" alt=""></div>` : ''}<div class="note">Dieses Bild liegt hinter dem Automaten und ersetzt den blauen Randbereich.</div></div><div class="field"><label>Hintergrund-Grösse</label><select data-design-field="bgSize"><option value="cover" ${(d.bgSize || 'cover') === 'cover' ? 'selected' : ''}>Cover</option><option value="contain" ${d.bgSize === 'contain' ? 'selected' : ''}>Contain</option></select></div><div class="field"><label>Hintergrund-Position</label>${bgPositionSelect('bgPosition', d.bgPosition || 'center center')}<div class="note">Steuert, welcher Bildbereich hinter dem Automaten sichtbar ist.</div></div></div>
       </div>
       <div class="card cms-preview" id="designLivePreview" style="${previewStyle}"><h3>Live Preview</h3><div class="mini-machine"><div class="mini-frame">${d.logoUrl ? `<img class="mini-logo-preview" src="${escapeAttr(d.logoUrl)}" alt="Logo">` : ''}<div class="mini-title">${escapeHtml(d.machineTitle_de || d.machineTitle || t('machineTitle'))}</div><div class="mini-inner">${escapeHtml(d.machineInner_de || d.machineInner || t('machineInner'))}</div><div class="mini-slot">Slot</div><button>Button</button></div></div></div>
     </div>

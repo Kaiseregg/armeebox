@@ -125,6 +125,11 @@ hr{border:none;border-top:1px solid rgba(255,255,255,.08);margin:16px 0}
 .admin-chip.shipped{background:#1f5d63}
 .admin-chip.done{background:#2f5a2d}
 .admin-chip.archived{background:#3b4050;color:#cbd5e1}
+.admin-chip.payment_pending{background:#5f4b18;color:#ffe28a;border-color:#d1a94a}
+.admin-chip.payment_cancelled{background:#4c2630;color:#ffc7d0;border-color:#e36a82}
+.admin-payment-note{display:inline-flex;align-items:center;border-radius:12px;padding:10px 12px;font-weight:900;border:1px solid #5d789a;background:#10233e;color:#fff}
+.admin-payment-note.payment_pending{border-color:#d1a94a;color:#ffe28a;background:#2a230c}
+.admin-payment-note.payment_cancelled{border-color:#e36a82;color:#ffc7d0;background:#2b1118}
 .admin-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .admin-actions{display:flex;gap:10px;flex-wrap:wrap}
 .admin-detail-grid{display:grid;grid-template-columns:1.25fr .9fr;gap:18px}
@@ -1109,3 +1114,39 @@ button[data-action="bundle-info"] {
 .cms-preview .mini-inner{background:var(--machine-banner,#111722)}
 .cms-preview .mini-slot{background:var(--slot-color,#3d5366)}
 .cms-preview button{background:var(--button-color,#65a832)!important}
+
+/* STEP 20H - CMS Bedienung Pro */
+.cms-design-section-title{
+  margin:18px 0 8px;
+  padding:8px 10px;
+  border:1px solid rgba(125,170,220,.25);
+  border-radius:12px;
+  background:rgba(7,24,48,.55);
+  color:#eaf4ff;
+  font-weight:900;
+  letter-spacing:.2px;
+}
+.design-presets{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+  margin:8px 0 6px;
+}
+.design-presets .back-btn.is-active{
+  border-color:#d7fb77;
+  box-shadow:0 0 0 2px rgba(215,251,119,.18), 0 0 18px rgba(215,251,119,.18);
+  color:#f4ffba;
+}
+.cms-card .field select[data-design-field="bgPosition"],
+.cms-card .field select[data-block-field="bgPosition"]{
+  min-height:46px;
+  font-weight:800;
+}
+.cms-card .note{
+  line-height:1.35;
+}
+@media (max-width: 760px){
+  .design-presets .back-btn{flex:1 1 46%;}
+  .cms-design-section-title{font-size:13px;}
+}
