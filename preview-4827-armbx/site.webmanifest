@@ -1,0 +1,16 @@
+{
+  "name": "ARMEEBOX",
+  "short_name": "ARMEEBOX",
+  "description": "Virtueller Armee-Automat für Fresspäckli, Snacks und Militär-Care-Pakete.",
+  "lang": "de-CH",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#111a13",
+  "theme_color": "#19251b",
+  "icons": [
+    { "src": "/favicon-32x32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

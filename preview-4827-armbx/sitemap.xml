@@ -1,28 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://armeebox.ch/</loc>
-    <changefreq>daily</changefreq>
+    <lastmod>2026-06-07</lastmod>
+    <changefreq>weekly</changefreq>
     <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://armeebox.ch/preview-4827-armbx/</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://armeebox.ch/preview-4827-armbx/#shop</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://armeebox.ch/preview-4827-armbx/#agb</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://armeebox.ch/preview-4827-armbx/#datenschutz</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="de-CH" href="https://armeebox.ch/" />
+    <xhtml:link rel="alternate" hreflang="fr-CH" href="https://armeebox.ch/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://armeebox.ch/" />
   </url>
 </urlset>
