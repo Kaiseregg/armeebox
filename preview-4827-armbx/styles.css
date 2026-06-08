@@ -1150,3 +1150,31 @@ button[data-action="bundle-info"] {
   .design-presets .back-btn{flex:1 1 46%;}
   .cms-design-section-title{font-size:13px;}
 }
+
+/* STEP 22D – Admin FR preservation + readable info button
+   Only fixes: FR fields are no longer visually overwritten by DE on rerender;
+   long info-button labels are made readable instead of being cut off in one line. */
+.slot-info-strip{
+  height:auto !important;
+  min-height:24px !important;
+  max-height:34px !important;
+  line-height:1.08 !important;
+  white-space:normal !important;
+  overflow:hidden !important;
+  text-overflow:clip !important;
+  display:-webkit-box !important;
+  -webkit-line-clamp:2 !important;
+  -webkit-box-orient:vertical !important;
+  align-items:center !important;
+  justify-content:center !important;
+  overflow-wrap:anywhere !important;
+}
+@media (max-width:760px){
+  .slot-info-strip{
+    min-height:24px !important;
+    max-height:36px !important;
+    font-size:10px !important;
+    line-height:1.05 !important;
+    padding:3px 4px !important;
+  }
+}

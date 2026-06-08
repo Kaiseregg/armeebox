@@ -1155,13 +1155,15 @@ function parseBundleMeta(row){
   const directBundleOptions = Array.isArray(row?.bundle_options) && row.bundle_options.length ? row.bundle_options : directOptions;
   const rawShowInfo = row?.show_info ?? row?.info_enabled ?? row?.has_info;
   const baseSlotType = row?.slot_type === 'bundle' ? 'bundle' : 'normal';
+  const bundleObject = row?.bundle_content && typeof row.bundle_content === 'object' ? row.bundle_content : null;
+  const optionObject = row?.option_label && typeof row.option_label === 'object' ? row.option_label : null;
   const base = {
     slot_type: baseSlotType,
     show_info: rawShowInfo === undefined || rawShowInfo === null ? baseSlotType === 'bundle' : Boolean(rawShowInfo),
-    content_de: localizedAdminValue(row?.bundle_content_de ?? row?.bundle_content ?? row?.description_de ?? '', row?.description_de ?? ''),
-    content_fr: localizedAdminValue(row?.bundle_content_fr ?? '', ''),
-    option_label_de: localizedAdminValue(row?.option_label_de ?? row?.option_label?.de ?? '', ''),
-    option_label_fr: localizedAdminValue(row?.option_label_fr ?? row?.option_label?.fr ?? '', ''),
+    content_de: localizedAdminValue(row?.bundle_content_de ?? bundleObject?.de ?? row?.bundle_content ?? row?.description_de ?? '', row?.description_de ?? ''),
+    content_fr: localizedAdminValue(row?.bundle_content_fr ?? bundleObject?.fr ?? '', ''),
+    option_label_de: localizedAdminValue(row?.option_label_de ?? optionObject?.de ?? '', ''),
+    option_label_fr: localizedAdminValue(row?.option_label_fr ?? optionObject?.fr ?? '', ''),
     quantity_options: directOptions.length ? directOptions : [2,3,4],
     bundle_options: directBundleOptions.length ? directBundleOptions : [2,3,4],
     image_popup_enabled: Boolean(row?.image_popup_enabled ?? false),
@@ -1445,8 +1447,10 @@ function normalizeCatalogProduct(row, index){
   const fallbackNameFr = fallback.name?.fr || fallbackNameDe;
   const rawName = row?.name;
   const legacyNameDe = rawName && typeof rawName === 'object' ? (rawName.de || rawName.fr || '') : rawName;
+  const hasNameFrField = row && Object.prototype.hasOwnProperty.call(row, 'name_fr');
+  const rawObjectNameFr = rawName && typeof rawName === 'object' && Object.prototype.hasOwnProperty.call(rawName, 'fr') ? rawName.fr : undefined;
   const nameDe = String(row?.name_de || legacyNameDe || fallbackNameDe);
-  const nameFr = String(row?.name_fr || row?.name_de || legacyNameDe || fallbackNameFr);
+  const nameFr = String(hasNameFrField ? (row?.name_fr ?? '') : (rawObjectNameFr !== undefined ? rawObjectNameFr : (row?.name_de === undefined ? fallbackNameFr : '')));
   const priceChf = Number(row?.price_chf);
   const legacyPrice = Number(row?.price);
   const fallbackPrice = Number(fallback.price ?? 0);
@@ -1470,8 +1474,8 @@ function normalizeCatalogProduct(row, index){
     stock_min: stockValue(row?.stock_min ?? row?.minimum_stock ?? 0, 0),
     slot_type: meta.slot_type,
     show_info: Boolean(meta.show_info),
-    bundle_content: { de: meta.content_de, fr: meta.content_fr || meta.content_de },
-    option_label: { de: meta.option_label_de, fr: meta.option_label_fr || meta.option_label_de },
+    bundle_content: { de: meta.content_de, fr: meta.content_fr || '' },
+    option_label: { de: meta.option_label_de, fr: meta.option_label_fr || '' },
     quantity_options: meta.quantity_options,
     bundle_options: meta.bundle_options || meta.quantity_options,
     image_popup_enabled: Boolean(meta.image_popup_enabled),
@@ -2150,7 +2154,7 @@ function readAdminProductRowsDirectFromDom(){
     return {
       slot: slotNumber,
       name_de: value('name_de', product.name?.de || ''),
-      name_fr: value('name_fr', product.name?.fr || product.name?.de || ''),
+      name_fr: value('name_fr', product.name?.fr || ''),
       price_chf: Number(value('price', product.price || 0) || 0),
       is_active: checked('active', product.active !== false),
       image_url: value('image_url', product.image_url || ''),
@@ -2492,7 +2496,7 @@ function renderMachine(){
             const currentMultiplier = isBundle ? Number(currentOption?.factor || 1) : 1;
             const bundleOptions = isBundle ? bundleOptionList(p) : [];
             const currentOptionIndex = isBundle ? Number(state.bundleSelections?.[p.id] || 0) : 0;
-            const displayName = p.name[state.lang];
+            const displayName = p.name[state.lang] || p.name.de || p.name.fr || '';
             const displayPriceValue = displayPrice(p);
             const isSelected = state.cart.some((entry)=>String(cartEntryProductId(entry))===String(p.id));
             return `
@@ -3884,7 +3888,7 @@ function renderAdminProducts(){
             <div class="field"><label>${t('adminSlotType')}</label><select data-product-field="slot_type" data-product-index="${index}"><option value="normal" ${product.slot_type !== 'bundle' ? 'selected' : ''}>${t('adminSlotTypeNormal')}</option><option value="bundle" ${product.slot_type === 'bundle' ? 'selected' : ''}>${t('adminSlotTypeBundle')}</option></select></div>
             <div class="admin-product-row admin-product-row-equal">
               <div class="field"><label>${t('adminNameDe')}</label><input data-product-field="name_de" data-product-index="${index}" value="${escapeAttr(product.name?.de || '')}"></div>
-              <div class="field"><label>${t('adminNameFr')}</label><input data-product-field="name_fr" data-product-index="${index}" value="${escapeAttr(product.name?.fr || product.name?.de || '')}"></div>
+              <div class="field"><label>${t('adminNameFr')}</label><input data-product-field="name_fr" data-product-index="${index}" value="${escapeAttr(product.name?.fr || '')}"></div>
             </div>
             <div class="admin-product-row">
               <div class="field"><label>${product.slot_type === 'bundle' ? 'Basispreis pro Auswahl/Einheit' : t('adminPrice')}</label><input data-product-field="price" data-product-index="${index}" type="number" min="0" step="0.05" value="${escapeAttr(String(product.price ?? 0))}"></div>
@@ -4060,7 +4064,7 @@ function bindAdminProducts(){
         products.splice(targetIndex, 0, moved);
         products = reindexAdminProducts(products);
       }
-      else if(field === 'name_de') product.name = { ...(product.name || {}), de: input.value, fr: product.name?.fr || input.value };
+      else if(field === 'name_de') product.name = { ...(product.name || {}), de: input.value, fr: product.name?.fr || '' };
       else if(field === 'name_fr') product.name = { ...(product.name || {}), de: product.name?.de || '', fr: input.value };
       else product[field] = input.value;
       state.admin.products = field === 'slotNumber' ? products : products;
