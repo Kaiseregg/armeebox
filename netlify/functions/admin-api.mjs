@@ -955,6 +955,19 @@ export default async (request) => {
       return json(200, { success: true, analytics });
     }
 
+    if (action === 'delete-customer' && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const email = safeEmail(body.email);
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, {success:false,error:'Ungültige E-Mail-Adresse'});
+      // Preserve orders and contact messages. Reject deletion if this email occurs in either table.
+      const orderRows = await supa(`orders?select=id&customer_email=eq.${encodeURIComponent(email)}&limit=1`);
+      const messageRows = await supa(`contact_messages?select=*&limit=2000`);
+      const hasMessage = Array.isArray(messageRows) && messageRows.some(m => safeEmail(m.email || m.sender_email || m.customer_email) === email);
+      if ((Array.isArray(orderRows) && orderRows.length) || hasMessage) return json(409, {success:false,error:'Kunde hat Bestellungen oder Kontaktanfragen. Aus Sicherheitsgründen nicht löschbar.'});
+      await supa(`customers?email=eq.${encodeURIComponent(email)}`, {method:'DELETE'});
+      return json(200, {success:true});
+    }
+
     if (action === 'customers' && request.method === 'GET') {
       const customers = await listCustomersCrm();
       return json(200, { success: true, customers });
