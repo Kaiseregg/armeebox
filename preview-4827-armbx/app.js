@@ -1624,14 +1624,14 @@ function deliveryNoteHtml(order){
       h1{font-size:30px;margin:0 0 6px}.muted{color:#555}.grid{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin:18px 0}
       table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ccc;text-align:left;padding:9px 6px}th{border-bottom:2px solid #111}
       .total{margin-top:16px;text-align:right;font-size:18px}.msg{border:1px solid #ccc;padding:14px;margin-top:18px;min-height:60px;white-space:pre-wrap}
-      @media print{button{display:none}body{margin:20mm}}
+      .delivery-logo{display:block;width:180px;max-height:65px;object-fit:contain;object-position:left center;margin-bottom:10px}.delivery-footer{margin-top:32px;padding-top:10px;border-top:1px solid #bbb;text-align:center;color:#34455c;font-size:12px}@media print{button{display:none}body{margin:20mm}.delivery-footer{break-inside:avoid}}
     </style></head><body>
     <button onclick="window.print()" style="float:right;padding:10px 14px">Drucken</button>
-    <div class="head"><div><h1>ARMEEBOX Lieferschein</h1><div class="muted">Bestellnummer: ${escapeHtml(order?.order_number || '-')}</div></div><div><strong>Bestellt am</strong><br>${escapeHtml(date)}</div></div>
+    <div class="head"><div><img class="delivery-logo" src="https://armeebox.ch/public/logo.png" alt="ARMEEBOX Logo"><h1>ARMEEBOX Lieferschein</h1><div class="muted">Bestellnummer: ${escapeHtml(order?.order_number || '-')}</div></div><div><strong>Bestellt am</strong><br>${escapeHtml(date)}</div></div>
     <div class="grid"><div>${deliveryBlock}</div><div>${senderBlock}</div></div>
     <h2>Artikel</h2><table><thead><tr><th>Produkt</th><th>Menge</th><th>Betrag</th></tr></thead><tbody>${itemRows}</tbody></table>
     <div class="total"><strong>Total: ${money(order?.total ?? order?.total_chf ?? 0)}</strong></div>
-    <h2>Nachricht an den Soldaten</h2><div class="msg">${escapeHtml(meta.message || '-')}</div>
+    <h2>Nachricht an den Soldaten</h2><div class="msg">${escapeHtml(meta.message || '-')}</div><footer class="delivery-footer">www.armeebox.ch</footer>
     </body></html>`;
 }
 function printDeliveryNote(){
@@ -2414,7 +2414,7 @@ function renderLanguage(){
   return `
   <div class="page hero-box">
     <div class="hero-card language-card">
-      <img class="hero-logo" src="../public/logo.png" alt="ARMEEBOX">
+      <img class="hero-logo" src="/public/logo.png" alt="ARMEEBOX">
       <div class="goldline">ARMEBOX.CH</div>
       <h1 class="hero-title" style="font-size:62px">${t('langTitle')}</h1>
       <div class="lang-row">
@@ -2430,7 +2430,7 @@ function renderIntro(){
   <div class="page hero-box">
     <div class="hero-card">
       <div class="goldline">${t('smallTitle')}</div>
-      <img class="hero-logo" src="../public/logo.png" alt="ARMEEBOX">
+      <img class="hero-logo" src="/public/logo.png" alt="ARMEEBOX">
       <h1 class="hero-title">${t('introTitle')}</h1>
       <p class="hero-copy">${t('introCopy')}</p>
       <div class="hero-actions"><button class="cta primary" id="toShopBtn">${t('toMachine')}</button></div>
@@ -3530,12 +3530,14 @@ function renderAdminCustomers(){
       <td>${escapeHtml(c.last_order_at ? formatDate(c.last_order_at) : '-')}<div class="note">${escapeHtml(c.last_order_number || '')}</div></td>
       <td>${Number(c.contact_count || 0)}</td>
       <td><span class="admin-chip ${Number(c.order_count||0)>0?'done':'new'}">${escapeHtml(c.source || 'Kunde')}</span></td>
+      <td><button type="button" class="back-btn mini danger" data-customer-delete="${escapeAttr(c.email || '')}" title="Kundeneintrag löschen">🗑 Löschen</button></td>
     </tr>`).join('');
   const cards = customers.map(c=>`
     <div class="crm-card">
       <div><strong>${escapeHtml(c.email || '-')}</strong><span>${escapeHtml(c.name || '')}</span></div>
       <div class="crm-card-grid"><em>Bestellungen<br><b>${Number(c.order_count||0)}</b></em><em>Umsatz<br><b>${money(c.total_spent||0)}</b></em><em>Kontakt<br><b>${Number(c.contact_count||0)}</b></em></div>
       <div class="note">Letzte Bestellung: ${escapeHtml(c.last_order_at ? formatDate(c.last_order_at) : '-')}</div>
+      <button type="button" class="back-btn mini danger" data-customer-delete="${escapeAttr(c.email || '')}">🗑 Löschen</button>
     </div>`).join('');
   return `
   ${topbar()}
@@ -3576,7 +3578,7 @@ function renderAdminCustomers(){
         </div>
       </div>
       <div class="card table-wrap">
-        ${customers.length ? `<div class="admin-table-desktop"><table class="admin-table"><thead><tr><th>Kunde</th><th>Bestellungen</th><th>Umsatz</th><th>Letzte Bestellung</th><th>Kontakt</th><th>Quelle</th></tr></thead><tbody>${rows}</tbody></table></div><div class="admin-mobile-list">${cards}</div>` : `<div class="note">Keine Kunden gefunden.</div>`}
+        ${customers.length ? `<div class="admin-table-desktop"><table class="admin-table"><thead><tr><th>Kunde</th><th>Bestellungen</th><th>Umsatz</th><th>Letzte Bestellung</th><th>Kontakt</th><th>Quelle</th><th>Aktion</th></tr></thead><tbody>${rows}</tbody></table></div><div class="admin-mobile-list">${cards}</div>` : `<div class="note">Keine Kunden gefunden.</div>`}
       </div>
     `}
   </div></div>`;
@@ -3590,6 +3592,21 @@ function bindAdminCustomers(){
   if(archiveTab) archiveTab.onclick = ()=>{ state.admin.filter='archived'; save(); render(); };
   const logout = document.getElementById('adminLogoutBtn');
   if(logout) logout.onclick = ()=>doAdminLogout();
+  document.querySelectorAll('[data-customer-delete]').forEach(button => button.onclick = async () => {
+    const email = button.dataset.customerDelete;
+    const customer = (state.admin.customers || []).find(c => c.email === email);
+    if (!customer) return;
+    if (Number(customer.order_count || 0) || Number(customer.contact_count || 0)) {
+      alert('Dieser Kunde ist mit Bestellungen oder Kontaktanfragen verknüpft. Diese Daten werden zum Schutz der Bestellhistorie nicht gelöscht. Eine separate CRM-Ausblendfunktion ist noch nicht eingerichtet.');
+      return;
+    }
+    if (!confirm(`Kundeneintrag ${email} wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.`)) return;
+    button.disabled = true;
+    try {
+      await adminRequest('delete-customer', {method:'POST',body:{email}});
+      await loadAdminCustomers();
+    } catch(error) { alert(error.message || 'Löschen fehlgeschlagen'); button.disabled = false; }
+  });
   const search = document.getElementById('adminCustomerSearchInput');
   if(search) search.oninput = ()=>{ const value=search.value; state.admin.customerSearch=value; save(); render(); requestAnimationFrame(()=>{ const n=document.getElementById('adminCustomerSearchInput'); if(n){ n.focus(); try{n.setSelectionRange(value.length,value.length)}catch(_){}} }); };
   const filter = document.getElementById('adminCustomerFilterSelect');
@@ -3873,7 +3890,7 @@ function renderAdminProducts(){
       </div>
       <div class="quick-filter-bar card"><strong>Schnellfilter</strong><button class="back-btn ${state.admin.productsQuickFilter==='all'?'is-active':''}" data-products-filter="all">Alle</button><button class="back-btn ${state.admin.productsQuickFilter==='low'?'is-active':''}" data-products-filter="low">Knapp</button><button class="back-btn ${state.admin.productsQuickFilter==='out'?'is-active':''}" data-products-filter="out">Leer</button><button class="back-btn ${state.admin.productsQuickFilter==='active'?'is-active':''}" data-products-filter="active">Aktiv</button><button class="back-btn ${state.admin.productsQuickFilter==='bundle'?'is-active':''}" data-products-filter="bundle">Boxen</button><button class="back-btn ${state.admin.productsQuickFilter==='normal'?'is-active':''}" data-products-filter="normal">Snacks/Getränke</button></div>
       <div class="admin-products-grid">
-        ${products.length ? products.map((product, index) => `
+        ${products.length ? products.map((product) => { const index = allProducts.findIndex(p => String(p.id) === String(product.id)); return `
           <div class="card admin-product-card" draggable="true" data-draggable-slot="${index}">
             <div class="admin-slot-head">
               <div>
@@ -3939,7 +3956,7 @@ function renderAdminProducts(){
               ${renderAdminGalleryManager(product, index)}
             </div>
           </div>
-        `).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
+        `; }).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
       </div>
       ${typeof renderInventoryOverview === 'function' ? renderInventoryOverview(products) : ''}
       <div class="admin-primary-row">
@@ -4173,6 +4190,32 @@ function bindAdminProducts(){
   const saveBtn = document.getElementById('adminSaveProductsBtn');
   if(saveBtn) saveBtn.onclick = ()=>saveAdminProducts();
 }
+function installAdminSidebar(){
+  const routes = ['admin-orders','admin-order','admin-products','admin-customers','admin-analytics','admin-design'];
+  if(!routes.includes(state.route) || !state.admin.loggedIn) return;
+  const page = app.querySelector('.page');
+  if(!page) return;
+  const nav = document.createElement('aside');
+  nav.className = 'armeebox-admin-sidebar';
+  nav.innerHTML = `<div class="admin-sidebar-brand"><img src="/public/logo.png" alt="ARMEEBOX"><span>VERWALTUNG</span></div><nav aria-label="Admin Navigation">
+  ${[['admin-orders','▦','Bestellungen'],['admin-products','▣','Produkte / Slots'],['admin-customers','♙','Kunden'],['admin-analytics','▥','Statistik'],['admin-design','✎','Design / Texte']].map(([route,icon,label])=>`<button type="button" data-admin-nav="${route}" class="${state.route===route || (state.route==='admin-order' && route==='admin-orders')?'selected':''}"><span aria-hidden="true">${icon}</span>${label}</button>`).join('')}
+  </nav><div class="admin-sidebar-bottom"><button type="button" id="adminSidebarLogout">Abmelden</button></div>`;
+  page.classList.add('armeebox-admin-layout');
+  page.prepend(nav);
+  nav.querySelectorAll('[data-admin-nav]').forEach(btn=>btn.onclick=()=>{
+    const route=btn.dataset.adminNav;
+    if(route===state.route) return;
+    history.replaceState(null,'','#'+route);
+    state.route=route;
+    if(route==='admin-orders') loadAdminOrders();
+    else if(route==='admin-products') loadAdminProducts();
+    else if(route==='admin-customers') loadAdminCustomers();
+    else if(route==='admin-analytics') loadAdminAnalytics();
+    else if(route==='admin-design') loadAdminDesign();
+    else render();
+  });
+  nav.querySelector('#adminSidebarLogout').onclick=()=>doAdminLogout();
+}
 function render(){
   if(isArmeboxAdminRoute(state.route) && blockPublicAdminRoute()){
     updateHash();
@@ -4198,6 +4241,7 @@ function render(){
   if(state.route==='admin-customers') html=renderAdminCustomers();
   if(state.route==='page') html=renderContentPage();
   app.innerHTML=html;
+  installAdminSidebar();
   bindCommon();
   if(state.route==='intro') document.getElementById('toShopBtn').onclick=()=>setRoute('shop');
   if(state.route==='shop') bindMachine();

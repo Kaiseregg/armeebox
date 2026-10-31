@@ -1178,3 +1178,22 @@ button[data-action="bundle-info"] {
     padding:3px 4px !important;
   }
 }
+
+/* ARMEЕBOX Admin 2.0: isolated visual improvements */
+@media(min-width:1050px){
+  .page.armeebox-admin-layout{display:grid;grid-template-columns:224px minmax(0,1fr);align-items:start;gap:20px;max-width:none;padding:20px 24px}
+  .armeebox-admin-layout>.shell{width:100%;max-width:none;min-width:0;margin:0}
+  .armeebox-admin-layout .admin-products-grid{grid-template-columns:repeat(auto-fit,minmax(285px,1fr));gap:14px}
+  .armeebox-admin-layout .admin-product-card{min-width:0}
+}
+.armeebox-admin-sidebar{position:sticky;top:14px;display:flex;flex-direction:column;gap:18px;background:#0b1d35;border:1px solid #294563;border-radius:17px;padding:18px 12px;min-height:calc(100vh - 45px);box-sizing:border-box}
+.admin-sidebar-brand{display:flex;flex-direction:column;gap:9px;padding:6px 9px 17px;border-bottom:1px solid #294563;color:#a7bbd2;font-size:11px;letter-spacing:.12em;font-weight:700}
+.admin-sidebar-brand img{max-width:145px;max-height:45px;object-fit:contain;object-position:left}
+.armeebox-admin-sidebar nav{display:flex;flex-direction:column;gap:6px}
+.armeebox-admin-sidebar button{width:100%;text-align:left;border:0;border-radius:10px;padding:12px 11px;background:transparent;color:#c5d5e7;font:600 13px Arial,sans-serif;cursor:pointer}
+.armeebox-admin-sidebar button span{display:inline-block;width:26px;color:#a2c2e5;font-size:17px}
+.armeebox-admin-sidebar button:hover,.armeebox-admin-sidebar button.selected{background:#1e3b5d;color:white}
+.armeebox-admin-sidebar button.selected{box-shadow:inset 3px 0 #a6d65b}
+.admin-sidebar-bottom{margin-top:auto;border-top:1px solid #294563;padding-top:12px}
+.armeebox-admin-layout .admin-product-card textarea[data-product-field^="bundle_content"]{min-height:135px;resize:vertical;line-height:1.5;font-size:14px}
+@media(max-width:1049px){.armeebox-admin-sidebar{position:static;min-height:0;margin-bottom:18px}.armeebox-admin-sidebar nav{flex-direction:row;flex-wrap:wrap}.armeebox-admin-sidebar nav button{width:auto}.admin-sidebar-brand{flex-direction:row;align-items:center}.admin-sidebar-bottom{margin-top:0}}
