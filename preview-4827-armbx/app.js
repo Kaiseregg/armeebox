@@ -3596,11 +3596,7 @@ function bindAdminCustomers(){
     const email = button.dataset.customerDelete;
     const customer = (state.admin.customers || []).find(c => c.email === email);
     if (!customer) return;
-    if (Number(customer.order_count || 0) || Number(customer.contact_count || 0)) {
-      alert('Dieser Kunde ist mit Bestellungen oder Kontaktanfragen verknüpft. Diese Daten werden zum Schutz der Bestellhistorie nicht gelöscht. Eine separate CRM-Ausblendfunktion ist noch nicht eingerichtet.');
-      return;
-    }
-    if (!confirm(`Kundeneintrag ${email} wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.`)) return;
+    if (!confirm(`Kunde ${email} aus der Kundenübersicht entfernen?\n\nBestellungen, Rechnungsdaten und Kontaktanfragen bleiben aus rechtlichen und technischen Gründen erhalten. Der Eintrag wird in der CRM-Übersicht ausgeblendet.`)) return;
     button.disabled = true;
     try {
       await adminRequest('delete-customer', {method:'POST',body:{email}});
