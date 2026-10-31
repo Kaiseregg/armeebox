@@ -827,7 +827,12 @@ async function listCustomersCrm() {
     });
   }
 
-  return Array.from(map.values()).sort((a, b) => {
+  // CRM-Ausblendung betrifft ausschliesslich die Kundenübersicht.
+  // Historische Bestellungen, Kontaktanfragen und Newsletterdaten bleiben erhalten.
+  const settingsRow = await getSettingsRow();
+  const crmSettings = settingsRow?.cms_settings && typeof settingsRow.cms_settings === 'object' ? settingsRow.cms_settings : {};
+  const hidden = new Set((Array.isArray(crmSettings.crm_hidden_customers) ? crmSettings.crm_hidden_customers : []).map(safeEmail).filter(Boolean));
+  return Array.from(map.values()).filter(customer => !hidden.has(customer.email)).sort((a, b) => {
     const bySpent = Number(b.total_spent || 0) - Number(a.total_spent || 0);
     if (bySpent) return bySpent;
     return String(b.last_order_at || '').localeCompare(String(a.last_order_at || '')) || String(a.email).localeCompare(String(b.email));
@@ -958,14 +963,17 @@ export default async (request) => {
     if (action === 'delete-customer' && request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
       const email = safeEmail(body.email);
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, {success:false,error:'Ungültige E-Mail-Adresse'});
-      // Preserve orders and contact messages. Reject deletion if this email occurs in either table.
-      const orderRows = await supa(`orders?select=id&customer_email=eq.${encodeURIComponent(email)}&limit=1`);
-      const messageRows = await supa(`contact_messages?select=*&limit=2000`);
-      const hasMessage = Array.isArray(messageRows) && messageRows.some(m => safeEmail(m.email || m.sender_email || m.customer_email) === email);
-      if ((Array.isArray(orderRows) && orderRows.length) || hasMessage) return json(409, {success:false,error:'Kunde hat Bestellungen oder Kontaktanfragen. Aus Sicherheitsgründen nicht löschbar.'});
-      await supa(`customers?email=eq.${encodeURIComponent(email)}`, {method:'DELETE'});
-      return json(200, {success:true});
+      if (!email) return json(400, {success:false,error:'Ungültige E-Mail-Adresse'});
+      // No deletion of historical orders or contact messages. CRM-only suppression.
+      const row = await getSettingsRow();
+      if (!row?.id) return json(409, {success:false,error:'CRM-Einstellungen fehlen. Keine Änderung durchgeführt.'});
+      const cms = row.cms_settings && typeof row.cms_settings === 'object' ? row.cms_settings : {};
+      const hidden = [...new Set([...(Array.isArray(cms.crm_hidden_customers) ? cms.crm_hidden_customers : []).map(safeEmail), email].filter(Boolean))];
+      await supa(`site_settings?id=eq.${encodeURIComponent(row.id)}`, {
+        method:'PATCH', headers:{Prefer:'return=minimal'},
+        body:JSON.stringify({cms_settings:{...cms,crm_hidden_customers:hidden}})
+      });
+      return json(200, {success:true, hidden:true});
     }
 
     if (action === 'customers' && request.method === 'GET') {
