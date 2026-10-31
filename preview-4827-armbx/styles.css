@@ -1197,3 +1197,30 @@ button[data-action="bundle-info"] {
 .admin-sidebar-bottom{margin-top:auto;border-top:1px solid #294563;padding-top:12px}
 .armeebox-admin-layout .admin-product-card textarea[data-product-field^="bundle_content"]{min-height:135px;resize:vertical;line-height:1.5;font-size:14px}
 @media(max-width:1049px){.armeebox-admin-sidebar{position:static;min-height:0;margin-bottom:18px}.armeebox-admin-sidebar nav{flex-direction:row;flex-wrap:wrap}.armeebox-admin-sidebar nav button{width:auto}.admin-sidebar-brand{flex-direction:row;align-items:center}.admin-sidebar-bottom{margin-top:0}}
+
+/* ARMEЕBOX compact slot overview – scoped to product administration only */
+.armeebox-admin-layout .admin-slot-search-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:18px 0 14px;color:#b9cce2}
+.armeebox-admin-layout .admin-slot-search-row label{font-size:13px;font-weight:700}
+.armeebox-admin-layout .admin-slot-search-row input{flex:1;min-width:190px;max-width:480px;background:#08182d;color:#fff;border:1px solid #355676;border-radius:10px;padding:12px 14px}
+.armeebox-admin-layout .admin-slot-search-row span{font-size:12px;margin-left:auto}
+.armeebox-admin-layout .admin-slot-summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;margin-bottom:22px}
+.armeebox-admin-layout .admin-slot-summary{min-width:0;display:flex;flex-direction:column;gap:9px;padding:13px;background:#10253e;border:1px solid #31506c;border-radius:15px;color:#eef5ff;text-align:left;cursor:pointer;transition:border-color .15s,transform .15s}
+.armeebox-admin-layout .admin-slot-summary:hover,.armeebox-admin-layout .admin-slot-summary:focus-visible,.armeebox-admin-layout .admin-slot-summary.is-selected{border-color:#a5d65f;outline:none;box-shadow:0 0 0 1px rgba(165,214,95,.2)}
+.armeebox-admin-layout .slot-summary-top,.armeebox-admin-layout .slot-summary-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px}
+.armeebox-admin-layout .slot-summary-top strong{font-size:13px}
+.armeebox-admin-layout .slot-summary-status{font-size:11px;color:#9cde88}
+.armeebox-admin-layout .slot-summary-image{height:105px;display:flex;align-items:center;justify-content:center;background:#07172c;border-radius:10px;overflow:hidden;font-size:38px}
+.armeebox-admin-layout .slot-summary-image img{height:100%;width:100%;object-fit:contain;padding:8px;box-sizing:border-box}
+.armeebox-admin-layout .slot-summary-title{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.armeebox-admin-layout .slot-summary-bottom{color:#c5d6e8}
+.armeebox-admin-layout .slot-summary-edit{font-size:12px;color:#c8ec89;font-weight:700;margin-top:auto}
+.armeebox-admin-layout .admin-slot-edit-section{background:#0c2038;border:1px solid #446480;border-radius:18px;padding:20px;margin:22px 0;scroll-margin-top:20px}
+.armeebox-admin-layout .admin-slot-edit-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}
+.armeebox-admin-layout .admin-slot-edit-heading h2{margin:4px 0;font-size:22px}
+.armeebox-admin-layout .admin-slot-edit-heading p{margin:0;color:#b9cce2;font-size:13px}
+.armeebox-admin-layout .admin-slot-edit-eyebrow{font-size:11px;color:#b5e375;font-weight:800;letter-spacing:.1em}
+.armeebox-admin-layout .admin-products-editor-grid{display:block!important;max-width:950px;margin:auto}
+.armeebox-admin-layout .admin-products-editor-grid .admin-product-card{width:100%;max-width:none;box-sizing:border-box}
+.armeebox-admin-layout .admin-slot-editor-save{display:flex;justify-content:flex-end;margin-top:16px}
+.armeebox-admin-layout .admin-slot-editor-save button{min-width:220px}
+@media(max-width:600px){.armeebox-admin-layout .admin-slot-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.armeebox-admin-layout .admin-slot-summary{padding:10px}.armeebox-admin-layout .slot-summary-image{height:82px}.armeebox-admin-layout .admin-slot-edit-section{padding:12px}.armeebox-admin-layout .admin-slot-edit-heading{flex-wrap:wrap}}

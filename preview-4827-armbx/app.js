@@ -3857,10 +3857,29 @@ function renderInventoryOverview(products){
     </div>`;
 }
 
+// UI-only selection: product data and save handlers remain unchanged.
+let adminSelectedSlotId = null;
+let adminSlotSearch = '';
+function adminSlotSummary(product, index){
+  const stock = productStock(product);
+  const title = product.name?.de || product.name?.fr || `Slot ${product.slot}`;
+  const selected = String(adminSelectedSlotId) === String(product.id);
+  return `<button type="button" class="admin-slot-summary ${selected ? 'is-selected' : ''}" data-open-slot="${index}" aria-label="Slot ${escapeAttr(product.slot)} ${escapeAttr(title)} bearbeiten" aria-pressed="${selected}">
+    <span class="slot-summary-top"><strong>Slot ${escapeHtml(product.slot)}</strong><span class="slot-summary-status ${stockStatusClass(product)}">${escapeHtml(stockStatusText(product))}</span></span>
+    <span class="slot-summary-image">${product.image_url ? `<img src="${escapeAttr(product.image_url)}" alt="" loading="lazy">` : '<span aria-hidden="true">📦</span>'}</span>
+    <span class="slot-summary-title">${escapeHtml(title)}</span>
+    <span class="slot-summary-bottom"><span>${money(Number(product.price || 0))}</span><span>Ist: ${escapeHtml(String(stock.current))}</span></span>
+    <span class="slot-summary-edit">Bearbeiten ↗</span>
+  </button>`;
+}
+
 function renderAdminProducts(){
   const allProducts = adminProductsList();
   const products = adminProductsFilteredList();
   const kpi = orderKpis();
+  const searched = products.filter(p => `${p.slot} ${p.name?.de || ''} ${p.name?.fr || ''}`.toLocaleLowerCase().includes(adminSlotSearch.toLocaleLowerCase()));
+  const selectedIndex = allProducts.findIndex(p => String(p.id) === String(adminSelectedSlotId));
+  const selectedProduct = selectedIndex >= 0 ? allProducts[selectedIndex] : null;
   return `
   ${topbar()}
   <div class="page">
@@ -3889,9 +3908,19 @@ function renderAdminProducts(){
         <div><strong>${kpi.open}</strong><span>Offene Bestellungen</span></div>
       </div>
       <div class="quick-filter-bar card"><strong>Schnellfilter</strong><button class="back-btn ${state.admin.productsQuickFilter==='all'?'is-active':''}" data-products-filter="all">Alle</button><button class="back-btn ${state.admin.productsQuickFilter==='low'?'is-active':''}" data-products-filter="low">Knapp</button><button class="back-btn ${state.admin.productsQuickFilter==='out'?'is-active':''}" data-products-filter="out">Leer</button><button class="back-btn ${state.admin.productsQuickFilter==='active'?'is-active':''}" data-products-filter="active">Aktiv</button><button class="back-btn ${state.admin.productsQuickFilter==='bundle'?'is-active':''}" data-products-filter="bundle">Boxen</button><button class="back-btn ${state.admin.productsQuickFilter==='normal'?'is-active':''}" data-products-filter="normal">Snacks/Getränke</button></div>
-      <div class="admin-products-grid">
-        ${products.length ? products.map((product) => { const index = allProducts.findIndex(p => String(p.id) === String(product.id)); return `
-          <div class="card admin-product-card" draggable="true" data-draggable-slot="${index}">
+      <div class="admin-slot-search-row">
+        <label for="adminSlotSearchInput">Slot suchen</label>
+        <input id="adminSlotSearchInput" type="search" placeholder="Slotnummer oder Produktname …" value="${escapeAttr(adminSlotSearch)}" autocomplete="off">
+        <span>${searched.length} von ${allProducts.length} Slots</span>
+      </div>
+      <div class="admin-slot-summary-grid">
+        ${searched.length ? searched.map(product => adminSlotSummary(product, allProducts.findIndex(p => String(p.id) === String(product.id)))).join('') : `<div class="note">Keine passenden Slots gefunden.</div>`}
+      </div>
+      ${selectedProduct ? `<section class="admin-slot-edit-section" id="adminSlotEditor" aria-label="Slot bearbeiten">
+        <div class="admin-slot-edit-heading"><div><span class="admin-slot-edit-eyebrow">SLOT ${escapeHtml(selectedProduct.slot)}</span><h2>${escapeHtml(selectedProduct.name?.de || selectedProduct.name?.fr || 'Produkt')} bearbeiten</h2><p>Änderungen unten speichern. Alle bisherigen Einstellungen sind verfügbar.</p></div><button type="button" class="back-btn" id="adminCloseSlotBtn">Schliessen ✕</button></div>
+        <div class="admin-products-grid admin-products-editor-grid">
+          ${(() => { const product = selectedProduct; const index = selectedIndex; return `
+          <div class="card admin-product-card admin-slot-editor">
             <div class="admin-slot-head">
               <div>
                 <div class="admin-product-slot">${t('adminSlot')} ${escapeHtml(product.slot)}</div>
@@ -3956,8 +3985,10 @@ function renderAdminProducts(){
               ${renderAdminGalleryManager(product, index)}
             </div>
           </div>
-        `; }).join('') : `<div class="note">${t('adminNoProducts')}</div>`}
-      </div>
+          `; })()}
+        </div>
+        <div class="admin-slot-editor-save"><button class="cta primary" id="adminSaveSelectedSlotBtn" ${state.admin.productsSaving ? 'disabled' : ''}>${state.admin.productsSaving ? t('adminProductsSaving') : t('adminProductsSave')}</button></div>
+      </section>` : ''}
       ${typeof renderInventoryOverview === 'function' ? renderInventoryOverview(products) : ''}
       <div class="admin-primary-row">
         <button class="cta primary" id="adminSaveProductsBtn" ${state.admin.productsSaving ? 'disabled' : ''}>${state.admin.productsSaving ? t('adminProductsSaving') : t('adminProductsSave')}</button>
@@ -4043,6 +4074,26 @@ function bindAdminOrder(){
   };
 }
 function bindAdminProducts(){
+  document.querySelectorAll('[data-open-slot]').forEach(btn => btn.onclick = () => {
+    const product = adminProductsList()[Number(btn.dataset.openSlot)];
+    if(!product) return;
+    adminSelectedSlotId = String(product.id);
+    render();
+    document.getElementById('adminSlotEditor')?.scrollIntoView({behavior:'smooth',block:'start'});
+  });
+  const slotSearch = document.getElementById('adminSlotSearchInput');
+  if(slotSearch) slotSearch.oninput = () => {
+    const pos = slotSearch.selectionStart;
+    adminSlotSearch = slotSearch.value;
+    render();
+    const next = document.getElementById('adminSlotSearchInput');
+    if(next){next.focus(); try{next.setSelectionRange(pos,pos);}catch(_){}}
+  };
+  const closeSlot = document.getElementById('adminCloseSlotBtn');
+  if(closeSlot) closeSlot.onclick = () => {adminSelectedSlotId = null; render();};
+  const saveSelected = document.getElementById('adminSaveSelectedSlotBtn');
+  if(saveSelected) saveSelected.onclick = () => saveAdminProducts();
+
   const back = document.getElementById('adminBackToOrdersBtn');
   if(back) back.onclick = ()=>{ history.replaceState(null,'','#admin-orders'); state.route='admin-orders'; loadAdminOrders(); };
   const refresh = document.getElementById('adminProductsRefreshBtn');
